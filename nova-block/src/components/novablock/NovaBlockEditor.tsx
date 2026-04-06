@@ -149,8 +149,11 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
 
   const handleStickyNotesChange = useCallback((newNotes: StickyNoteData[]) => {
     setStickyNotes(newNotes);
-    onSave({ sticky_notes: newNotes });
-  }, [onSave]);
+    if (latestNoteRef.current) {
+      latestNoteRef.current = { ...latestNoteRef.current, sticky_notes: newNotes };
+    }
+    setIsDirty(true);
+  }, []);
 
   useEffect(() => {
     const handleAddStickyNote = (e?: Event) => {
