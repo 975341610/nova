@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { NovaBlockEditor } from './components/novablock/NovaBlockEditor'
 import { SidebarTree } from './components/sidebar/SidebarTree'
 import { MoodboardView } from './components/moodboard/MoodboardView'
+import CommandPalette from './components/search/CommandPalette'
 import type { Note } from './lib/types'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -90,6 +91,19 @@ function App() {
     return saved ? parseInt(saved) : 1
   })
   const [activeView, setActiveView] = useState<'notes' | 'moodboard'>('notes')
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+
+  // 全局快捷键 Cmd+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setIsCommandPaletteOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // 同步到 localStorage
   useEffect(() => {
@@ -251,6 +265,7 @@ function App() {
       {/* 侧边栏 */}
       <SidebarTree 
         initialNodes={treeNodes}
+        notes={notes}
         onNodeSelect={handleSelectNode}
         onNodeAdd={handleAddNote}
         onNodeMove={handleNodeMove}
@@ -258,6 +273,7 @@ function App() {
         onNodeDelete={handleNodeDelete}
         onNodeDuplicate={handleNodeDuplicate}
         onMoodboardSelect={handleMoodboardSelect}
+        onQuickSearchOpen={() => setIsCommandPaletteOpen(true)}
         activeView={activeView}
         className="z-20"
       />
@@ -297,6 +313,14 @@ function App() {
         {/* 底部装饰线 */}
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/5 to-transparent absolute bottom-0 left-0" />
       </main>
+
+      {/* Command Palette */}
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        notes={notes}
+        onSelectNote={(note) => handleSelectNode(note.id.toString())}
+      />
 
       {/* 全局装饰 */}
       <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-50 pointer-events-none" />

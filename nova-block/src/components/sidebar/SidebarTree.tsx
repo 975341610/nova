@@ -1,13 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput } from 'lucide-react';
+import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText } from 'lucide-react';
 import { buildTree, moveNode, isDescendant } from '../../lib/novablock/treeUtils';
 import type { TreeNode } from '../../lib/novablock/treeUtils';
 import { TreeNodeItem } from './TreeNodeItem';
+import GlobalSearchPanel from './GlobalSearchPanel';
+import { Note } from '../../lib/types';
 
 interface SidebarTreeProps {
   initialNodes?: TreeNode[];
+  notes?: Note[];
   onNodeSelect?: (nodeId: string) => void;
   onNodeAdd?: (parentId: string | null, type?: 'file' | 'folder') => void;
   onNodeMove?: (nodeId: string, parentId: string | null, sortKey: string) => void;
@@ -15,12 +18,14 @@ interface SidebarTreeProps {
   onNodeDelete?: (nodeId: string, deleteChildren: boolean) => void;
   onNodeDuplicate?: (nodeId: string) => void;
   onMoodboardSelect?: () => void;
+  onQuickSearchOpen?: () => void;
   className?: string;
   activeView?: 'notes' | 'moodboard';
 }
 
 export const SidebarTree = ({
   initialNodes = [],
+  notes = [],
   onNodeSelect,
   onNodeAdd,
   onNodeMove,
@@ -28,12 +33,14 @@ export const SidebarTree = ({
   onNodeDelete,
   onNodeDuplicate,
   onMoodboardSelect,
+  onQuickSearchOpen,
   className = '',
   activeView = 'notes',
 }: SidebarTreeProps) => {
   const [nodes, setNodes] = useState<TreeNode[]>(initialNodes);
   const [selectedId, setSelectedId] = useState<string>();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tree' | 'search'>('tree');
   
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, node: TreeNode } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -126,7 +133,7 @@ export const SidebarTree = ({
       `}
     >
       {/* Sidebar Header */}
-      <div className="p-6 flex items-center justify-between">
+      <div className="p-6 pb-2 flex items-center justify-between">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary/80 to-primary shadow-soft flex items-center justify-center">
@@ -144,10 +151,46 @@ export const SidebarTree = ({
       </div>
 
       {!isCollapsed && (
+        <div className="px-4 py-2 flex items-center gap-1 border-b border-border/10 mb-2">
+          <button
+            onClick={() => setActiveTab('tree')}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+              activeTab === 'tree' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/50'
+            }`}
+          >
+            <FileText size={12} />
+            文件树
+          </button>
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+              activeTab === 'search' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/50'
+            }`}
+          >
+            <Search size={12} />
+            全局搜索
+          </button>
+        </div>
+      )}
+
+      {!isCollapsed && activeTab === 'search' && (
+        <div className="flex-1 overflow-hidden">
+          <GlobalSearchPanel 
+            notes={notes} 
+            onSelectNote={(note) => onNodeSelect?.(note.id.toString())}
+            onClose={() => setActiveTab('tree')}
+          />
+        </div>
+      )}
+
+      {!isCollapsed && activeTab === 'tree' && (
         <>
           {/* Quick Actions */}
           <div className="px-4 pb-4 space-y-2">
-            <button className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground bg-accent/30 hover:bg-accent/60 border border-border/20 rounded-2xl transition-all duration-300 group">
+            <button 
+              onClick={onQuickSearchOpen}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground bg-accent/30 hover:bg-accent/60 border border-border/20 rounded-2xl transition-all duration-300 group"
+            >
               <Search size={14} className="group-hover:scale-110 transition-transform" />
               <span>快速搜索</span>
               <kbd className="ml-auto text-[10px] opacity-40 font-sans bg-background/50 px-1.5 py-0.5 rounded-lg border border-border/10">⌘K</kbd>
