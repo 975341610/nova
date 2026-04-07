@@ -21,7 +21,7 @@ function formatTime(sec: number) {
 }
 
 export const MusicPlayerComponent: React.FC<any> = (props) => {
-  const { editor, node, selected } = props;
+  const { editor, selected } = props;
   const isEditable = editor?.isEditable;
 
   const { currentTrack, isPlaying, toggle, next, prev, refreshPlaylist, playlist, togglePlaylist, playlistPopoverAnchor } = useMusicControls();
