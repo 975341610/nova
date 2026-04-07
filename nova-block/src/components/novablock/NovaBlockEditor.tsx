@@ -28,7 +28,7 @@ import {
     SlashCommands, FileNode, Heading, MathInline, MathBlock, Footnote, 
     ColumnGroup, Column, HighlightBlock,
     WashiTape, JournalStamp, Blockquote, CodeBlock, FilePlaceholder, FileUpload,
-    CountdownNode, MusicPlayerNode, MiniCalendarNode, KanbanNode, HabitTrackerNode
+    CountdownNode, MusicPlayerNode, MiniCalendarNode, KanbanNode, HabitTrackerNode, TodoNode
   } from '../../lib/tiptapExtensions';
 
 import type { Note } from '../../lib/types';
@@ -124,6 +124,7 @@ const NOVA_BLOCK_SLASH_ITEMS = [
   { label: '黑胶播放器', description: '带动画的音乐播放器', group: '🧩 精致小组件', icon: <Music size={18} />, keywords: ['music', 'player'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'musicPlayer' }) },
   { label: '迷你日历', description: '极简月历打卡', group: '🧩 精致小组件', icon: <List size={18} />, keywords: ['calendar', 'checkin'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'miniCalendar' }) },
   { label: '打卡日历 (V2)', description: '多维拟物打卡日历', group: '🧩 精致小组件', icon: <CheckSquare size={18} />, keywords: ['habit', 'tracker', 'dk'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'habitTracker' }) },
+  { label: '全局待办 (Sync)', description: '多笔记同步待办清单', group: '🧩 精致小组件', icon: <CheckSquare size={18} className="text-[#8BA494]" />, keywords: ['todo', 'widget', 'sync', 'task'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'todoWidget' }) },
   { label: '多列看板 (Kanban)', description: '手账风进度看板', group: '🧩 精致小组件', icon: <Columns size={18} />, keywords: ['kanban', 'kb'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'kanban' }) },
 ];
 
@@ -232,6 +233,7 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
     MiniCalendarNode,
     KanbanNode,
     HabitTrackerNode,
+    TodoNode,
     SlashCommands.configure({ suggestion: getSuggestionConfig(slashItemsRef) }),
   ], []);
 

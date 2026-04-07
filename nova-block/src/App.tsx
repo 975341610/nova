@@ -7,6 +7,7 @@ import type { Note } from './lib/types'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MusicProvider, useMusicControls } from './contexts/MusicContext'
 import { HabitProvider } from './contexts/HabitContext'
+import { TodoProvider } from './contexts/TodoContext'
 import { FloatingMusicCapsule } from './components/widgets/FloatingMusicCapsule'
 import { PlaylistPopover } from './components/widgets/PlaylistPopover'
 
@@ -278,7 +279,8 @@ function App() {
   return (
     <MusicProvider>
       <HabitProvider>
-        <div className="flex h-screen w-full bg-background text-foreground font-sans selection:bg-primary/30 overflow-hidden relative theme-transition">
+        <TodoProvider>
+          <div className="flex h-screen w-full bg-background text-foreground font-sans selection:bg-primary/30 overflow-hidden relative theme-transition">
         {/* 全局背景质感 */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(var(--primary),0.05),transparent_70%)] pointer-events-none z-0" />
         <div className="absolute inset-0 opacity-[0.4] pointer-events-none z-0" style={{ backgroundImage: "var(--paper-texture)" }} />
@@ -350,10 +352,11 @@ function App() {
         <FloatingMusicCapsule />
         
         {/* 全局音乐列表 (单例) */}
-        <MusicGlobalUI />
-      </div>
-      </HabitProvider>
-    </MusicProvider>
+         <MusicGlobalUI />
+       </div>
+       </TodoProvider>
+       </HabitProvider>
+     </MusicProvider>
   )
 }
 
