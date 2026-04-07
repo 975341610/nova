@@ -257,22 +257,33 @@ async def upload_music(file: UploadFile = File(...), cover: UploadFile = File(No
     music_dir = Path(settings.music_path)
     music_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save audio file
-    audio_path = music_dir / file.filename
-    with open(audio_path, "wb") as f:
-        f.write(await file.read())
+    # 📝 修复：安全处理文件名，防止目录遍历，并确保文件写入
+    safe_filename = Path(file.filename).name if file.filename else f"upload_{uuid.uuid4().hex}"
+    audio_path = music_dir / safe_filename
+    
+    try:
+        with open(audio_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save audio file: {str(e)}")
         
     # Save cover if provided
     cover_url = None
-    if cover:
-        cover_path = music_dir / cover.filename
-        with open(cover_path, "wb") as f:
-            f.write(await cover.read())
-        cover_url = f"/api/media/music/{cover.filename}"
+    if cover and cover.filename:
+        safe_cover_name = Path(cover.filename).name
+        cover_path = music_dir / safe_cover_name
+        try:
+            with open(cover_path, "wb") as f:
+                content = await cover.read()
+                f.write(content)
+            cover_url = f"/api/media/music/{safe_cover_name}"
+        except Exception as e:
+            print(f"[!] Error saving cover: {str(e)}")
     
     return {
         "status": "success",
-        "url": f"/api/media/music/{file.filename}",
+        "url": f"/api/media/music/{safe_filename}",
         "cover": cover_url
     }
 

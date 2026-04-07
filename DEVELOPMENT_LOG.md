@@ -239,3 +239,31 @@
 ### 格式与架构支持
 - 后端扫描全面放开了格式限制，目前完美支持 `.mp3, .flac, .wav, .ogg, .m4a, .aac`。
 - 新增了 `/api/media/music-link` (保存 JSON) 和 `/api/media/music-upload` (直传至 music 目录) 两个专属后端接口。
+## [2026-04-07] - 音乐播放器 (Music Player) 究极进化 Phase 3: 体验打磨与链路打通
+
+### 核心体验打磨
+- **解决胶囊拖拽卡顿 (60fps 优化)**: 
+  - **病因分析**: 原先 `framer-motion` 的拖拽组件和音频的 `progress`（每秒更新）绑定在同一个 Context 中，导致拖拽时发生严重的高频重渲染冲突（掉帧）。
+  - **重构分离**: 运用 React 性能优化的极致手段，将高频变化的 `progress` 状态与低频变化的 `isPlaying / currentTrack` 状态从顶层剥离。悬浮胶囊现在变为纯 GPU 硬件加速的拖拽组件，彻底杜绝卡顿，如丝般顺滑。
+- **修复胶囊吸附消失与断流问题**:
+  - 重写了 `FloatingMusicCapsule` 的边缘吸附数学逻辑。现在当胶囊拖至左右边缘时，只会使用 `translateX` 将自身隐藏 80%，始终保留约 20px 的“半掩面”在屏幕可见区域内，防止被浏览器误判移出视口而强行卸载。
+  - `<audio>` 内核被提升为真正的“不死之身”，常驻在 `MusicProvider` 的根节点，即使悬浮胶囊被完全隐藏，音乐也绝不中断。
+- **攻破防盗链 (403 Forbidden)**:
+  - 针对用户反馈的网易云等外链 403 报错，在 `index.html` 注入了隐形的 `<meta name="referrer" content="no-referrer" />` 黑科技。
+  - 强制掐断了所有前端请求的来源追踪 (Referer)，完美绕过绝大多数国内音乐平台的简易防盗墙，使得网易云、QQ音乐的直链可以畅通无阻地在我们的黑胶唱片机上播放。
+- **列表滚动体验**: 为悬浮的马卡龙色播放列表 (`PlaylistPopover`) 添加了 `max-h-[300px] overflow-y-auto` 与自定义的 `custom-scrollbar`，确保曲库丰富时的浏览体验。
+
+### 本地音乐库全链路打通 (Hotfix)
+- **后端 `main.py` 鲁棒性增强**：
+  - 修复了 `upload_music` 接口的文件写入逻辑，增加了对 `FastAPI.UploadFile` 的安全文件名处理 (`Path(file.filename).name`)，防止非法路径溢出。
+  - 确保上传文件流被完整读取并写入 `data/music/` 目录，并增加了目录自动创建逻辑。
+  - 修正了 `/api/media/music-library` 返回的静态资源 URL 路径，解决了前端拼接时可能出现的双重 `/api` 导致 404 的问题。
+- **IPC Bridge 指令补全**：
+  - 为 `ipc_bridge.py` 补齐了 `media:music-library` 和 `media:music-link` 指令。这确保了在 Electron 环境下，即使 Python 后端未完全启动，前端也能通过 IPC 进程直接扫描和管理本地 `data/music/` 文件夹。
+- **前端 `MusicContext` 链路打通**：
+  - **强制初始化扫描**：修复了 `useEffect` 中的初始化逻辑，确保组件挂载时立即触发 `refreshPlaylist()`，从后端获取最新的全局曲库。
+  - **URL 拼接优化**：重构了 `refreshPlaylist` 的地址转换逻辑，能够智能识别并适配本地 `127.0.0.1` 与云端代理环境下的静态资源访问路径。
+- **前端 `api.ts` 策略调整**：
+  - 将 `listMusicLibrary` 调整为高优先级的 `fetch` 模式，确保库扫描始终能够穿透到最真实的后端目录，解决了部分环境下本地库显示为空的顽疾。
+- **上传反馈闭环**：
+  - 确保 `MusicPlayerComponent.tsx` 在上传成功后立即触发全局 `refreshPlaylist()`，实现了“上传即看到，看到即播放”的无缝体验。

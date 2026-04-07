@@ -181,7 +181,13 @@ export const api = {
   },
   getSystemVersion: () => invoke<{ version: string; git_commit?: string; build_time?: string; executable?: string }>('system:version', '/system/version'),
   openFile: (path: string) => invoke('system:open-file', '/system/open-file', { method: 'POST', body: JSON.stringify({ path }) }),
-  listMusicLibrary: () => invoke<any[]>('media:music-library', '/media/music-library'),
+  // 音乐库列表必须走后端扫描（HTTP），避免 Electron IPC 缺失导致库永远为空
+  listMusicLibrary: async () => {
+    const API_BASE = getApiBase();
+    const response = await fetch(`${API_BASE}/media/music-library`);
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+  },
   saveMusicLink: (payload: { title: string; url: string; cover?: string }) =>
     invoke<any>('media:music-link', '/media/music-link', { method: 'POST', body: JSON.stringify(payload) }),
   uploadMusic: async (file: File, cover?: File) => {

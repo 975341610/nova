@@ -278,6 +278,71 @@ def main():
             result = asyncio.run(run_ask())
             print(json.dumps(result))
 
+        elif command == "media:music-library":
+            from backend.config import get_settings
+            settings = get_settings()
+            music_dir = Path(settings.music_path)
+            if not music_dir.exists():
+                music_dir.mkdir(parents=True, exist_ok=True)
+            
+            tracks = []
+            extensions = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac'}
+            img_extensions = {'.jpg', '.png', '.jpeg', '.webp'}
+            
+            if music_dir.exists():
+                files = sorted(list(music_dir.iterdir()))
+                for file in files:
+                    if file.suffix.lower() in extensions:
+                        title = file.stem
+                        cover = None
+                        for img_ext in img_extensions:
+                            img_file = music_dir / f"{title}{img_ext}"
+                            if img_file.exists():
+                                cover = f"/api/media/music/{img_file.name}"
+                                break
+                        
+                        tracks.append({
+                            "url": f"/api/media/music/{file.name}",
+                            "title": title,
+                            "artist": "本地音频",
+                            "cover": cover
+                        })
+                    elif file.suffix.lower() == '.json':
+                        try:
+                            with open(file, "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                                if "url" in data and "title" in data:
+                                    tracks.append({
+                                        "url": data["url"],
+                                        "title": data["title"],
+                                        "artist": data.get("artist", "网络直链"),
+                                        "cover": data.get("cover")
+                                    })
+                        except Exception:
+                            pass
+            print(json.dumps(tracks))
+
+        elif command == "media:music-link":
+            from backend.config import get_settings
+            settings = get_settings()
+            title = params.get("title")
+            url = params.get("url")
+            cover = params.get("cover")
+            if not title or not url:
+                print(json.dumps({"error": "Title and URL are required"}))
+            else:
+                music_dir = Path(settings.music_path)
+                music_dir.mkdir(parents=True, exist_ok=True)
+                json_path = music_dir / f"{title}.json"
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "title": title, 
+                        "url": url, 
+                        "cover": cover, 
+                        "artist": "网络直链"
+                    }, f, ensure_ascii=False, indent=2)
+                print(json.dumps({"status": "success", "path": str(json_path)}))
+
             
         else:
             print(json.dumps({"error": f"Unknown command: {command}"}))

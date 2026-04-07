@@ -138,17 +138,20 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const data = await api.listMusicLibrary();
       if (Array.isArray(data)) {
+        // 🚀 修复：确保 API 基础路径拼接正确，避免双重 /api 路径问题
         const apiBase = getApiBase().replace(/\/api$/, '');
         const tracks = data.map((track: any) => ({
           ...track,
-          url: track.url.startsWith('http') ? track.url : `${apiBase}${track.url}`,
+          // 如果已经是 http 开头则保持原样，否则拼接服务器 root
+          url: (track.url && track.url.startsWith('http')) ? track.url : `${apiBase}${track.url}`,
           cover: track.cover
-            ? track.cover.startsWith('http')
+            ? (track.cover.startsWith('http')
               ? track.cover
-              : `${apiBase}${track.cover}`
+              : `${apiBase}${track.cover}`)
             : track.cover,
         }));
         setPlaylist(tracks);
+        console.log(`[MusicContext] Library refreshed, ${tracks.length} tracks found.`);
       }
     } catch (err) {
       console.error('Failed to fetch music library:', err);
