@@ -11,7 +11,7 @@ import {
   isToday,
   startOfToday,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flame, Crown, Plus, Settings2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame, Crown, Plus, Settings2, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { useHabit } from '../../contexts/HabitContext';
@@ -30,7 +30,8 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
     getLogForDate, 
     getStreak,
     addHabit,
-    deleteHabit 
+    deleteHabit,
+    updateHabit
   } = useHabit();
 
   const [cursor, setCursor] = useState(() => new Date());
@@ -50,18 +51,26 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
     return [...padded, ...Array.from({ length: tail }, () => null)];
   }, [cursor]);
 
-  const handleCellClick = (date: Date, event: React.MouseEvent) => {
+  const handleCellClick = (date: Date, event: React.MouseEvent, isRightClick = false) => {
     if (!activeHabit || !isEditable) return;
     
     const dateStr = format(date, 'yyyy-MM-dd');
     const existingLog = getLogForDate(activeHabit.id, dateStr);
     const currentValue = existingLog ? existingLog.value : 0;
-    const newValue = (currentValue + 1) % (activeHabit.targetValue + 1);
     
+    let newValue: number;
+    if (isRightClick) {
+      newValue = Math.max(0, currentValue - 1);
+    } else {
+      newValue = Math.min(activeHabit.targetValue, currentValue + 1);
+    }
+    
+    if (newValue === currentValue) return;
+
     logCheckIn(activeHabit.id, dateStr, newValue);
 
-    // Trigger confetti if completed
-    if (newValue === activeHabit.targetValue) {
+    // Trigger confetti if completed and was not completed before
+    if (!isRightClick && newValue === activeHabit.targetValue && currentValue < activeHabit.targetValue) {
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       confetti({
         particleCount: 40,
@@ -94,16 +103,17 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                 {activeHabit?.icon || '📅'}
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 group/select relative">
                    <select 
                     value={activeHabitId || ''} 
                     onChange={(e) => setActiveHabitId(e.target.value)}
-                    className="bg-transparent border-none font-bold text-lg focus:ring-0 cursor-pointer p-0 pr-6 appearance-none outline-none"
+                    className="bg-transparent border-none font-bold text-lg focus:ring-0 cursor-pointer p-0 pr-6 appearance-none outline-none z-10"
                   >
                     {habits.map(h => (
-                      <option key={h.id} value={h.id}>{h.name}</option>
+                      <option key={h.id} value={h.id} className="bg-white dark:bg-stone-900 text-sm">{h.name}</option>
                     ))}
                   </select>
+                  <ChevronDown size={14} className="text-stone-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover/select:text-primary transition-colors" />
                 </div>
                 <div className="text-xs text-stone-500 font-medium tracking-wider uppercase">
                   {format(cursor, 'MMMM yyyy')}
@@ -163,6 +173,7 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={(e) => isCurrMonth && handleCellClick(date, e)}
+                  onContextMenu={(e) => { e.preventDefault(); isCurrMonth && handleCellClick(date, e, true); }}
                   disabled={!isCurrMonth || !isEditable}
                   className={`
                     relative aspect-square rounded-xl border flex items-center justify-center text-xs font-bold transition-all
@@ -176,7 +187,14 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                     textShadow: isCompleted ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
                   }}
                 >
-                  {format(date, 'd')}
+                  <div className="flex flex-col items-center">
+                    <span>{format(date, 'd')}</span>
+                    {target > 1 && (
+                      <span className={`text-[8px] opacity-60 font-medium mt-[-2px] ${isCompleted ? 'text-white' : ''}`}>
+                        {val}/{target}
+                      </span>
+                    )}
+                  </div>
                   
                   {/* Progress Fill */}
                   {val > 0 && val < target && (
@@ -211,19 +229,40 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                        <Plus size={14} />
                      </button>
                    </div>
-                   <div className="max-h-32 overflow-y-auto space-y-2 pr-1">
+                   <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                       {habits.map(h => (
-                        <div key={h.id} className="flex items-center justify-between p-2 rounded-xl bg-white/40 dark:bg-black/20 group/item">
-                          <div className="flex items-center gap-2">
-                             <span>{h.icon}</span>
-                             <span className="text-sm font-medium">{h.name}</span>
+                        <div key={h.id} className="flex items-center gap-2 p-2 rounded-xl bg-white/40 dark:bg-black/20 group/item">
+                          <input 
+                            value={h.icon} 
+                            onChange={(e) => updateHabit(h.id, { icon: e.target.value })}
+                            className="w-8 h-8 flex-shrink-0 bg-white/50 dark:bg-black/30 border-none rounded-lg text-center p-0 text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                          />
+                          <input 
+                            value={h.name} 
+                            onChange={(e) => updateHabit(h.id, { name: e.target.value })}
+                            className="flex-grow bg-transparent border-none text-sm font-medium p-0 focus:ring-0 outline-none min-w-0"
+                          />
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <input 
+                              type="number"
+                              min="1"
+                              value={h.targetValue} 
+                              onChange={(e) => updateHabit(h.id, { targetValue: parseInt(e.target.value) || 1 })}
+                              className="w-10 bg-white/50 dark:bg-black/30 border-none rounded-lg text-[10px] text-center p-1 focus:ring-1 focus:ring-primary/30 outline-none"
+                            />
+                            <input 
+                              type="color"
+                              value={h.color} 
+                              onChange={(e) => updateHabit(h.id, { color: e.target.value })}
+                              className="w-5 h-5 rounded-full border-none p-0 bg-transparent cursor-pointer overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none"
+                            />
+                            <button 
+                              onClick={() => deleteHabit(h.id)}
+                              className="p-1 opacity-0 group-hover/item:opacity-100 text-red-400 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
-                          <button 
-                            onClick={() => deleteHabit(h.id)}
-                            className="p-1 opacity-0 group-hover/item:opacity-100 text-red-400 hover:text-red-500 transition-all"
-                          >
-                            <Trash2 size={14} />
-                          </button>
                         </div>
                       ))}
                    </div>

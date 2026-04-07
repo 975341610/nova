@@ -35,43 +35,31 @@ const STORAGE_KEY_HABITS = 'nova_habits';
 const STORAGE_KEY_LOGS = 'nova_habit_logs';
 
 export const HabitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [logs, setLogs] = useState<HabitLog[]>([]);
-  const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
-
-  // Load from LocalStorage
-  useEffect(() => {
-    const savedHabits = localStorage.getItem(STORAGE_KEY_HABITS);
-    const savedLogs = localStorage.getItem(STORAGE_KEY_LOGS);
-
-    if (savedHabits) {
-      const parsedHabits = JSON.parse(savedHabits);
-      setHabits(parsedHabits);
-      if (parsedHabits.length > 0) {
-        setActiveHabitId(parsedHabits[0].id);
-      }
-    } else {
-      // Default habits
-      const defaultHabits: Habit[] = [
-        { id: '1', name: '喝水', targetValue: 8, color: '#a8ebd1', icon: '💧', createdAt: new Date().toISOString() },
-        { id: '2', name: '健身', targetValue: 1, color: '#ffc4d9', icon: '🏋️‍♂️', createdAt: new Date().toISOString() },
-        { id: '3', name: '阅读', targetValue: 1, color: '#ffd8a8', icon: '📚', createdAt: new Date().toISOString() },
-      ];
-      setHabits(defaultHabits);
-      setActiveHabitId(defaultHabits[0].id);
-      localStorage.setItem(STORAGE_KEY_HABITS, JSON.stringify(defaultHabits));
+  const [habits, setHabits] = useState<Habit[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_HABITS);
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: '1', name: '喝水', targetValue: 8, color: '#a8ebd1', icon: '💧', createdAt: new Date().toISOString() },
+      { id: '2', name: '健身', targetValue: 1, color: '#ffc4d9', icon: '🏋️‍♂️', createdAt: new Date().toISOString() },
+      { id: '3', name: '阅读', targetValue: 1, color: '#ffd8a8', icon: '📚', createdAt: new Date().toISOString() },
+    ];
+  });
+  const [logs, setLogs] = useState<HabitLog[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_LOGS);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [activeHabitId, setActiveHabitId] = useState<string | null>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_HABITS);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.length > 0 ? parsed[0].id : null;
     }
-
-    if (savedLogs) {
-      setLogs(JSON.parse(savedLogs));
-    }
-  }, []);
+    return '1';
+  });
 
   // Save to LocalStorage
   useEffect(() => {
-    if (habits.length > 0) {
-      localStorage.setItem(STORAGE_KEY_HABITS, JSON.stringify(habits));
-    }
+    localStorage.setItem(STORAGE_KEY_HABITS, JSON.stringify(habits));
   }, [habits]);
 
   useEffect(() => {
