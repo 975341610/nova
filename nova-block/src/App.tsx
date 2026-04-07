@@ -5,6 +5,8 @@ import { MoodboardView } from './components/moodboard/MoodboardView'
 import CommandPalette from './components/search/CommandPalette'
 import type { Note } from './lib/types'
 import { AnimatePresence, motion } from 'framer-motion'
+import { MusicProvider } from './contexts/MusicContext'
+import { FloatingMusicCapsule } from './components/widgets/FloatingMusicCapsule'
 
 // 初始模拟数据
 
@@ -257,74 +259,79 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground font-sans selection:bg-primary/30 overflow-hidden relative theme-transition">
-      {/* 全局背景质感 */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(var(--primary),0.05),transparent_70%)] pointer-events-none z-0" />
-      <div className="absolute inset-0 opacity-[0.4] pointer-events-none z-0" style={{ backgroundImage: "var(--paper-texture)" }} />
+    <MusicProvider>
+      <div className="flex h-screen w-full bg-background text-foreground font-sans selection:bg-primary/30 overflow-hidden relative theme-transition">
+        {/* 全局背景质感 */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(var(--primary),0.05),transparent_70%)] pointer-events-none z-0" />
+        <div className="absolute inset-0 opacity-[0.4] pointer-events-none z-0" style={{ backgroundImage: "var(--paper-texture)" }} />
 
-      {/* 侧边栏 */}
-      <SidebarTree 
-        initialNodes={treeNodes}
-        notes={notes}
-        onNodeSelect={handleSelectNode}
-        onNodeAdd={handleAddNote}
-        onNodeMove={handleNodeMove}
-        onNodeRename={handleNodeRename}
-        onNodeDelete={handleNodeDelete}
-        onNodeDuplicate={handleNodeDuplicate}
-        onMoodboardSelect={handleMoodboardSelect}
-        onQuickSearchOpen={() => setIsCommandPaletteOpen(true)}
-        activeView={activeView}
-        className="z-20"
-      />
+        {/* 侧边栏 */}
+        <SidebarTree 
+          initialNodes={treeNodes}
+          notes={notes}
+          onNodeSelect={handleSelectNode}
+          onNodeAdd={handleAddNote}
+          onNodeMove={handleNodeMove}
+          onNodeRename={handleNodeRename}
+          onNodeDelete={handleNodeDelete}
+          onNodeDuplicate={handleNodeDuplicate}
+          onMoodboardSelect={handleMoodboardSelect}
+          onQuickSearchOpen={() => setIsCommandPaletteOpen(true)}
+          activeView={activeView}
+          className="z-20"
+        />
 
-      {/* 主编辑区 */}
-      <main className="flex-1 h-full relative overflow-hidden flex flex-col z-10">
-        <AnimatePresence mode="wait">
-          {activeView === 'notes' ? (
-            <motion.div
-              key={`note-${currentNoteId}`}
-              initial={{ opacity: 0, y: 10, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="flex-1 h-full"
-            >
-              <NovaBlockEditor 
-                note={currentNote} 
-                onSave={handleSave}
-                onNotify={(text, tone) => console.log(`[NovaNotify] ${tone}: ${text}`)}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="moodboard"
-              initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="flex-1 h-full"
-            >
-              <MoodboardView />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* 主编辑区 */}
+        <main className="flex-1 h-full relative overflow-hidden flex flex-col z-10">
+          <AnimatePresence mode="wait">
+            {activeView === 'notes' ? (
+              <motion.div
+                key={`note-${currentNoteId}`}
+                initial={{ opacity: 0, y: 10, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="flex-1 h-full"
+              >
+                <NovaBlockEditor 
+                  note={currentNote} 
+                  onSave={handleSave}
+                  onNotify={(text, tone) => console.log(`[NovaNotify] ${tone}: ${text}`)}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="moodboard"
+                initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="flex-1 h-full"
+              >
+                <MoodboardView />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* 底部装饰线 */}
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-white/5 to-transparent absolute bottom-0 left-0" />
-      </main>
+          {/* 底部装饰线 */}
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-white/5 to-transparent absolute bottom-0 left-0" />
+        </main>
 
-      {/* Command Palette */}
-      <CommandPalette 
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        notes={notes}
-        onSelectNote={(note) => handleSelectNode(note.id.toString())}
-      />
+        {/* Command Palette */}
+        <CommandPalette 
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          notes={notes}
+          onSelectNote={(note) => handleSelectNode(note.id.toString())}
+        />
 
-      {/* 全局装饰 */}
-      <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-50 pointer-events-none" />
-    </div>
+        {/* 全局装饰 */}
+        <div className="fixed top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-50 pointer-events-none" />
+        
+        {/* 全局悬浮音乐胶囊 */}
+        <FloatingMusicCapsule />
+      </div>
+    </MusicProvider>
   )
 }
 

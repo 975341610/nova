@@ -54,6 +54,8 @@ async def auth_middleware(request: Request, call_next):
         or request.url.path == "/health"
         or not request.url.path.startswith(settings.api_prefix)
         or request.url.path.startswith(f"{settings.api_prefix}/media/files")
+        or request.url.path.startswith(f"{settings.api_prefix}/media/music")
+        or request.url.path == f"{settings.api_prefix}/media/music-library"
         or request.url.path == f"{settings.api_prefix}/system/version"
         or request.url.path == f"{settings.api_prefix}/model-config"
     )
@@ -100,6 +102,11 @@ else:
 uploads_dir = Path(settings.uploads_path)
 if uploads_dir.exists():
     app.mount("/api/media/files", StaticFiles(directory=uploads_dir), name="media")
+
+# Mount music library
+music_dir = Path(settings.music_path)
+if music_dir.exists():
+    app.mount("/api/media/music", StaticFiles(directory=music_dir), name="music")
 
 def run_migrations() -> None:
     inspector = inspect(engine)
@@ -166,6 +173,39 @@ async def startup_event() -> None:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/media/music-library")
+async def get_music_library():
+    music_dir = Path(settings.music_path)
+    if not music_dir.exists():
+        return []
+    
+    tracks = []
+    # Scan audio files
+    extensions = {'.mp3', '.wav', '.flac'}
+    img_extensions = {'.jpg', '.png', '.jpeg', '.webp'}
+    
+    # Sort for deterministic output
+    files = sorted(list(music_dir.iterdir()))
+    for file in files:
+        if file.suffix.lower() in extensions:
+            title = file.stem
+            cover = None
+            # Match songA.jpg or songA.png for songA.mp3
+            for img_ext in img_extensions:
+                img_file = music_dir / f"{title}{img_ext}"
+                if img_file.exists():
+                    cover = f"/api/media/music/{img_file.name}"
+                    break
+            
+            tracks.append({
+                "url": f"/api/media/music/{file.name}",
+                "title": title,
+                "artist": "未知艺术家",
+                "cover": cover
+            })
+    return tracks
 
 
 @app.get("/{full_path:path}", response_model=None)

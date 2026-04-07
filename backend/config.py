@@ -67,6 +67,10 @@ class Settings(BaseSettings):
         return (self.data_root / "uploads").as_posix()
         
     @property
+    def music_path(self) -> str:
+        return (self.data_root / "music").as_posix()
+        
+    @property
     def sample_docs_path(self) -> str:
         return (self.data_root / "sample_docs").as_posix()
 
@@ -92,4 +96,5 @@ def get_settings() -> Settings:
     Path(settings.sqlite_url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
     Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
     Path(settings.uploads_path).mkdir(parents=True, exist_ok=True)
+    Path(settings.music_path).mkdir(parents=True, exist_ok=True)
     return settings

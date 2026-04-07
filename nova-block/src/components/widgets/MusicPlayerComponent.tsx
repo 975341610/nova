@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
-import { motion, useAnimation } from 'framer-motion';
-import { Upload, Link2, Play, Pause, Volume2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Upload, Link2, Play, Pause, ChevronDown, ChevronUp, Music } from 'lucide-react';
+import { useMusic } from '../../contexts/MusicContext';
+import { getApiBase } from '../../lib/api';
 
 const palette = {
   bg: 'bg-[#F6F3EF]',
@@ -22,77 +24,30 @@ export const MusicPlayerComponent: React.FC<any> = (props) => {
   const { editor, node, updateAttributes, selected } = props;
   const isEditable = editor?.isEditable;
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [current, setCurrent] = useState(0);
-  const [volume, setVolume] = useState(0.9);
-
-  const controls = useAnimation();
+  const { currentTrack, isPlaying, progress, duration, play, toggle, setProgress } = useMusic();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const src = node?.attrs?.src || '';
   const title = node?.attrs?.title || '未命名歌曲';
   const artist = node?.attrs?.artist || '未知艺术家';
   const cover = node?.attrs?.cover || '';
 
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
+  const isCurrent = currentTrack?.url === src || (currentTrack?.url === (src.startsWith('http') || src.startsWith('blob:') ? src : `${getApiBase().replace(/\/api$/, '')}${src}`));
+  const isActive = isCurrent && isPlaying;
 
-    const onTime = () => setCurrent(a.currentTime || 0);
-    const onMeta = () => setDuration(a.duration || 0);
-    const onEnd = () => setIsPlaying(false);
-
-    a.addEventListener('timeupdate', onTime);
-    a.addEventListener('loadedmetadata', onMeta);
-    a.addEventListener('ended', onEnd);
-    return () => {
-      a.removeEventListener('timeupdate', onTime);
-      a.removeEventListener('loadedmetadata', onMeta);
-      a.removeEventListener('ended', onEnd);
-    };
-  }, [src]);
-
-  useEffect(() => {
-    const a = audioRef.current;
-    if (a) a.volume = volume;
-  }, [volume]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      controls.start({ rotate: 360, transition: { duration: 2.2, ease: 'linear', repeat: Infinity } });
+  const handleToggle = () => {
+    if (isCurrent) {
+      toggle();
     } else {
-      controls.stop();
-    }
-  }, [isPlaying, controls]);
-
-  const toggle = async () => {
-    const a = audioRef.current;
-    if (!a) return;
-
-    if (!src) {
-      if (isEditable) window.alert('请先设置音频链接或上传音频文件');
-      return;
-    }
-
-    if (a.paused) {
-      try {
-        await a.play();
-        setIsPlaying(true);
-      } catch (e) {
-        console.error(e);
-        setIsPlaying(false);
-      }
-    } else {
-      a.pause();
-      setIsPlaying(false);
+      const apiBase = getApiBase().replace(/\/api$/, '');
+      const normalizedSrc = src.startsWith('http') || src.startsWith('blob:') || src.startsWith('data:') ? src : `${apiBase}${src}`;
+      const normalizedCover = cover && !cover.startsWith('http') ? `${apiBase}${cover}` : cover;
+      play({ url: normalizedSrc, title, artist, cover: normalizedCover });
     }
   };
 
-  const progress = useMemo(() => {
-    if (!duration) return 0;
-    return Math.min(1, Math.max(0, current / duration));
-  }, [current, duration]);
+  const currentProgress = isCurrent ? progress : 0;
+  const currentDuration = isCurrent ? duration : 0;
 
   return (
     <NodeViewWrapper
@@ -102,127 +57,131 @@ export const MusicPlayerComponent: React.FC<any> = (props) => {
       <div className="p-5 md:p-6">
         <div className="flex items-start gap-5">
           {/* Vinyl */}
-          <div className="relative w-28 h-28 md:w-32 md:h-32 shrink-0">
-            <div className="absolute inset-0 rounded-full bg-black/80 shadow-[0_18px_45px_rgba(0,0,0,0.28)]" />
+          <div className="relative w-24 h-24 md:w-28 md:h-28 shrink-0 cursor-pointer" onClick={handleToggle}>
+            <div className="absolute inset-0 rounded-full bg-black/80 shadow-[0_12px_30px_rgba(0,0,0,0.2)]" />
             <motion.div
-              animate={controls}
+              animate={isActive ? { rotate: 360 } : { rotate: 0 }}
+              transition={isActive ? { duration: 3, ease: 'linear', repeat: Infinity } : { duration: 0 }}
               className="absolute inset-2 rounded-full overflow-hidden"
               style={{
-                backgroundImage: cover ? `url(${cover})` : undefined,
+                backgroundImage: cover ? `url(${cover})` : 'linear-gradient(45deg, #f3ec78, #af4261)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }}
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0)_0%,rgba(0,0,0,0.25)_45%,rgba(0,0,0,0.65)_100%)]" />
-              {/* grooves */}
-              <div className="absolute inset-0 opacity-40" style={{
+              <div className="absolute inset-0 opacity-30" style={{
                 backgroundImage:
                   'repeating-radial-gradient(circle at center, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, rgba(0,0,0,0) 5px, rgba(0,0,0,0) 8px)',
               }} />
             </motion.div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-7 h-7 rounded-full bg-[#F6F3EF] border border-black/10" />
+              <div className="w-6 h-6 rounded-full bg-[#F6F3EF] border border-black/10 flex items-center justify-center">
+                 {isActive ? <Pause size={10} className="text-black" /> : <Play size={10} className="ml-0.5 text-black" />}
+              </div>
             </div>
           </div>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <div className={`text-base md:text-lg font-black tracking-tight ${palette.text} truncate`}>{title}</div>
-            <div className={`mt-1 text-sm font-semibold ${palette.subtle} truncate`}>{artist}</div>
-
-            {/* Controls */}
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={toggle}
-                className="h-10 px-4 rounded-full bg-black text-white text-sm font-bold flex items-center gap-2 hover:bg-black/90 transition-colors"
+            <div className="flex items-center justify-between">
+              <div className={`text-base md:text-lg font-black tracking-tight ${palette.text} truncate`}>{title}</div>
+              <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-1 hover:bg-black/5 rounded-lg transition-colors text-black/40"
               >
-                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                {isPlaying ? '暂停' : '播放'}
+                {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
+            </div>
+            <div className={`mt-0.5 text-sm font-semibold ${palette.subtle} truncate flex items-center gap-1.5`}>
+              <Music size={12} /> {artist}
+            </div>
 
-              <div className={`flex-1 rounded-full border ${palette.border} ${palette.card} px-3 py-2`}
+            {/* Simple Player Progress (Always shown in block) */}
+            <div className="mt-4">
+               <div 
+                className={`relative h-1.5 rounded-full bg-black/5 cursor-pointer overflow-hidden`}
                 onClick={(e) => {
-                  const a = audioRef.current;
-                  if (!a || !duration) return;
+                  if (!isCurrent) return;
                   const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
                   const x = e.clientX - rect.left;
                   const ratio = Math.min(1, Math.max(0, x / rect.width));
-                  a.currentTime = ratio * duration;
+                  setProgress(ratio);
                 }}
               >
-                <div className="relative h-2 rounded-full bg-black/10 overflow-hidden">
-                  <div className="absolute inset-y-0 left-0 bg-black/70" style={{ width: `${progress * 100}%` }} />
-                </div>
-                <div className="mt-1 flex justify-between text-[11px] font-semibold text-black/40 tabular-nums">
-                  <span>{formatTime(current)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-
-              <div className="hidden md:flex items-center gap-2">
-                <Volume2 size={16} className="text-black/40" />
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
+                <motion.div 
+                  className="absolute inset-y-0 left-0 bg-black/60" 
+                  initial={false}
+                  animate={{ width: `${currentProgress * 100}%` }}
                 />
               </div>
+              <div className="mt-1.5 flex justify-between text-[10px] font-bold text-black/30 tabular-nums uppercase tracking-wider">
+                <span>{isCurrent ? formatTime(currentProgress * currentDuration) : '0:00'}</span>
+                <span>{isCurrent ? formatTime(currentDuration) : '0:00'}</span>
+              </div>
             </div>
+          </div>
+        </div>
 
-            {isEditable && (
-              <div className="mt-4 rounded-2xl border border-dashed border-black/10 bg-white/40 px-4 py-3">
-                <div className="text-[11px] font-semibold text-black/40 tracking-widest">配置</div>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-xl border border-black/10 bg-white/60 hover:bg-white transition-colors text-xs font-semibold flex items-center gap-2"
-                    onClick={() => {
-                      const v = window.prompt('音频直链 URL（mp3/ogg/wav）：', src);
-                      if (v !== null) updateAttributes({ src: v.trim() });
-                    }}
-                  >
-                    <Link2 size={14} /> 设置音频直链
-                  </button>
+        {/* Configuration Panel (Expanded) */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-6 pt-6 border-t border-black/5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="md:col-span-2 text-[10px] font-black text-black/20 tracking-[0.2em] uppercase mb-1">播放器设置</div>
+                
+                <button
+                  type="button"
+                  className="px-4 py-2.5 rounded-xl border border-black/5 bg-white/40 hover:bg-white hover:shadow-sm transition-all text-xs font-bold flex items-center gap-2"
+                  onClick={() => {
+                    const v = window.prompt('音频直链 URL：', src);
+                    if (v !== null) updateAttributes({ src: v.trim() });
+                  }}
+                >
+                  <Link2 size={14} className="text-black/40" /> 设置音频直链
+                </button>
 
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-xl border border-black/10 bg-white/60 hover:bg-white transition-colors text-xs font-semibold flex items-center gap-2"
-                    onClick={() => {
-                      const v = window.prompt('封面图片 URL：', cover);
-                      if (v !== null) updateAttributes({ cover: v.trim() });
-                    }}
-                  >
-                    <Link2 size={14} /> 设置封面
-                  </button>
+                <button
+                  type="button"
+                  className="px-4 py-2.5 rounded-xl border border-black/5 bg-white/40 hover:bg-white hover:shadow-sm transition-all text-xs font-bold flex items-center gap-2"
+                  onClick={() => {
+                    const v = window.prompt('封面图片 URL：', cover);
+                    if (v !== null) updateAttributes({ cover: v.trim() });
+                  }}
+                >
+                  <Link2 size={14} className="text-black/40" /> 设置封面
+                </button>
 
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-xl border border-black/10 bg-white/60 hover:bg-white transition-colors text-xs font-semibold flex items-center gap-2"
-                    onClick={() => {
-                      const v = window.prompt('歌曲名：', title);
-                      if (v !== null) updateAttributes({ title: v.trim() || '未命名歌曲' });
-                    }}
-                  >
-                    <Link2 size={14} /> 设置歌曲名
-                  </button>
+                <button
+                  type="button"
+                  className="px-4 py-2.5 rounded-xl border border-black/5 bg-white/40 hover:bg-white hover:shadow-sm transition-all text-xs font-bold flex items-center gap-2"
+                  onClick={() => {
+                    const v = window.prompt('歌曲名：', title);
+                    if (v !== null) updateAttributes({ title: v.trim() || '未命名歌曲' });
+                  }}
+                >
+                  <Link2 size={14} className="text-black/40" /> 设置歌曲名
+                </button>
 
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-xl border border-black/10 bg-white/60 hover:bg-white transition-colors text-xs font-semibold flex items-center gap-2"
-                    onClick={() => {
-                      const v = window.prompt('艺术家：', artist);
-                      if (v !== null) updateAttributes({ artist: v.trim() || '未知艺术家' });
-                    }}
-                  >
-                    <Link2 size={14} /> 设置艺术家
-                  </button>
+                <button
+                  type="button"
+                  className="px-4 py-2.5 rounded-xl border border-black/5 bg-white/40 hover:bg-white hover:shadow-sm transition-all text-xs font-bold flex items-center gap-2"
+                  onClick={() => {
+                    const v = window.prompt('艺术家：', artist);
+                    if (v !== null) updateAttributes({ artist: v.trim() || '未知艺术家' });
+                  }}
+                >
+                  <Link2 size={14} className="text-black/40" /> 设置艺术家
+                </button>
 
-                  <label className="md:col-span-2 px-3 py-2 rounded-xl border border-black/10 bg-white/60 text-xs font-semibold flex items-center gap-2 cursor-pointer hover:bg-white transition-colors">
-                    <Upload size={14} /> 上传音频文件（本地）
+                {isEditable && (
+                  <label className="md:col-span-2 px-4 py-2.5 rounded-xl border border-black/5 bg-white/40 text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-white hover:shadow-sm transition-all">
+                    <Upload size={14} className="text-black/40" /> 上传音频文件（本地）
                     <input
                       type="file"
                       accept="audio/*"
@@ -231,22 +190,15 @@ export const MusicPlayerComponent: React.FC<any> = (props) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
                         const url = URL.createObjectURL(f);
-                        updateAttributes({ src: url, title: node?.attrs?.title || f.name });
-                        // note: objectURL 在页面生命周期内有效；如需持久化请走后端 upload（项目已有 FileUpload 扩展）
+                        updateAttributes({ src: url, title: f.name.replace(/\.[^/.]+$/, "") });
                       }}
                     />
                   </label>
-                </div>
-
-                <div className="mt-2 text-[11px] text-black/40">
-                  Tip：直链建议用已上传到可访问的 URL；本地上传仅用于当前页面临时播放。
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        <audio ref={audioRef} src={src || undefined} preload="metadata" />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </NodeViewWrapper>
   );
