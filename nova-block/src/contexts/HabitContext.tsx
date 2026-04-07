@@ -16,6 +16,10 @@ export interface Habit {
    * 优先存后端上传返回的 URL；若上传失败则兜底存 dataUrl(Base64) 到 localStorage。
    */
   backgroundUrl?: string;
+  /**
+   * 自定义日历背景壁纸（Base64 或 URL）
+   */
+  bgImage?: string;
   createdAt: string;
 }
 
@@ -52,6 +56,7 @@ const normalizeHabit = (raw: any): Habit => {
     color: String(raw?.color ?? '#b8c6db'),
     icon: String(raw?.icon ?? '✨'),
     backgroundUrl: typeof raw?.backgroundUrl === 'string' ? raw.backgroundUrl : '',
+    bgImage: typeof raw?.bgImage === 'string' ? raw.bgImage : '',
     createdAt: String(raw?.createdAt ?? now),
   };
 };
@@ -68,9 +73,9 @@ export const HabitProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
     return [
-      { id: '1', name: '喝水', targetValue: 8, color: '#a8ebd1', icon: '💧', backgroundUrl: '', createdAt: new Date().toISOString() },
-      { id: '2', name: '健身', targetValue: 1, color: '#ffc4d9', icon: '🏋️‍♂️', backgroundUrl: '', createdAt: new Date().toISOString() },
-      { id: '3', name: '阅读', targetValue: 1, color: '#ffd8a8', icon: '📚', backgroundUrl: '', createdAt: new Date().toISOString() },
+      { id: '1', name: '喝水', targetValue: 8, color: '#a8ebd1', icon: '💧', backgroundUrl: '', bgImage: '', createdAt: new Date().toISOString() },
+      { id: '2', name: '健身', targetValue: 1, color: '#ffc4d9', icon: '🏋️‍♂️', backgroundUrl: '', bgImage: '', createdAt: new Date().toISOString() },
+      { id: '3', name: '阅读', targetValue: 1, color: '#ffd8a8', icon: '📚', backgroundUrl: '', bgImage: '', createdAt: new Date().toISOString() },
     ];
   });
 

@@ -17,9 +17,11 @@ import {
   ChevronRight,
   Crown,
   Flame,
+  Image as ImageIcon,
   Plus,
   Settings2,
   Trash2,
+  Wallpaper,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -302,6 +304,20 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
     [updateHabit],
   );
 
+  const handleBgFileSelected = useCallback(
+    async (habitId: string, file: File) => {
+      try {
+        // 壁纸建议压缩得稍大一点，比如 512px，质量 0.7 左右
+        const base64 = await fileToCompressedDataUrl(file, 512, 0.7);
+        updateHabit(habitId, { bgImage: base64 });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
+    },
+    [updateHabit],
+  );
+
   const activeIcon = activeHabit?.icon || '📅';
 
   return (
@@ -393,38 +409,52 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
           </div>
 
           {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-2">
-            {weekDays.map((d) => (
-              <div key={d} className="text-[10px] font-bold text-stone-600 text-center pb-2 uppercase">
-                {d}
-              </div>
-            ))}
+          <div className="relative mt-2">
+            {/* Custom Background Wallpaper */}
+            {activeHabit?.bgImage && (
+              <div
+                className="absolute inset-0 pointer-events-none opacity-20 z-0 transition-opacity"
+                style={{
+                  backgroundImage: `url(${activeHabit.bgImage})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  borderRadius: '12px',
+                }}
+              />
+            )}
+            <div className="grid grid-cols-7 gap-2 relative z-10">
+              {weekDays.map((d) => (
+                <div key={d} className="text-[10px] font-bold text-stone-600 text-center pb-2 uppercase">
+                  {d}
+                </div>
+              ))}
 
-            {days.map((date, i) => {
-              if (!date) return <div key={`empty-${i}`} className="aspect-square" />;
+              {days.map((date, i) => {
+                if (!date) return <div key={`empty-${i}`} className="aspect-square" />;
 
-              const dateStr = format(date, 'yyyy-MM-dd');
-              const isCurrMonth = isSameMonth(date, cursor);
-              const val = logsMap[dateStr] || 0;
-              const target = activeHabit?.targetValue || 1;
-              const today = isToday(date);
+                const dateStr = format(date, 'yyyy-MM-dd');
+                const isCurrMonth = isSameMonth(date, cursor);
+                const val = logsMap[dateStr] || 0;
+                const target = activeHabit?.targetValue || 1;
+                const today = isToday(date);
 
-              return (
-                <HabitCell
-                  key={dateStr}
-                  dateStr={dateStr}
-                  dayNumber={format(date, 'd')}
-                  val={val}
-                  target={target}
-                  icon={activeIcon}
-                  isToday={today}
-                  isCurrMonth={isCurrMonth}
-                  isEditable={!!isEditable}
-                  onLeftClick={handleLeftClick}
-                  onRightClick={handleRightClick}
-                />
-              );
-            })}
+                return (
+                  <HabitCell
+                    key={dateStr}
+                    dateStr={dateStr}
+                    dayNumber={format(date, 'd')}
+                    val={val}
+                    target={target}
+                    icon={activeIcon}
+                    isToday={today}
+                    isCurrMonth={isCurrMonth}
+                    isEditable={!!isEditable}
+                    onLeftClick={handleLeftClick}
+                    onRightClick={handleRightClick}
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {/* Quick Settings Panel */}
@@ -498,6 +528,27 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                               title="上传图片作为打卡图标"
                             >
                               <Camera size={14} className="text-stone-800" />
+                            </label>
+
+                            {/* Wallpaper button */}
+                            <input
+                              id={`habit-bg-upload-${h.id}`}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.currentTarget.files?.[0];
+                                if (file) void handleBgFileSelected(h.id, file);
+                                e.currentTarget.value = '';
+                              }}
+                            />
+                            <label
+                              htmlFor={`habit-bg-upload-${h.id}`}
+                              className="p-1 bg-white border-2 border-stone-800 shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                              style={{ borderRadius: '4px' }}
+                              title="设置习惯日历背景壁纸"
+                            >
+                              <Wallpaper size={14} className="text-stone-800" />
                             </label>
                           </div>
 
