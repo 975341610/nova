@@ -28,7 +28,7 @@ import {
     SlashCommands, FileNode, Heading, MathInline, MathBlock, Footnote, 
     ColumnGroup, Column, HighlightBlock,
     WashiTape, JournalStamp, Blockquote, CodeBlock, FilePlaceholder, FileUpload,
-    CountdownNode, MusicPlayerNode, MiniCalendarNode
+    CountdownNode, MusicPlayerNode, MiniCalendarNode, KanbanNode
   } from '../../lib/tiptapExtensions';
 
 import type { Note } from '../../lib/types';
@@ -123,6 +123,7 @@ const NOVA_BLOCK_SLASH_ITEMS = [
   { label: '倒计时', description: '莫兰迪配色倒计时', group: '🧩 精致小组件', icon: <Timer size={18} />, keywords: ['countdown', 'djs'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'countdown' }) },
   { label: '黑胶播放器', description: '带动画的音乐播放器', group: '🧩 精致小组件', icon: <Music size={18} />, keywords: ['music', 'player'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'musicPlayer' }) },
   { label: '迷你日历', description: '极简月历打卡', group: '🧩 精致小组件', icon: <List size={18} />, keywords: ['calendar', 'checkin'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'miniCalendar' }) },
+  { label: '多列看板 (Kanban)', description: '手账风进度看板', group: '🧩 精致小组件', icon: <Columns size={18} />, keywords: ['kanban', 'kb'], action: (chain: ChainedCommands) => chain.insertContent({ type: 'kanban' }) },
 ];
 
 interface NovaBlockEditorProps {
@@ -228,6 +229,7 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
     CountdownNode,
     MusicPlayerNode,
     MiniCalendarNode,
+    KanbanNode,
     SlashCommands.configure({ suggestion: getSuggestionConfig(slashItemsRef) }),
   ], []);
 
