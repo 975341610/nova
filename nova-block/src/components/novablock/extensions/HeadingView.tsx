@@ -11,7 +11,7 @@ export const HeadingView = ({ node, updateAttributes }: any) => {
     updateAttributes({ collapsed: !isCollapsed });
   };
 
-  const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+  const CustomTag = `h${level}` as any;
 
   return (
     <NodeViewWrapper id={id} className={`group/heading relative mt-6 mb-2 pl-[1.8rem] -ml-[1.8rem] ${isCollapsed ? 'is-collapsed' : ''}`}>
@@ -35,9 +35,9 @@ export const HeadingView = ({ node, updateAttributes }: any) => {
           </svg>
         </div>
       </div>
-      <Tag>
+      <CustomTag>
         <NodeViewContent />
-      </Tag>
+      </CustomTag>
     </NodeViewWrapper>
   );
 };

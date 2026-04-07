@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Link2, Play, Pause, ChevronDown, ChevronUp, Music, SkipBack, SkipForward, ListMusic } from 'lucide-react';
@@ -22,7 +22,7 @@ function formatTime(sec: number) {
 }
 
 export const MusicPlayerComponent: React.FC<any> = (props) => {
-  const { editor, node, updateAttributes, selected } = props;
+  const { editor, node, selected } = props;
   const isEditable = editor?.isEditable;
 
   const { currentTrack, isPlaying, progress, duration, play, toggle, setProgress, next, prev, refreshPlaylist, playlist } = useMusic();

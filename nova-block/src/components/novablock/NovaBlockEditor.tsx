@@ -360,7 +360,7 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
   };
 
   // 自动保存 (debounce)
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
   useEffect(() => {
     if (!isDirty || isSaving) return;
     
@@ -656,14 +656,7 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
                                 if (targetPos !== null) {
                                   const node = editor.state.doc.nodeAt(targetPos);
                                   if (node) {
-                                    // 获取当前块的 HTML 内容
-                                    const slice = editor.state.doc.slice(targetPos, targetPos + node.nodeSize);
-                                    const fragment = slice.content;
-                                    const div = document.createElement('div');
-                                    // Tiptap 处理 fragment 为 HTML 的简便方法
-                                    const html = editor.options.element.ownerDocument.createElement('div');
-                                    // 这里我们简单转换节点
-                                    const blockHtml = editor.storage.markdown?.serializer?.serialize(node) || node.textContent; // 降级方案
+                                    // 获取当前块的 HTML 内容进行复制操作
                                     
                                     // 更好的获取 HTML 方式
                                     const tempEditor = new Editor({

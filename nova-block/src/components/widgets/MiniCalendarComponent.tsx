@@ -42,10 +42,10 @@ export const MiniCalendarComponent: React.FC<any> = (props) => {
     // Monday = 1 ... Sunday = 7
     const firstDow = Number(format(start, 'i'));
     const pad = firstDow - 1;
-    const padded: (Date | null)[] = Array.from({ length: pad }, () => null).concat(list);
+    const padded: (Date | null)[] = [...Array.from({ length: pad }, () => null), ...list];
     // pad tail to full weeks
     const tail = (7 - (padded.length % 7)) % 7;
-    return padded.concat(Array.from({ length: tail }, () => null));
+    return [...padded, ...Array.from({ length: tail }, () => null)];
   }, [cursor]);
 
   const toggleDay = (d: Date) => {

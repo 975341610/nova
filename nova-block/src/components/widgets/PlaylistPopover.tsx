@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Music, Play, ExternalLink } from 'lucide-react';
-import { useMusic, Track } from '../../contexts/MusicContext';
+import { useMusic } from '../../contexts/MusicContext';
 
 interface PlaylistPopoverProps {
   onClose: () => void;

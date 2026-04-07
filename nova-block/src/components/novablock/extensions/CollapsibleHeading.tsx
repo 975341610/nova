@@ -1,4 +1,3 @@
-import { mergeAttributes } from '@tiptap/core';
 import { Heading as BaseHeading } from '@tiptap/extension-heading';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state';
@@ -35,17 +34,17 @@ export const CollapsibleHeading = BaseHeading.extend({
 
   addCommands() {
     return {
-      ensureHeadingIds: () => ({ tr, dispatch }) => {
+      ensureHeadingIds: () => ({ tr, dispatch }: any) => {
         let changed = false;
         const usedIds = new Set<string>();
 
-        tr.doc.descendants((node) => {
+        tr.doc.descendants((node: any) => {
           if (node.type.name === 'heading' && node.attrs.id) {
             usedIds.add(node.attrs.id);
           }
         });
 
-        tr.doc.descendants((node, pos) => {
+        tr.doc.descendants((node: any, pos: number) => {
           if (node.type.name === 'heading' && !node.attrs.id) {
             const text = node.textContent.trim();
             const safeSlug = text
@@ -74,7 +73,7 @@ export const CollapsibleHeading = BaseHeading.extend({
 
         return changed;
       },
-    };
+    } as any;
   },
 
   addProseMirrorPlugins() {
@@ -139,7 +138,6 @@ export const CollapsibleHeading = BaseHeading.extend({
 
             // 检查是否是 NodeSelection 且选中了折叠的 heading
             if (selection instanceof NodeSelection && selection.node.type.name === 'heading' && selection.node.attrs.collapsed) {
-              const { $from } = selection;
               const startPos = selection.from;
               const foldLevel = selection.node.attrs.level;
               let endPos = selection.to;
