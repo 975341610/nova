@@ -40,6 +40,11 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
   const activeHabit = habits.find(h => h.id === activeHabitId) || habits[0];
   const streak = activeHabit ? getStreak(activeHabit.id) : 0;
 
+  const handDrawnStyle = {
+    fontFamily: "'Comic Sans MS', 'Chalkboard SE', 'Caveat', cursive",
+    borderRadius: '255px 15px 225px 15px/15px 225px 15px 255px',
+  };
+
   const days = useMemo(() => {
     const start = startOfMonth(cursor);
     const end = endOfMonth(cursor);
@@ -89,16 +94,22 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
 
   return (
     <NodeViewWrapper className={`my-8 group relative ${selected ? 'ring-2 ring-primary/20 rounded-[2rem]' : ''}`}>
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md mx-auto" style={{ fontFamily: handDrawnStyle.fontFamily }}>
         {/* Main Card */}
-        <div className="relative overflow-hidden backdrop-blur-xl bg-white/40 dark:bg-black/20 border border-white/20 dark:border-white/10 rounded-[2rem] shadow-2xl shadow-primary/5 p-6 transition-all duration-500 hover:shadow-primary/10">
+        <div 
+          className="relative bg-[#fcf9f2] border-2 border-stone-800 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] p-6 transition-all duration-500 hover:shadow-[6px_6px_0px_0px_rgba(28,25,23,1)]"
+          style={{ borderRadius: handDrawnStyle.borderRadius }}
+        >
           
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div 
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                style={{ backgroundColor: activeHabit?.color + '44' }}
+                className="w-12 h-12 flex items-center justify-center text-2xl border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                style={{ 
+                  backgroundColor: activeHabit?.color + '22',
+                  borderRadius: '155px 15px 125px 15px/15px 125px 15px 155px'
+                }}
               >
                 {activeHabit?.icon || '📅'}
               </div>
@@ -110,40 +121,56 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                     className="bg-transparent border-none font-bold text-lg focus:ring-0 cursor-pointer p-0 pr-6 appearance-none outline-none z-10"
                   >
                     {habits.map(h => (
-                      <option key={h.id} value={h.id} className="bg-white dark:bg-stone-900 text-sm">{h.name}</option>
+                      <option key={h.id} value={h.id} className="bg-[#fcf9f2] text-sm">{h.name}</option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="text-stone-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover/select:text-primary transition-colors" />
+                  <ChevronDown size={14} className="text-stone-800 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover/select:text-primary transition-colors" />
                 </div>
-                <div className="text-xs text-stone-500 font-medium tracking-wider uppercase">
+                <div className="text-xs text-stone-600 font-bold tracking-wider uppercase">
                   {format(cursor, 'MMMM yyyy')}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/50 dark:bg-black/30 border border-white/20 shadow-sm">
-                {streak >= 10 ? <Crown size={14} className="text-yellow-500 fill-yellow-500" /> : <Flame size={14} className="text-orange-500 fill-orange-500" />}
+              <div 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#fefce8] border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '12px 4px 12px 4px/4px 12px 4px 12px' }}
+              >
+                {streak >= 10 ? <Crown size={14} className="text-stone-800" /> : <Flame size={14} className="text-stone-800" />}
                 <span className="text-sm font-bold tabular-nums">{streak}</span>
               </div>
               <button 
                 onClick={() => setIsSettingOpen(!isSettingOpen)}
-                className="p-2 rounded-xl hover:bg-white/60 transition-colors"
+                className="p-2 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '8px 4px 8px 4px/4px 8px 4px 8px' }}
               >
-                <Settings2 size={18} className="text-stone-400" />
+                <Settings2 size={18} className="text-stone-800" />
               </button>
             </div>
           </div>
 
           {/* Controls */}
           <div className="flex items-center justify-between mb-4 px-1">
-             <div className="flex gap-1">
-               <button onClick={() => setCursor(subMonths(cursor, 1))} className="p-1.5 rounded-lg hover:bg-white/40 transition-colors"><ChevronLeft size={16}/></button>
-               <button onClick={() => setCursor(addMonths(cursor, 1))} className="p-1.5 rounded-lg hover:bg-white/40 transition-colors"><ChevronRight size={16}/></button>
+             <div className="flex gap-2">
+               <button 
+                onClick={() => setCursor(subMonths(cursor, 1))} 
+                className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
+               >
+                 <ChevronLeft size={16}/>
+               </button>
+               <button 
+                onClick={() => setCursor(addMonths(cursor, 1))} 
+                className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
+               >
+                 <ChevronRight size={16}/>
+               </button>
              </div>
              <button 
                 onClick={() => setCursor(new Date())}
-                className="text-[10px] font-bold text-stone-400 hover:text-primary transition-colors uppercase tracking-tighter"
+                className="text-[10px] font-bold text-stone-800 border-b-2 border-stone-800 hover:text-primary transition-colors uppercase tracking-tighter"
              >
                 Today
              </button>
@@ -152,7 +179,7 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-2">
             {weekDays.map(d => (
-              <div key={d} className="text-[10px] font-bold text-stone-400 text-center pb-2">{d}</div>
+              <div key={d} className="text-[10px] font-bold text-stone-600 text-center pb-2 uppercase">{d}</div>
             ))}
             
             {days.map((date, i) => {
@@ -170,40 +197,54 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
               return (
                 <motion.button
                   key={dateStr}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={(e) => isCurrMonth && handleCellClick(date, e)}
                   onContextMenu={(e) => { e.preventDefault(); isCurrMonth && handleCellClick(date, e, true); }}
                   disabled={!isCurrMonth || !isEditable}
                   className={`
-                    relative aspect-square rounded-xl border flex items-center justify-center text-xs font-bold transition-all
+                    relative aspect-square border-2 border-stone-800 flex items-center justify-center transition-all
                     ${isCurrMonth ? 'cursor-pointer' : 'opacity-0 pointer-events-none'}
-                    ${today ? 'ring-2 ring-primary/40 ring-offset-2 ring-offset-transparent' : ''}
+                    ${today ? 'bg-stone-100' : ''}
+                    ${isCompleted ? 'bg-[#fefce8]' : 'bg-white'}
                   `}
                   style={{
-                    backgroundColor: val > 0 ? (activeHabit?.color + Math.floor(percent * 255).toString(16).padStart(2, '0')) : 'rgba(255,255,255,0.3)',
-                    borderColor: today ? activeHabit?.color : (val > 0 ? activeHabit?.color + '66' : 'rgba(0,0,0,0.05)'),
-                    color: isCompleted ? 'white' : 'inherit',
-                    textShadow: isCompleted ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                    borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px',
+                    boxShadow: val > 0 ? '2px 2px 0px 0px rgba(28,25,23,1)' : '1px 1px 0px 0px rgba(28,25,23,0.2)',
                   }}
                 >
-                  <div className="flex flex-col items-center">
-                    <span>{format(date, 'd')}</span>
-                    {target > 1 && (
-                      <span className={`text-[8px] opacity-60 font-medium mt-[-2px] ${isCompleted ? 'text-white' : ''}`}>
-                        {val}/{target}
-                      </span>
-                    )}
+                  {/* Base Emoji (Shadow/Outline) */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-10 grayscale pointer-events-none select-none text-2xl">
+                    {activeHabit?.icon}
                   </div>
-                  
-                  {/* Progress Fill */}
-                  {val > 0 && val < target && (
-                    <div 
-                      className="absolute inset-0 rounded-xl pointer-events-none overflow-hidden opacity-30"
-                      style={{ 
-                        background: `linear-gradient(to top, ${activeHabit?.color} ${percent * 100}%, transparent 0%)` 
+
+                  {/* Active Emoji (Progressive Clip) */}
+                  {val > 0 && (
+                    <motion.div 
+                      className="absolute inset-0 flex items-center justify-center text-2xl pointer-events-none select-none"
+                      style={{
+                        clipPath: `inset(calc(100% - ${percent * 100}%) 0 0 0)`
                       }}
-                    />
+                      animate={isCompleted ? { 
+                        scale: [1, 1.2, 1],
+                        rotate: [0, 5, -5, 0]
+                      } : {}}
+                      transition={{ duration: 0.4, type: 'spring' }}
+                    >
+                      {activeHabit?.icon}
+                    </motion.div>
+                  )}
+
+                  {/* Date Number */}
+                  <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${today ? 'text-primary' : 'text-stone-400'}`}>
+                    {format(date, 'd')}
+                  </span>
+                  
+                  {/* Progress Numbers */}
+                  {target > 1 && (
+                    <span className="absolute bottom-0.5 right-1 text-[8px] font-bold text-stone-500 italic">
+                      {val}/{target}
+                    </span>
                   )}
                 </motion.button>
               );
@@ -217,30 +258,36 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden mt-6 pt-4 border-t border-white/20"
+                className="overflow-hidden mt-6 pt-4 border-t-2 border-stone-800"
               >
                 <div className="space-y-4">
                    <div className="flex items-center justify-between">
-                     <span className="text-xs font-bold text-stone-500 uppercase">Manage Habits</span>
+                     <span className="text-xs font-bold text-stone-800 uppercase italic">Edit Habits</span>
                      <button 
                         onClick={() => addHabit({ name: '新习惯', icon: '✨', color: '#b8c6db', targetValue: 1 })}
-                        className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
+                        className="p-1 bg-stone-100 border-2 border-stone-800 shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] hover:bg-white transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                        style={{ borderRadius: '4px' }}
                      >
-                       <Plus size={14} />
+                       <Plus size={14} className="text-stone-800" />
                      </button>
                    </div>
-                   <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                   <div className="max-h-48 overflow-y-auto space-y-3 pr-1">
                       {habits.map(h => (
-                        <div key={h.id} className="flex items-center gap-2 p-2 rounded-xl bg-white/40 dark:bg-black/20 group/item">
+                        <div 
+                          key={h.id} 
+                          className="flex items-center gap-2 p-2 bg-white border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] group/item"
+                          style={{ borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px' }}
+                        >
                           <input 
                             value={h.icon} 
                             onChange={(e) => updateHabit(h.id, { icon: e.target.value })}
-                            className="w-8 h-8 flex-shrink-0 bg-white/50 dark:bg-black/30 border-none rounded-lg text-center p-0 text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+                            className="w-8 h-8 flex-shrink-0 bg-stone-50 border-2 border-stone-800 text-center p-0 text-sm focus:ring-0 outline-none"
+                            style={{ borderRadius: '4px' }}
                           />
                           <input 
                             value={h.name} 
                             onChange={(e) => updateHabit(h.id, { name: e.target.value })}
-                            className="flex-grow bg-transparent border-none text-sm font-medium p-0 focus:ring-0 outline-none min-w-0"
+                            className="flex-grow bg-transparent border-none text-sm font-bold p-0 focus:ring-0 outline-none min-w-0"
                           />
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <input 
@@ -248,17 +295,19 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                               min="1"
                               value={h.targetValue} 
                               onChange={(e) => updateHabit(h.id, { targetValue: parseInt(e.target.value) || 1 })}
-                              className="w-10 bg-white/50 dark:bg-black/30 border-none rounded-lg text-[10px] text-center p-1 focus:ring-1 focus:ring-primary/30 outline-none"
+                              className="w-10 bg-stone-50 border-2 border-stone-800 text-[10px] font-bold text-center p-1 focus:ring-0 outline-none"
+                              style={{ borderRadius: '4px' }}
                             />
                             <input 
                               type="color"
                               value={h.color} 
                               onChange={(e) => updateHabit(h.id, { color: e.target.value })}
-                              className="w-5 h-5 rounded-full border-none p-0 bg-transparent cursor-pointer overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none"
+                              className="w-5 h-5 border-2 border-stone-800 p-0 bg-transparent cursor-pointer overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none"
+                              style={{ borderRadius: '50%' }}
                             />
                             <button 
                               onClick={() => deleteHabit(h.id)}
-                              className="p-1 opacity-0 group-hover/item:opacity-100 text-red-400 hover:text-red-500 transition-all"
+                              className="p-1 opacity-100 text-stone-400 hover:text-red-500 transition-all"
                             >
                               <Trash2 size={14} />
                             </button>
