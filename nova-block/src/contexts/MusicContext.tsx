@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { api, getApiBase } from '../lib/api';
 
 export interface Track {
@@ -8,11 +16,9 @@ export interface Track {
   cover?: string;
 }
 
-interface MusicContextType {
+interface MusicControlsContextType {
   currentTrack: Track | null;
   isPlaying: boolean;
-  progress: number;
-  duration: number;
   playlist: Track[];
   volume: number;
   play: (track: Track) => void;
@@ -22,13 +28,19 @@ interface MusicContextType {
   next: () => void;
   prev: () => void;
   setVolume: (v: number) => void;
-  setProgress: (v: number) => void;
   stop: () => void;
   setPlaylist: (tracks: Track[]) => void;
   refreshPlaylist: () => Promise<void>;
 }
 
-const MusicContext = createContext<MusicContextType | undefined>(undefined);
+interface MusicProgressContextType {
+  progress: number;
+  duration: number;
+  setProgress: (v: number) => void;
+}
+
+const MusicControlsContext = createContext<MusicControlsContextType | undefined>(undefined);
+const MusicProgressContext = createContext<MusicProgressContextType | undefined>(undefined);
 
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -37,70 +49,43 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [duration, setDuration] = useState(0);
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [volume, setVolume] = useState(0.8);
+
+  // 让 audio 标签在顶层常驻（避免因组件隐藏/重渲染导致音频中断）
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const nextRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-    
-    const handleTimeUpdate = () => {
-      if (audio.duration) {
-        setProgressState(audio.currentTime / audio.duration);
+  const play = useCallback(
+    (track: Track) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      if (currentTrack?.url === track.url) {
+        if (!isPlaying) {
+          audio.play().catch(console.error);
+          setIsPlaying(true);
+        }
+        return;
       }
-    };
-    
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
-    };
 
-    const handleEnded = () => {
-      next();
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('ended', handleEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-      audio.pause();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
-
-  const play = useCallback((track: Track) => {
-    if (!audioRef.current) return;
-    
-    if (currentTrack?.url === track.url) {
-      if (!isPlaying) {
-        audioRef.current.play().catch(console.error);
-        setIsPlaying(true);
-      }
-      return;
-    }
-
-    setCurrentTrack(track);
-    audioRef.current.src = track.url;
-    audioRef.current.play().catch(console.error);
-    setIsPlaying(true);
-  }, [currentTrack, isPlaying]);
+      setCurrentTrack(track);
+      audio.src = track.url;
+      audio.play().catch(console.error);
+      setIsPlaying(true);
+    },
+    [currentTrack, isPlaying],
+  );
 
   const pause = useCallback(() => {
-    if (!audioRef.current) return;
-    audioRef.current.pause();
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
     setIsPlaying(false);
   }, []);
 
   const resume = useCallback(() => {
-    if (!audioRef.current) return;
-    audioRef.current.play().catch(console.error);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.play().catch(console.error);
     setIsPlaying(true);
   }, []);
 
@@ -113,13 +98,17 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [isPlaying, currentTrack, pause, resume]);
 
   const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.removeAttribute('src');
+      audio.load();
     }
     setCurrentTrack(null);
     setIsPlaying(false);
     setProgressState(0);
+    setDuration(0);
   }, []);
 
   const next = useCallback(() => {
@@ -137,9 +126,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [playlist, currentTrack, play]);
 
   const setProgress = useCallback((v: number) => {
-    if (audioRef.current && audioRef.current.duration) {
-      const time = v * audioRef.current.duration;
-      audioRef.current.currentTime = time;
+    const audio = audioRef.current;
+    if (audio && audio.duration) {
+      const time = v * audio.duration;
+      audio.currentTime = time;
       setProgressState(v);
     }
   }, []);
@@ -152,7 +142,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const tracks = data.map((track: any) => ({
           ...track,
           url: track.url.startsWith('http') ? track.url : `${apiBase}${track.url}`,
-          cover: track.cover ? (track.cover.startsWith('http') ? track.cover : `${apiBase}${track.cover}`) : track.cover
+          cover: track.cover
+            ? track.cover.startsWith('http')
+              ? track.cover
+              : `${apiBase}${track.cover}`
+            : track.cover,
         }));
         setPlaylist(tracks);
       }
@@ -166,12 +160,49 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshPlaylist();
   }, [refreshPlaylist]);
 
-  return (
-    <MusicContext.Provider value={{
+  useEffect(() => {
+    nextRef.current = next;
+  }, [next]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => {
+      if (audio.duration) {
+        setProgressState(audio.currentTime / audio.duration);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration || 0);
+    };
+
+    const handleEnded = () => {
+      nextRef.current();
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  const controlsValue = useMemo<MusicControlsContextType>(
+    () => ({
       currentTrack,
       isPlaying,
-      progress,
-      duration,
       playlist,
       volume,
       play,
@@ -181,20 +212,64 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       next,
       prev,
       setVolume,
-      setProgress,
       stop,
       setPlaylist,
-      refreshPlaylist
-    }}>
-      {children}
-    </MusicContext.Provider>
+      refreshPlaylist,
+    }),
+    [
+      currentTrack,
+      isPlaying,
+      playlist,
+      volume,
+      play,
+      pause,
+      resume,
+      toggle,
+      next,
+      prev,
+      stop,
+      refreshPlaylist,
+    ],
+  );
+
+  const progressValue = useMemo<MusicProgressContextType>(
+    () => ({
+      progress,
+      duration,
+      setProgress,
+    }),
+    [progress, duration, setProgress],
+  );
+
+  return (
+    <MusicControlsContext.Provider value={controlsValue}>
+      <MusicProgressContext.Provider value={progressValue}>
+        <audio ref={audioRef} preload="metadata" />
+        {children}
+      </MusicProgressContext.Provider>
+    </MusicControlsContext.Provider>
   );
 };
 
-export const useMusic = () => {
-  const context = useContext(MusicContext);
+export const useMusicControls = () => {
+  const context = useContext(MusicControlsContext);
   if (!context) {
-    throw new Error('useMusic must be used within a MusicProvider');
+    throw new Error('useMusicControls must be used within a MusicProvider');
   }
   return context;
+};
+
+export const useMusicProgress = () => {
+  const context = useContext(MusicProgressContext);
+  if (!context) {
+    throw new Error('useMusicProgress must be used within a MusicProvider');
+  }
+  return context;
+};
+
+export const useMusic = () => {
+  return {
+    ...useMusicControls(),
+    ...useMusicProgress(),
+  };
 };

@@ -1,56 +1,162 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, X, ListMusic } from 'lucide-react';
-import { useMusic } from '../../contexts/MusicContext';
+import { useMusicControls } from '../../contexts/MusicContext';
 import { PlaylistPopover } from './PlaylistPopover';
 
+const EDGE_PEEK_PX = 20;
+const DEFAULT_MARGIN_PX = 40;
+const SNAP_THRESHOLD_PX = 150;
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
 export const FloatingMusicCapsule: React.FC = () => {
-  const { currentTrack, isPlaying, toggle, next, prev, stop } = useMusic();
-  const [isSnapped, setIsSnapped] = useState(false);
-  const [snapSide, setSnapSide] = useState<'left' | 'right'>('right');
+  // 仅订阅 controls，避免 progress(timeupdate) 导致拖拽容器掉帧
+  const { currentTrack, isPlaying, toggle, next, prev, stop } = useMusicControls();
+
+  const capsuleRef = useRef<HTMLDivElement | null>(null);
+
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isSnapped, setIsSnapped] = useState(false);
+  const [snapSide, setSnapSide] = useState<'left' | 'right'>('right');
+
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      setViewport({ w: vw, h: vh });
+
+      const rect = capsuleRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+
+      setSize({ w: rect.width, h: rect.height });
+
+      setPos(prev => {
+        const maxX = vw - rect.width;
+        const maxY = vh - rect.height;
+
+        // 首次出现：默认放在右下角（留出边距）
+        if (!isInitialized) {
+          return {
+            x: Math.max(0, maxX - DEFAULT_MARGIN_PX),
+            y: Math.max(0, maxY - DEFAULT_MARGIN_PX),
+          };
+        }
+
+        // resize 时：保持在屏幕可见区域（吸附状态下保持贴边）
+        if (isSnapped) {
+          return {
+            x: snapSide === 'left' ? 0 : Math.max(0, maxX),
+            y: clamp(prev.y, 0, Math.max(0, maxY)),
+          };
+        }
+
+        return {
+          x: clamp(prev.x, 0, Math.max(0, maxX)),
+          y: clamp(prev.y, 0, Math.max(0, maxY)),
+        };
+      });
+
+      setIsInitialized(true);
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [isInitialized, isSnapped, snapSide]);
+
+  const isSemiHidden = isSnapped && !isHovered;
+
+  const { dragConstraints, targetX, targetY } = useMemo(() => {
+    const maxX = Math.max(0, viewport.w - size.w);
+    const maxY = Math.max(0, viewport.h - size.h);
+
+    const constraints = isInitialized
+      ? {
+          left: -EDGE_PEEK_PX,
+          right: maxX + EDGE_PEEK_PX,
+          top: 0,
+          bottom: maxY,
+        }
+      : undefined;
+
+    // 吸附时通过“贴边位置 + 小幅负边距(±20px)”实现半掩面，避免把组件甩到屏幕外
+    const x = isSnapped
+      ? snapSide === 'left'
+        ? isSemiHidden
+          ? -EDGE_PEEK_PX
+          : 0
+        : isSemiHidden
+          ? maxX + EDGE_PEEK_PX
+          : maxX
+      : pos.x;
+
+    return {
+      dragConstraints: constraints,
+      targetX: x,
+      targetY: pos.y,
+    };
+  }, [isInitialized, viewport.w, viewport.h, size.w, size.h, isSnapped, snapSide, isSemiHidden, pos.x, pos.y]);
 
   if (!currentTrack) return null;
 
-  const handleDragEnd = (_: any, info: any) => {
-    const threshold = 150;
-    const windowWidth = window.innerWidth;
-    const x = info.point.x;
+  const handleDragEnd = () => {
+    const rect = capsuleRef.current?.getBoundingClientRect();
+    if (!rect) return;
 
-    if (x < threshold) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = rect.width;
+    const h = rect.height;
+
+    const leftGap = rect.left;
+    const rightGap = vw - rect.right;
+
+    const maxX = Math.max(0, vw - w);
+    const maxY = Math.max(0, vh - h);
+
+    const nextY = clamp(rect.top, 0, maxY);
+
+    if (leftGap < SNAP_THRESHOLD_PX) {
       setIsSnapped(true);
       setSnapSide('left');
-    } else if (x > windowWidth - threshold) {
+      setPos({ x: 0, y: nextY });
+      return;
+    }
+
+    if (rightGap < SNAP_THRESHOLD_PX) {
       setIsSnapped(true);
       setSnapSide('right');
-    } else {
-      setIsSnapped(false);
+      setPos({ x: maxX, y: nextY });
+      return;
     }
-  };
 
-  const isSemiHidden = isSnapped && !isHovered;
+    setIsSnapped(false);
+    setPos({ x: clamp(rect.left, 0, maxX), y: nextY });
+  };
 
   return (
     <AnimatePresence>
       <motion.div
+        ref={capsuleRef}
         drag
+        dragConstraints={dragConstraints}
+        dragElastic={0.05}
         dragMomentum={false}
         onDragEnd={handleDragEnd}
-        initial={{ opacity: 0, y: 50, scale: 0.9 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1,
-          x: isSemiHidden ? (snapSide === 'left' ? -60 : 60) : 0,
-        }}
-        exit={{ opacity: 0, y: 50, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1, x: targetX, y: targetY }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 40, mass: 0.8 }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`fixed bottom-10 right-10 z-[100] flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl rounded-full p-1.5 transition-all duration-300 hover:shadow-pink-200/50 ${isSnapped ? '' : 'cursor-move'}`}
-        style={{
-           left: isSnapped && snapSide === 'left' ? '0' : 'auto',
-           right: isSnapped && snapSide === 'right' ? '0' : (isSnapped ? 'auto' : '40px'),
-        }}
+        className={`fixed top-0 left-0 z-[100] flex items-center gap-2 bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl rounded-full p-1.5 transition-shadow duration-300 hover:shadow-pink-200/50 transform-gpu will-change-transform ${isSnapped ? '' : 'cursor-move'}`}
       >
         {/* Vinyl Disc */}
         <div className="relative w-10 h-10 shrink-0">
@@ -60,7 +166,9 @@ export const FloatingMusicCapsule: React.FC = () => {
             transition={{ duration: 4, ease: 'linear', repeat: isPlaying ? Infinity : 0 }}
             className="absolute inset-1 rounded-full overflow-hidden"
             style={{
-              backgroundImage: currentTrack.cover ? `url(${currentTrack.cover})` : 'linear-gradient(45deg, #FF9A9E 0%, #FAD0C4 99%, #FAD0C4 100%)',
+              backgroundImage: currentTrack.cover
+                ? `url(${currentTrack.cover})`
+                : 'linear-gradient(45deg, #FF9A9E 0%, #FAD0C4 99%, #FAD0C4 100%)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             }}
@@ -75,16 +183,14 @@ export const FloatingMusicCapsule: React.FC = () => {
         {/* Info & Controls */}
         <AnimatePresence>
           {!isSemiHidden && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, width: 0 }}
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               className="flex items-center gap-3 pr-2 overflow-hidden whitespace-nowrap"
             >
               <div className="flex flex-col min-w-0 max-w-[120px]">
-                <div className="text-[11px] font-bold text-gray-800 truncate">
-                  {currentTrack.title}
-                </div>
+                <div className="text-[11px] font-bold text-gray-800 truncate">{currentTrack.title}</div>
                 <div className="flex items-center gap-0.5 mt-0.5">
                   <button onClick={prev} className="p-1 hover:bg-black/5 rounded-full transition-colors text-gray-600">
                     <SkipBack size={12} fill="currentColor" />
@@ -99,8 +205,8 @@ export const FloatingMusicCapsule: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1 border-l border-black/5 pl-2">
-                <button 
-                  onClick={() => setShowPlaylist(!showPlaylist)} 
+                <button
+                  onClick={() => setShowPlaylist(!showPlaylist)}
                   className={`p-1.5 rounded-full transition-colors ${showPlaylist ? 'bg-pink-100 text-pink-500' : 'hover:bg-black/5 text-gray-500'}`}
                 >
                   <ListMusic size={14} />

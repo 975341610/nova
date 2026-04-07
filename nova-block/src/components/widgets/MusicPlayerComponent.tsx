@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Link2, Play, Pause, ChevronDown, ChevronUp, Music, SkipBack, SkipForward, ListMusic } from 'lucide-react';
-import { useMusic } from '../../contexts/MusicContext';
+import { useMusicControls, useMusicProgress } from '../../contexts/MusicContext';
 import { api, getApiBase } from '../../lib/api';
 import { PlaylistPopover } from './PlaylistPopover';
 
@@ -25,7 +25,8 @@ export const MusicPlayerComponent: React.FC<any> = (props) => {
   const { editor, node, selected } = props;
   const isEditable = editor?.isEditable;
 
-  const { currentTrack, isPlaying, progress, duration, play, toggle, setProgress, next, prev, refreshPlaylist, playlist } = useMusic();
+  const { currentTrack, isPlaying, play, toggle, next, prev, refreshPlaylist, playlist } = useMusicControls();
+  const { progress, duration, setProgress } = useMusicProgress();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
 

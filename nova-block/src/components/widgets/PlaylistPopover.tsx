@@ -1,14 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Music, Play, ExternalLink } from 'lucide-react';
-import { useMusic } from '../../contexts/MusicContext';
+import { useMusicControls } from '../../contexts/MusicContext';
 
 interface PlaylistPopoverProps {
   onClose: () => void;
 }
 
 export const PlaylistPopover: React.FC<PlaylistPopoverProps> = ({ onClose }) => {
-  const { playlist, currentTrack, play } = useMusic();
+  const { playlist, currentTrack, play } = useMusicControls();
 
   return (
     <motion.div
@@ -29,7 +29,7 @@ export const PlaylistPopover: React.FC<PlaylistPopoverProps> = ({ onClose }) => 
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto max-h-[300px] p-2 space-y-1 custom-scrollbar">
         {playlist.length === 0 ? (
           <div className="py-10 text-center text-gray-400 text-sm">
             暂无歌曲
