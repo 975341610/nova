@@ -85,6 +85,24 @@ const fileToCompressedDataUrl = async (file: File, maxSize = 128, quality = 0.82
   return canvas.toDataURL('image/webp', quality);
 };
 
+const uploadFileToLocal = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/media/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Upload failed');
+  }
+
+  const data = await response.json();
+  // Assume the API returns { url: '/uploads/xxx.png' } or similar
+  return data.url || data.path || '';
+};
+
 type HabitCellProps = {
   dateStr: string;
   dayNumber: string;
@@ -294,11 +312,19 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
   const handleIconFileSelected = useCallback(
     async (habitId: string, file: File) => {
       try {
-        const base64 = await fileToCompressedDataUrl(file);
-        updateHabit(habitId, { icon: base64 });
+        // 1. 优先尝试物理上传
+        const url = await uploadFileToLocal(file);
+        updateHabit(habitId, { icon: url });
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error(e);
+        // 2. 降级回 base64 (localStorage 存储)
+        console.warn('Physical upload failed, fallback to base64:', e);
+        try {
+          const base64 = await fileToCompressedDataUrl(file);
+          updateHabit(habitId, { icon: base64 });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(err);
+        }
       }
     },
     [updateHabit],
@@ -307,12 +333,20 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
   const handleBgFileSelected = useCallback(
     async (habitId: string, file: File) => {
       try {
-        // 壁纸建议压缩得稍大一点，比如 512px，质量 0.7 左右
-        const base64 = await fileToCompressedDataUrl(file, 512, 0.7);
-        updateHabit(habitId, { bgImage: base64 });
+        // 1. 优先尝试物理上传
+        const url = await uploadFileToLocal(file);
+        updateHabit(habitId, { bgImage: url });
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error(e);
+        // 2. 降级回 base64 (localStorage 存储)
+        console.warn('Physical upload failed, fallback to base64:', e);
+        try {
+          // 壁纸建议压缩得稍大一点，比如 512px，质量 0.7 左右
+          const base64 = await fileToCompressedDataUrl(file, 512, 0.7);
+          updateHabit(habitId, { bgImage: base64 });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error(err);
+        }
       }
     },
     [updateHabit],
