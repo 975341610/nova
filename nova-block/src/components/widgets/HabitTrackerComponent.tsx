@@ -1,31 +1,52 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import {
   addMonths,
   eachDayOfInterval,
   endOfMonth,
   format,
+  isSameMonth,
   startOfMonth,
   subMonths,
   isToday,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Flame, Crown, Plus, Settings2, Trash2, ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Crown,
+  Flame,
+  Plus,
+  Settings2,
+  Trash2,
+} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { useHabit } from '../../contexts/HabitContext';
-import { api, getApiBase } from '../../lib/api';
 
 const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
 
-const isImageSrc = (value?: string) => {
-  if (!value) return false;
-  return (
-    value.startsWith('data:image') ||
-    value.startsWith('http://') ||
-    value.startsWith('https://') ||
-    value.startsWith('blob:') ||
-    value.startsWith('/api/media/')
-  );
+const isImageIcon = (icon?: string) => {
+  if (!icon) return false;
+  return icon.startsWith('data:image/') || icon.startsWith('http');
+};
+
+const HabitIcon: React.FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
+  const value = icon || '📅';
+
+  if (isImageIcon(value)) {
+    return (
+      <img
+        src={value}
+        className={className || 'object-contain w-full h-full'}
+        draggable={false}
+        alt="habit icon"
+      />
+    );
+  }
+
+  return <span className="leading-none">{value}</span>;
 };
 
 const fileToDataUrl = (file: File) =>
@@ -36,118 +57,136 @@ const fileToDataUrl = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-const toAbsoluteMediaUrl = (maybeRelativeUrl: string) => {
-  if (!maybeRelativeUrl) return maybeRelativeUrl;
-  if (maybeRelativeUrl.startsWith('http://') || maybeRelativeUrl.startsWith('https://')) return maybeRelativeUrl;
-  // getApiBase() 形如 http://127.0.0.1:8765/api 或 https://8765-xxx/ api
-  const apiBase = getApiBase();
-  const origin = apiBase.replace(/\/api\/?$/, '');
-  const path = maybeRelativeUrl.startsWith('/') ? maybeRelativeUrl : `/${maybeRelativeUrl}`;
-  return `${origin}${path}`;
-};
+const fileToCompressedDataUrl = async (file: File, maxSize = 128, quality = 0.82) => {
+  const dataUrl = await fileToDataUrl(file);
+  if (!dataUrl.startsWith('data:image/')) return dataUrl;
 
-const HabitIcon: React.FC<{ icon?: string; className?: string; imgClassName?: string }> = ({
-  icon,
-  className,
-  imgClassName,
-}) => {
-  if (!icon) return null;
-  if (isImageSrc(icon)) {
-    return <img src={icon} alt="" className={imgClassName || className || 'w-7 h-7 object-contain'} />;
-  }
-  return <span className={className}>{icon}</span>;
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('image load failed'));
+    img.src = dataUrl;
+  });
+
+  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+  const width = Math.max(1, Math.round(img.width * scale));
+  const height = Math.max(1, Math.round(img.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  ctx?.drawImage(img, 0, 0, width, height);
+
+  // Prefer webp for smaller localStorage footprint.
+  return canvas.toDataURL('image/webp', quality);
 };
 
 type HabitCellProps = {
-  date: Date;
+  dateStr: string;
+  dayNumber: string;
   val: number;
   target: number;
-  icon?: string;
+  icon: string;
+  isToday: boolean;
+  isCurrMonth: boolean;
   isEditable: boolean;
-  onCellClick: (date: Date, event: React.MouseEvent, isRightClick?: boolean) => void;
+  onLeftClick: (dateStr: string, e: React.MouseEvent<HTMLButtonElement>) => void;
+  onRightClick: (dateStr: string, e: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
-const HabitCell = React.memo<HabitCellProps>(
-  ({ date, val, target, icon, isEditable, onCellClick }) => {
-    const percent = Math.min(val / Math.max(target, 1), 1);
-    const isCompleted = val >= target;
-    const today = isToday(date);
+const HabitCell = React.memo(({
+  dateStr,
+  dayNumber,
+  val,
+  target,
+  icon,
+  isToday: today,
+  isCurrMonth,
+  isEditable,
+  onLeftClick,
+  onRightClick,
+}: HabitCellProps) => {
+  const percent = Math.min(val / target, 1);
+  const isCompleted = val >= target;
 
-    return (
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={(e) => onCellClick(date, e)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onCellClick(date, e, true);
-        }}
-        disabled={!isEditable}
-        className={
-          `relative aspect-square border-2 border-stone-800 flex items-center justify-center transition-all ` +
-          `${today ? 'bg-stone-100' : ''} ` +
-          `${isCompleted ? 'bg-[#fefce8]' : 'bg-white'}`
-        }
-        style={{
-          borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px',
-          boxShadow: val > 0 ? '2px 2px 0px 0px rgba(28,25,23,1)' : '1px 1px 0px 0px rgba(28,25,23,0.2)',
-        }}
-      >
-        {/* Base Icon (Shadow/Outline) */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-10 grayscale pointer-events-none select-none">
-          {isImageSrc(icon) ? (
-            <HabitIcon icon={icon} imgClassName="w-6 h-6 object-contain" />
-          ) : (
-            <HabitIcon icon={icon} className="text-2xl" />
-          )}
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={(e) => {
+        if (!isCurrMonth || !isEditable) return;
+        onLeftClick(dateStr, e);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (!isCurrMonth || !isEditable) return;
+        onRightClick(dateStr, e);
+      }}
+      disabled={!isCurrMonth || !isEditable}
+      className={
+        `relative aspect-square border-2 border-stone-800 flex items-center justify-center transition-all ` +
+        `${isCurrMonth ? 'cursor-pointer' : 'opacity-0 pointer-events-none'} ` +
+        `${today ? 'bg-stone-100' : ''} ` +
+        `${isCompleted ? 'bg-[#fefce8]' : 'bg-white'}`
+      }
+      style={{
+        borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px',
+        boxShadow:
+          val > 0
+            ? '2px 2px 0px 0px rgba(28,25,23,1)'
+            : '1px 1px 0px 0px rgba(28,25,23,0.2)',
+      }}
+    >
+      {/* Base Icon (Shadow/Outline) */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-10 grayscale pointer-events-none select-none text-2xl p-1.5">
+        <div className="w-full h-full flex items-center justify-center">
+          <HabitIcon icon={icon} />
         </div>
+      </div>
 
-        {/* Active Icon (Progressive Clip) */}
-        {val > 0 && (
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-            style={{
-              clipPath: `inset(calc(100% - ${percent * 100}%) 0 0 0)`,
-            }}
-            animate={
-              isCompleted
-                ? {
-                    scale: [1, 1.2, 1],
-                    rotate: [0, 5, -5, 0],
-                  }
-                : {}
-            }
-            transition={{ duration: 0.4, type: 'spring' }}
-          >
-            {isImageSrc(icon) ? (
-              <HabitIcon icon={icon} imgClassName="w-6 h-6 object-contain" />
-            ) : (
-              <HabitIcon icon={icon} className="text-2xl" />
-            )}
-          </motion.div>
-        )}
+      {/* Active Icon (Progressive Clip) */}
+      {val > 0 && (
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center text-2xl pointer-events-none select-none p-1.5"
+          style={{
+            clipPath: `inset(calc(100% - ${percent * 100}%) 0 0 0)`,
+          }}
+          animate={
+            isCompleted
+              ? {
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 5, -5, 0],
+                }
+              : {}
+          }
+          transition={{ duration: 0.4, type: 'spring' }}
+        >
+          <div className="w-full h-full flex items-center justify-center">
+            <HabitIcon icon={icon} />
+          </div>
+        </motion.div>
+      )}
 
-        {/* Date Number */}
-        <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${today ? 'text-primary' : 'text-stone-400'}`}>
-          {format(date, 'd')}
+      {/* Date Number */}
+      <span
+        className={`absolute top-0.5 right-1 text-[9px] font-bold ${today ? 'text-primary' : 'text-stone-400'}`}
+      >
+        {dayNumber}
+      </span>
+
+      {/* Progress Numbers */}
+      {target > 1 && (
+        <span className="absolute bottom-0.5 right-1 text-[8px] font-bold text-stone-500 italic">
+          {val}/{target}
         </span>
+      )}
+    </motion.button>
+  );
+});
 
-        {/* Progress Numbers */}
-        {target > 1 && (
-          <span className="absolute bottom-0.5 right-1 text-[8px] font-bold text-stone-500 italic">
-            {val}/{target}
-          </span>
-        )}
-      </motion.button>
-    );
-  },
-  (prev, next) =>
-    prev.date === next.date &&
-    prev.val === next.val &&
-    prev.target === next.target &&
-    prev.icon === next.icon &&
-    prev.isEditable === next.isEditable
-);
+HabitCell.displayName = 'HabitCell';
 
 export const HabitTrackerComponent: React.FC<any> = (props) => {
   const { selected, editor } = props;
@@ -168,16 +207,24 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
   const [cursor, setCursor] = useState(() => new Date());
   const [isSettingOpen, setIsSettingOpen] = useState(false);
 
-  const [uploadHint, setUploadHint] = useState<string | null>(null);
-  const uploadHintTimerRef = useRef<number | null>(null);
-  const showUploadHint = useCallback((msg: string) => {
-    setUploadHint(msg);
-    if (uploadHintTimerRef.current) window.clearTimeout(uploadHintTimerRef.current);
-    uploadHintTimerRef.current = window.setTimeout(() => setUploadHint(null), 3500);
-  }, []);
-
-  const activeHabit = useMemo(() => habits.find((h) => h.id === activeHabitId) || habits[0], [habits, activeHabitId]);
+  const activeHabit = habits.find((h) => h.id === activeHabitId) || habits[0];
   const streak = activeHabit ? getStreak(activeHabit.id) : 0;
+
+  // Optimization B: Map 查表，O(1) 获取每天 val
+  const logsMap = useMemo(() => {
+    if (!activeHabit?.id) return {} as Record<string, number>;
+    const map: Record<string, number> = {};
+    for (const l of logs) {
+      if (l.habitId === activeHabit.id) {
+        map[l.date] = l.value;
+      }
+    }
+    return map;
+  }, [logs, activeHabit?.id]);
+
+  // Optimization C: 回调函数保持稳定，同时可读取最新 logsMap
+  const logsMapRef = useRef<Record<string, number>>({});
+  logsMapRef.current = logsMap;
 
   const handDrawnStyle = {
     fontFamily: "'Comic Sans MS', 'Chalkboard SE', 'Caveat', cursive",
@@ -195,21 +242,11 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
     return [...padded, ...Array.from({ length: tail }, () => null)];
   }, [cursor]);
 
-  const activeLogMap = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!activeHabit) return map;
-    for (const l of logs) {
-      if (l.habitId === activeHabit.id) map.set(l.date, l.value);
-    }
-    return map;
-  }, [logs, activeHabit?.id]);
-
-  const handleCellClick = useCallback(
-    (date: Date, event: React.MouseEvent, isRightClick = false) => {
+  const applyCellChange = useCallback(
+    (dateStr: string, event: React.MouseEvent<HTMLButtonElement>, isRightClick: boolean) => {
       if (!activeHabit || !isEditable) return;
 
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const currentValue = activeLogMap.get(dateStr) ?? 0;
+      const currentValue = logsMapRef.current[dateStr] || 0;
 
       let newValue: number;
       if (isRightClick) {
@@ -239,355 +276,269 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
         });
       }
     },
-    [activeHabit, isEditable, activeLogMap, logCheckIn]
+    [activeHabit, isEditable, logCheckIn],
   );
 
-  const handleHabitMediaUpload = useCallback(
-    async (habitId: string, field: 'icon' | 'backgroundUrl', file: File) => {
-      if (!isEditable) return;
+  const handleLeftClick = useCallback(
+    (dateStr: string, e: React.MouseEvent<HTMLButtonElement>) => applyCellChange(dateStr, e, false),
+    [applyCellChange],
+  );
 
-      const label = field === 'backgroundUrl' ? '背景' : '图标';
-      showUploadHint(`正在上传${label}...`);
+  const handleRightClick = useCallback(
+    (dateStr: string, e: React.MouseEvent<HTMLButtonElement>) => applyCellChange(dateStr, e, true),
+    [applyCellChange],
+  );
 
-      // 1) 优先调用后端 /api/media/upload（api.upload 内部使用 ${API_BASE}/media/upload）
+  const handleIconFileSelected = useCallback(
+    async (habitId: string, file: File) => {
       try {
-        const results = (await api.upload([file])) as Array<{ url: string }>;
-        const uploadedUrl = results?.[0]?.url;
-        if (!uploadedUrl) throw new Error('Upload response missing url');
-        const absUrl = toAbsoluteMediaUrl(uploadedUrl);
-        updateHabit(habitId, { [field]: absUrl } as any);
-        showUploadHint(`✅ ${label}已保存到本地媒体文件夹`);
-        return;
+        const base64 = await fileToCompressedDataUrl(file);
+        updateHabit(habitId, { icon: base64 });
       } catch (e) {
-        console.warn(`[habit] media upload failed, fallback to base64 localStorage. field=${field}`, e);
-      }
-
-      // 2) Fallback：转 Base64 存 localStorage（无法落盘到本地文件夹）
-      try {
-        const dataUrl = await fileToDataUrl(file);
-        updateHabit(habitId, { [field]: dataUrl } as any);
-        showUploadHint(`⚠️ ${label}上传失败，已回退为 Base64 存储到 localStorage（非本地文件夹）`);
-      } catch (e) {
-        console.error('[habit] fileToDataUrl failed', e);
-        showUploadHint(`❌ ${label}处理失败，请重试`);
+        // eslint-disable-next-line no-console
+        console.error(e);
       }
     },
-    [isEditable, showUploadHint, updateHabit]
+    [updateHabit],
   );
 
-  const apiBaseForDebug = useMemo(() => {
-    try {
-      return getApiBase();
-    } catch {
-      return '';
-    }
-  }, []);
+  const activeIcon = activeHabit?.icon || '📅';
 
   return (
     <NodeViewWrapper className={`my-8 group relative ${selected ? 'ring-2 ring-primary/20 rounded-[2rem]' : ''}`}>
       <div className="max-w-md mx-auto" style={{ fontFamily: handDrawnStyle.fontFamily }}>
         {/* Main Card */}
         <div
-          className="relative overflow-hidden border-2 border-stone-800 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] p-6 transition-all duration-500 hover:shadow-[6px_6px_0px_0px_rgba(28,25,23,1)]"
+          className="relative bg-[#fcf9f2] border-2 border-stone-800 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] p-6 transition-all duration-500 hover:shadow-[6px_6px_0px_0px_rgba(28,25,23,1)]"
           style={{ borderRadius: handDrawnStyle.borderRadius }}
         >
-          {/* Paper base + optional background */}
-          <div className="absolute inset-0 bg-[#fcf9f2]" />
-          {activeHabit?.backgroundUrl && (
-            <img
-              src={activeHabit.backgroundUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover opacity-25 pointer-events-none select-none"
-            />
-          )}
-
-          <div className="relative z-10">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-12 h-12 flex items-center justify-center border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] transition-transform hover:scale-110 active:scale-95 cursor-pointer"
-                  style={{
-                    backgroundColor: (activeHabit?.color || '#a8ebd1') + '22',
-                    borderRadius: '155px 15px 125px 15px/15px 125px 15px 155px',
-                  }}
-                >
-                  {isImageSrc(activeHabit?.icon) ? (
-                    <HabitIcon icon={activeHabit?.icon} imgClassName="w-7 h-7 object-contain" />
-                  ) : (
-                    <HabitIcon icon={activeHabit?.icon || '📅'} className="text-2xl" />
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-1 group/select relative">
-                    <select
-                      value={activeHabitId || ''}
-                      onChange={(e) => setActiveHabitId(e.target.value)}
-                      className="bg-transparent border-none font-bold text-lg focus:ring-0 cursor-pointer p-0 pr-6 appearance-none outline-none z-10"
-                    >
-                      {habits.map((h) => (
-                        <option key={h.id} value={h.id} className="bg-[#fcf9f2] text-sm">
-                          {h.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="text-stone-800 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover/select:text-primary transition-colors"
-                    />
-                  </div>
-                  <div className="text-xs text-stone-600 font-bold tracking-wider uppercase">{format(cursor, 'MMMM yyyy')}</div>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-12 h-12 flex items-center justify-center text-2xl border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] transition-transform hover:scale-110 active:scale-95 cursor-pointer overflow-hidden p-1.5"
+                style={{
+                  backgroundColor: activeHabit?.color + '22',
+                  borderRadius: '155px 15px 125px 15px/15px 125px 15px 155px',
+                }}
+              >
+                <div className="w-full h-full flex items-center justify-center select-none">
+                  <HabitIcon icon={activeIcon} />
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#fefce8] border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
-                  style={{ borderRadius: '12px 4px 12px 4px/4px 12px 4px 12px' }}
-                >
-                  {streak >= 10 ? <Crown size={14} className="text-stone-800" /> : <Flame size={14} className="text-stone-800" />}
-                  <span className="text-sm font-bold tabular-nums">{streak}</span>
+              <div>
+                <div className="flex items-center gap-1 group/select relative">
+                  <select
+                    value={activeHabitId || ''}
+                    onChange={(e) => setActiveHabitId(e.target.value)}
+                    className="bg-transparent border-none font-bold text-lg focus:ring-0 cursor-pointer p-0 pr-6 appearance-none outline-none z-10"
+                  >
+                    {habits.map((h) => (
+                      <option key={h.id} value={h.id} className="bg-[#fcf9f2] text-sm">
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="text-stone-800 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover/select:text-primary transition-colors"
+                  />
                 </div>
-                <button
-                  onClick={() => setIsSettingOpen(!isSettingOpen)}
-                  className="p-2 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
-                  style={{ borderRadius: '8px 4px 8px 4px/4px 8px 4px 8px' }}
-                >
-                  <Settings2 size={18} className="text-stone-800" />
-                </button>
+                <div className="text-xs text-stone-600 font-bold tracking-wider uppercase">{format(cursor, 'MMMM yyyy')}</div>
               </div>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-between mb-4 px-1">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCursor(subMonths(cursor, 1))}
-                  className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
-                  style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  onClick={() => setCursor(addMonths(cursor, 1))}
-                  className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
-                  style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
-                >
-                  <ChevronRight size={16} />
-                </button>
+            <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#fefce8] border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '12px 4px 12px 4px/4px 12px 4px 12px' }}
+              >
+                {streak >= 10 ? <Crown size={14} className="text-stone-800" /> : <Flame size={14} className="text-stone-800" />}
+                <span className="text-sm font-bold tabular-nums">{streak}</span>
               </div>
               <button
-                onClick={() => setCursor(new Date())}
-                className="text-[10px] font-bold text-stone-800 border-b-2 border-stone-800 hover:text-primary transition-colors uppercase tracking-tighter"
+                onClick={() => setIsSettingOpen(!isSettingOpen)}
+                className="p-2 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '8px 4px 8px 4px/4px 8px 4px 8px' }}
               >
-                Today
+                <Settings2 size={18} className="text-stone-800" />
               </button>
             </div>
+          </div>
 
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {weekDays.map((d) => (
-                <div key={d} className="text-[10px] font-bold text-stone-600 text-center pb-2 uppercase">
-                  {d}
-                </div>
-              ))}
-
-              {days.map((date, i) => {
-                if (!date) return <div key={`empty-${i}`} className="aspect-square" />;
-
-                const dateStr = format(date, 'yyyy-MM-dd');
-                const val = activeLogMap.get(dateStr) ?? 0;
-                const target = activeHabit?.targetValue || 1;
-
-                return (
-                  <HabitCell
-                    key={dateStr}
-                    date={date}
-                    val={val}
-                    target={target}
-                    icon={activeHabit?.icon}
-                    isEditable={!!isEditable}
-                    onCellClick={handleCellClick}
-                  />
-                );
-              })}
+          {/* Controls */}
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCursor(subMonths(cursor, 1))}
+                className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => setCursor(addMonths(cursor, 1))}
+                className="p-1.5 border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] bg-white hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
+                style={{ borderRadius: '6px 2px 6px 2px/2px 6px 2px 6px' }}
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
+            <button
+              onClick={() => setCursor(new Date())}
+              className="text-[10px] font-bold text-stone-800 border-b-2 border-stone-800 hover:text-primary transition-colors uppercase tracking-tighter"
+            >
+              Today
+            </button>
+          </div>
 
-            {/* Quick Settings Panel */}
-            <AnimatePresence>
-              {isSettingOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden mt-6 pt-4 border-t-2 border-stone-800"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-stone-800 uppercase italic">Edit Habits</span>
-                      <button
-                        onClick={() => addHabit({ name: '新习惯', icon: '✨', color: '#b8c6db', targetValue: 1, backgroundUrl: '' })}
-                        className="p-1 bg-stone-100 border-2 border-stone-800 shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] hover:bg-white transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
-                        style={{ borderRadius: '4px' }}
-                      >
-                        <Plus size={14} className="text-stone-800" />
-                      </button>
-                    </div>
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-2">
+            {weekDays.map((d) => (
+              <div key={d} className="text-[10px] font-bold text-stone-600 text-center pb-2 uppercase">
+                {d}
+              </div>
+            ))}
 
-                    {uploadHint && (
-                      <div className="text-[10px] font-bold text-stone-700 bg-white/70 border-2 border-stone-800 px-2 py-1"
-                        style={{ borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px' }}
-                      >
-                        {uploadHint}
-                        {uploadHint.includes('Base64') && apiBaseForDebug ? (
-                          <span className="ml-1 text-stone-500 font-normal">（API_BASE: {apiBaseForDebug}）</span>
-                        ) : null}
-                      </div>
-                    )}
+            {days.map((date, i) => {
+              if (!date) return <div key={`empty-${i}`} className="aspect-square" />;
 
-                    <div className="max-h-56 overflow-y-auto space-y-3 pr-1">
-                      {habits.map((h) => (
+              const dateStr = format(date, 'yyyy-MM-dd');
+              const isCurrMonth = isSameMonth(date, cursor);
+              const val = logsMap[dateStr] || 0;
+              const target = activeHabit?.targetValue || 1;
+              const today = isToday(date);
+
+              return (
+                <HabitCell
+                  key={dateStr}
+                  dateStr={dateStr}
+                  dayNumber={format(date, 'd')}
+                  val={val}
+                  target={target}
+                  icon={activeIcon}
+                  isToday={today}
+                  isCurrMonth={isCurrMonth}
+                  isEditable={!!isEditable}
+                  onLeftClick={handleLeftClick}
+                  onRightClick={handleRightClick}
+                />
+              );
+            })}
+          </div>
+
+          {/* Quick Settings Panel */}
+          <AnimatePresence>
+            {isSettingOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden mt-6 pt-4 border-t-2 border-stone-800"
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-800 uppercase italic">Edit Habits</span>
+                    <button
+                      onClick={() => addHabit({ name: '新习惯', icon: '✨', color: '#b8c6db', targetValue: 1 })}
+                      className="p-1 bg-stone-100 border-2 border-stone-800 shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] hover:bg-white transition-all active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+                      style={{ borderRadius: '4px' }}
+                    >
+                      <Plus size={14} className="text-stone-800" />
+                    </button>
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-3 pr-1 pb-2">
+                    {habits.map((h) => {
+                      const fileInputId = `habit-icon-upload-${h.id}`;
+                      const imageMode = isImageIcon(h.icon);
+
+                      return (
                         <div
                           key={h.id}
-                          className="p-2 bg-white border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)]"
+                          className="flex items-center gap-2 p-2 bg-white border-2 border-stone-800 shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] group/item"
                           style={{ borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px' }}
                         >
-                          <div className="flex items-center gap-2">
-                            {isImageSrc(h.icon) ? (
-                              <div
-                                className="w-8 h-8 flex-shrink-0 bg-stone-50 border-2 border-stone-800 flex items-center justify-center"
-                                style={{ borderRadius: '4px' }}
-                                title="已使用图片图标"
-                              >
-                                <HabitIcon icon={h.icon} imgClassName="w-6 h-6 object-contain" />
+                          {/* Icon editor + upload */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div
+                              className="w-10 h-10 bg-stone-50 border-2 border-stone-800 overflow-hidden p-1 flex items-center justify-center text-xl"
+                              style={{ borderRadius: '4px' }}
+                            >
+                              <div className="w-full h-full flex items-center justify-center select-none">
+                                <HabitIcon icon={h.icon} />
                               </div>
-                            ) : (
-                              <input
-                                value={h.icon}
-                                onChange={(e) => updateHabit(h.id, { icon: e.target.value })}
-                                className="w-8 h-8 flex-shrink-0 bg-stone-50 border-2 border-stone-800 text-center p-0 text-sm focus:ring-0 outline-none"
-                                style={{ borderRadius: '4px' }}
-                                title="Emoji 图标（也可上传图片图标）"
-                                disabled={!isEditable}
-                              />
-                            )}
+                            </div>
 
                             <input
-                              value={h.name}
-                              onChange={(e) => updateHabit(h.id, { name: e.target.value })}
-                              className="flex-grow bg-transparent border-none text-sm font-bold p-0 focus:ring-0 outline-none min-w-0"
-                              disabled={!isEditable}
+                              value={imageMode ? '' : h.icon}
+                              onChange={(e) => updateHabit(h.id, { icon: e.target.value })}
+                              placeholder={imageMode ? '✨' : ''}
+                              className="w-8 h-10 flex-shrink-0 bg-stone-50 border-2 border-stone-800 text-center p-0 text-sm focus:ring-0 outline-none"
+                              style={{ borderRadius: '4px' }}
+                              title={imageMode ? '当前为图片图标：如需改回 emoji，可在这里输入' : '输入 emoji 作为图标'}
                             />
 
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <input
-                                type="number"
-                                min="1"
-                                value={h.targetValue}
-                                onChange={(e) => updateHabit(h.id, { targetValue: parseInt(e.target.value) || 1 })}
-                                className="w-10 bg-stone-50 border-2 border-stone-800 text-[10px] font-bold text-center p-1 focus:ring-0 outline-none"
-                                style={{ borderRadius: '4px' }}
-                                disabled={!isEditable}
-                              />
-                              <input
-                                type="color"
-                                value={h.color}
-                                onChange={(e) => updateHabit(h.id, { color: e.target.value })}
-                                className="w-5 h-5 border-2 border-stone-800 p-0 bg-transparent cursor-pointer overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none"
-                                style={{ borderRadius: '50%' }}
-                                disabled={!isEditable}
-                              />
-                              <button
-                                onClick={() => deleteHabit(h.id)}
-                                className="p-1 opacity-100 text-stone-400 hover:text-red-500 transition-all"
-                                disabled={!isEditable}
-                                title="删除习惯"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Upload actions */}
-                          <div className="mt-2 flex items-center gap-2">
                             <input
-                              id={`habit-icon-upload-${h.id}`}
+                              id={fileInputId}
                               type="file"
                               accept="image/*"
                               className="hidden"
                               onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (file) handleHabitMediaUpload(h.id, 'icon', file);
+                                const file = e.currentTarget.files?.[0];
+                                if (file) void handleIconFileSelected(h.id, file);
+                                e.currentTarget.value = '';
                               }}
-                              disabled={!isEditable}
                             />
+
                             <label
-                              htmlFor={`habit-icon-upload-${h.id}`}
-                              className={`text-[10px] font-bold border-2 border-stone-800 px-2 py-1 bg-white hover:bg-stone-50 transition-all ${
-                                isEditable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                              }`}
-                              style={{ borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px' }}
+                              htmlFor={fileInputId}
+                              className="p-1 bg-white border-2 border-stone-800 shadow-[1px_1px_0px_0px_rgba(28,25,23,1)] hover:bg-stone-50 transition-all active:translate-x-[1px] active:translate-y-[1px] active:shadow-none cursor-pointer"
+                              style={{ borderRadius: '4px' }}
                               title="上传图片作为打卡图标"
                             >
-                              ⬆️ 上传图标
+                              <Camera size={14} className="text-stone-800" />
                             </label>
+                          </div>
 
+                          <input
+                            value={h.name}
+                            onChange={(e) => updateHabit(h.id, { name: e.target.value })}
+                            className="flex-grow bg-transparent border-none text-sm font-bold p-0 focus:ring-0 outline-none min-w-0"
+                          />
+
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             <input
-                              id={`habit-bg-upload-${h.id}`}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (file) handleHabitMediaUpload(h.id, 'backgroundUrl', file);
-                              }}
-                              disabled={!isEditable}
+                              type="number"
+                              min="1"
+                              value={h.targetValue}
+                              onChange={(e) => updateHabit(h.id, { targetValue: parseInt(e.target.value) || 1 })}
+                              className="w-10 bg-stone-50 border-2 border-stone-800 text-[10px] font-bold text-center p-1 focus:ring-0 outline-none"
+                              style={{ borderRadius: '4px' }}
                             />
-                            <label
-                              htmlFor={`habit-bg-upload-${h.id}`}
-                              className={`text-[10px] font-bold border-2 border-stone-800 px-2 py-1 bg-[#fefce8] hover:bg-white transition-all ${
-                                isEditable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-                              }`}
-                              style={{ borderRadius: '8px 2px 8px 2px/2px 8px 2px 8px' }}
-                              title="更换当前习惯的日历背景"
+                            <input
+                              type="color"
+                              value={h.color}
+                              onChange={(e) => updateHabit(h.id, { color: e.target.value })}
+                              className="w-5 h-5 border-2 border-stone-800 p-0 bg-transparent cursor-pointer overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none"
+                              style={{ borderRadius: '50%' }}
+                            />
+                            <button
+                              onClick={() => deleteHabit(h.id)}
+                              className="p-1 opacity-100 text-stone-400 hover:text-red-500 transition-all"
+                              title="删除习惯"
                             >
-                              🖼️ 更换背景
-                            </label>
-
-                            {h.backgroundUrl ? (
-                              <button
-                                onClick={() => updateHabit(h.id, { backgroundUrl: '' })}
-                                className="text-[10px] font-bold text-stone-600 hover:text-red-500 transition-colors"
-                                disabled={!isEditable}
-                                title="清除背景"
-                              >
-                                清除
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-stone-400">未设置背景</span>
-                            )}
-
-                            {isImageSrc(h.icon) && (
-                              <button
-                                onClick={() => updateHabit(h.id, { icon: '✨' })}
-                                className="text-[10px] font-bold text-stone-600 hover:text-red-500 transition-colors"
-                                disabled={!isEditable}
-                                title="清除图片图标（恢复为 Emoji）"
-                              >
-                                清除图标
-                              </button>
-                            )}
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </NodeViewWrapper>
