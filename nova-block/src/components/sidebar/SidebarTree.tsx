@@ -6,7 +6,7 @@ import { buildTree, moveNode, isDescendant } from '../../lib/novablock/treeUtils
 import type { TreeNode } from '../../lib/novablock/treeUtils';
 import { TreeNodeItem } from './TreeNodeItem';
 import GlobalSearchPanel from './GlobalSearchPanel';
-import { Note } from '../../lib/types';
+import type { Note } from '../../lib/types';
 
 interface SidebarTreeProps {
   initialNodes?: TreeNode[];
