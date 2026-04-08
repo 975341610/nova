@@ -61,6 +61,7 @@ async def auth_middleware(request: Request, call_next):
         or request.url.path == f"{settings.api_prefix}/media/music-library"
         or request.url.path == f"{settings.api_prefix}/media/music-link"
         or request.url.path == f"{settings.api_prefix}/media/music-upload"
+        or request.url.path.startswith(f"{settings.api_prefix}/stickers")
         or request.url.path == f"{settings.api_prefix}/system/version"
         or request.url.path == f"{settings.api_prefix}/model-config"
     )
@@ -106,12 +107,14 @@ else:
 # Mount media uploads
 uploads_dir = Path(settings.uploads_path)
 if uploads_dir.exists():
-    app.mount("/api/media/files", StaticFiles(directory=uploads_dir), name="media")
+    # Use a more specific path to avoid prefix matching other API routes
+    app.mount("/api/media/static/files", StaticFiles(directory=uploads_dir), name="media_files")
 
 # Mount music library
 music_dir = Path(settings.music_path)
 if music_dir.exists():
-    app.mount("/api/media/music", StaticFiles(directory=music_dir), name="music")
+    # Use a more specific path to avoid prefix matching other API routes (like /api/media/music-library)
+    app.mount("/api/media/static/music", StaticFiles(directory=music_dir), name="music_files")
 
 def run_migrations() -> None:
     inspector = inspect(engine)
@@ -165,6 +168,11 @@ def run_migrations() -> None:
 
 @app.on_event("startup")
 async def startup_event() -> None:
+    # 打印所有挂载的路由，用于调试 404 问题
+    print("[*] Registering routes:")
+    for route in app.routes:
+        print(f"    - {getattr(route, 'path', 'N/A')} ({getattr(route, 'name', 'N/A')})")
+
     Path(settings.chroma_path).mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
     run_migrations()
@@ -180,141 +188,41 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/media/music-library")
-async def get_music_library():
-    music_dir = Path(settings.music_path)
-    if not music_dir.exists():
-        music_dir.mkdir(parents=True, exist_ok=True)
-    
-    tracks = []
-    # 格式支持放宽
-    extensions = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac'}
-    img_extensions = {'.jpg', '.png', '.jpeg', '.webp'}
-    
-    # Sort for deterministic output
-    files = sorted(list(music_dir.iterdir()))
-    for file in files:
-        if file.suffix.lower() in extensions:
-            title = file.stem
-            cover = None
-            # Match songA.jpg or songA.png for songA.mp3
-            for img_ext in img_extensions:
-                img_file = music_dir / f"{title}{img_ext}"
-                if img_file.exists():
-                    cover = f"/api/media/music/{img_file.name}"
-                    break
-            
-            tracks.append({
-                "url": f"/api/media/music/{file.name}",
-                "title": title,
-                "artist": "本地音频",
-                "cover": cover,
-                "source": "local"
-            })
-        elif file.suffix.lower() == '.json':
-            try:
-                with open(file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    # 支持 JSON 解析库，扫描 .json 文件
-                    if "url" in data and "title" in data:
-                        tracks.append({
-                            "url": data["url"],
-                            "title": data["title"],
-                            "artist": data.get("artist", "网络直链"),
-                            "cover": data.get("cover"),
-                            "source": "network"
-                        })
-            except Exception:
-                pass
-    return tracks
-
-
-@app.post("/api/media/music-link")
-async def save_music_link(payload: dict):
-    """新增直链保存接口"""
-    title = payload.get("title")
-    url = payload.get("url")
-    cover = payload.get("cover")
-    if not title or not url:
-        raise HTTPException(status_code=400, detail="Title and URL are required")
-    
-    music_dir = Path(settings.music_path)
-    music_dir.mkdir(parents=True, exist_ok=True)
-    
-    json_path = music_dir / f"{title}.json"
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "title": title, 
-            "url": url, 
-            "cover": cover, 
-            "artist": "网络直链",
-            "source": "network"
-        }, f, ensure_ascii=False, indent=2)
-    
-    return {"status": "success", "path": str(json_path)}
-
-
-@app.post("/api/media/music-upload")
-async def upload_music(file: UploadFile = File(...), cover: UploadFile = File(None)):
-    """上传接口扩展"""
-    music_dir = Path(settings.music_path)
-    music_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 📝 修复：安全处理文件名，防止目录遍历，并确保文件写入
-    safe_filename = Path(file.filename).name if file.filename else f"upload_{uuid.uuid4().hex}"
-    audio_path = music_dir / safe_filename
-    
-    try:
-        with open(audio_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save audio file: {str(e)}")
-        
-    # Save cover if provided
-    cover_url = None
-    if cover and cover.filename:
-        safe_cover_name = Path(cover.filename).name
-        cover_path = music_dir / safe_cover_name
-        try:
-            with open(cover_path, "wb") as f:
-                content = await cover.read()
-                f.write(content)
-            cover_url = f"/api/media/music/{safe_cover_name}"
-        except Exception as e:
-            print(f"[!] Error saving cover: {str(e)}")
-    
-    return {
-        "status": "success",
-        "url": f"/api/media/music/{safe_filename}",
-        "cover": cover_url
-    }
-
-
 @app.get("/{full_path:path}", response_model=None)
-async def spa(full_path: str):
+async def spa(request: Request, full_path: str):
     """
     SPA Fallback Route:
     1. If requested path matches a file in frontend_dist, serve it.
     2. Otherwise, if not an api call, return index.html for SPA.
-    3. Else return 404.
+    3. Else return 404 JSON.
     """
+    # 0. Fast exclude for API calls (Never return HTML for /api/ paths)
+    # Check both full_path and request.url.path to be safe
+    raw_path = request.url.path
+    if (
+        full_path.startswith("api/") 
+        or full_path == "api" 
+        or raw_path.startswith("/api")
+        or (settings.api_prefix and raw_path.startswith(settings.api_prefix))
+    ):
+         return JSONResponse(
+             status_code=404, 
+             content={"detail": f"API endpoint not found: {raw_path}"}
+         )
+
     # 1. Check if it's a direct file in frontend_dist (like favicon.svg, robots.txt)
-    # Exclude directories and index.html to avoid infinite loops
     target_file = frontend_dist / full_path
     
-    # Special handle for common web files if full_path is empty but requested
     if not full_path:
-        # If accessing root, always try index.html first via fallback below
         pass
     elif target_file.is_file() and target_file.name != "index.html":
         return FileResponse(target_file)
     elif full_path == "favicon.ico" and (frontend_dist / "favicon.svg").exists():
         return FileResponse(frontend_dist / "favicon.svg")
 
-    # 2. Skip SPA fallback for API routes, health, and assets to avoid 200 OK for 404
-    if full_path.startswith("api") or full_path == "health" or full_path.startswith("assets"):
-         raise HTTPException(status_code=404, detail="Resource not found")
+    # 2. Skip SPA fallback for special internal routes
+    if full_path == "health" or full_path.startswith("assets"):
+         raise HTTPException(status_code=404, detail=f"Resource not found: {full_path}")
     
     # 3. Handle SPA fallback (only if index.html exists)
     index_file = frontend_dist / "index.html"
@@ -322,7 +230,7 @@ async def spa(full_path: str):
         return FileResponse(index_file)
     
     # 4. Fallback if no frontend is built
-    return JSONResponse({"status": "backend-only"}, status_code=200)
+    return JSONResponse({"status": "backend-only", "path": full_path}, status_code=200)
 
 
 if __name__ == '__main__':
@@ -330,7 +238,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--host", type=str, default="127.0.0.1")
+    parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
     
     # 获取环境变量（由 Electron 传入的覆盖优先）

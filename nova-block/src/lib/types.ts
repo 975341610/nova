@@ -6,6 +6,17 @@ export type NoteProperty = {
   value: string;
 };
 
+export type StickerData = {
+  id: string;
+  type: 'image';     // Stickers are purely images/decorations
+  url: string;       // Image sticker path
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+};
+
 export type StickyNoteData = {
   id: string;
   x: number;
@@ -25,6 +36,7 @@ export type Note = {
   tags: string[];
   properties: NoteProperty[];
   sticky_notes?: StickyNoteData[];
+  stickers?: StickerData[];
   links: number[];
   notebook_id: number | null;
   parent_id: number | null;

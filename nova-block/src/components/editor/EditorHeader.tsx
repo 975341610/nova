@@ -1,4 +1,4 @@
-import { BookMarked, Save, ChevronRight, Pen, Eye } from 'lucide-react';
+import { BookMarked, Save, ChevronRight, Pen, Eye, Sticker, Library, Trash2 } from 'lucide-react';
 
 type Breadcrumb = {
   id: number;
@@ -18,20 +18,25 @@ type EditorHeaderProps = {
   showRelations: boolean;
   showOutline: boolean;
   viewMode: 'edit' | 'preview';
+  isStickerMode: boolean;
   onSave: () => void;
   onUpdateTitle: (newTitle: string, isManual: boolean) => void;
   onToggleRelations: () => void;
   onOutlineEnter: () => void;
   onOutlineLeave: () => void;
   onSetViewMode: (mode: 'edit' | 'preview') => void;
+  onToggleStickerMode: () => void;
+  onOpenStickerPanel?: () => void;
+  onClearStickers?: () => void;
 };
 
 export function EditorHeader(props: EditorHeaderProps) {
   const { 
     breadcrumbs, onSelectBreadcrumb, 
     savePhase, isDirty, lastSavedAt, showOutline, 
-    viewMode, onSave,
-    onOutlineEnter, onOutlineLeave, onSetViewMode 
+    viewMode, isStickerMode, onSave,
+    onOutlineEnter, onOutlineLeave, onSetViewMode,
+    onToggleStickerMode, onOpenStickerPanel, onClearStickers
   } = props;
 
   return (
@@ -76,18 +81,64 @@ export function EditorHeader(props: EditorHeaderProps) {
             />
             <button 
               onClick={() => onSetViewMode('edit')} 
-              title="Edit Mode"
+              title="编辑模式"
               className={`relative z-10 flex-1 flex items-center justify-center p-1.5 rounded-md transition-colors duration-300 ${viewMode === 'edit' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80'}`}
             >
               <Pen size={13} strokeWidth={2.5} />
             </button>
             <button 
               onClick={() => onSetViewMode('preview')} 
-              title="Preview Mode"
+              title="预览模式"
               className={`relative z-10 flex-1 flex items-center justify-center p-1.5 rounded-md transition-colors duration-300 ${viewMode === 'preview' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80'}`}
             >
               <Eye size={15} strokeWidth={2.5} />
             </button>
+          </div>
+
+          {/* Sticker Mode Toggle */}
+          <div className="relative group flex items-center">
+            <button
+              onClick={onToggleStickerMode}
+              title={isStickerMode ? "关闭贴纸模式" : "开启贴纸模式"}
+              className={`flex items-center justify-center w-[30px] h-[30px] rounded-lg border transition-all duration-300 ${
+                isStickerMode 
+                  ? 'bg-pink-500/10 border-pink-500/50 text-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.3)]' 
+                  : 'bg-accent/30 border-border/40 text-muted-foreground hover:text-foreground hover:border-border/60'
+              }`}
+            >
+              <Sticker size={16} strokeWidth={isStickerMode ? 2.5 : 2} className={isStickerMode ? 'animate-pulse' : ''} />
+            </button>
+
+            {/* Hover Menu */}
+            {isStickerMode && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-1 z-50">
+                <div className="bg-background/95 backdrop-blur-sm rounded-lg shadow-lg border border-border/50 p-1 flex items-center gap-1">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if(onOpenStickerPanel) onOpenStickerPanel();
+                    }}
+                    className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                    title="打开贴纸库"
+                  >
+                    <Library size={16} />
+                  </button>
+                  <div className="w-px h-4 bg-border/50 mx-0.5" />
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if(window.confirm('确定要清空当前笔记的所有贴纸吗？')) {
+                        if(onClearStickers) onClearStickers();
+                      }
+                    }}
+                    className="p-1.5 hover:bg-rose-500/10 rounded-md text-rose-500 transition-colors"
+                    title="一键清理"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Actions */}

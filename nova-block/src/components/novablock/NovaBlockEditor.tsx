@@ -11,15 +11,18 @@ import UnderlineExtension from '@tiptap/extension-underline';
 import { Table as TiptapTable } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { motion, AnimatePresence } from 'framer-motion';
+import { StickerLayer } from '../editor/StickerLayer';
 import { StickyNotesLayer } from '../editor/StickyNotesLayer';
-import type { StickyNoteData } from '../../lib/types';
+import { StickerPanel } from '../editor/StickerPanel';
+import type { StickerData, StickyNoteData } from '../../lib/types';
 import { 
-  GripVertical, Bold, Italic, 
-  Underline, Eraser, Cpu, Strikethrough, Timer,
-  Type, Heading1, Heading2, Heading3, CheckSquare, Table as TableIcon, Code, Quote, Sparkles,
-  Link as LinkIcon, Highlighter, Trash2, Copy, Replace, ListPlus, Minus,
-  Trash, Columns, Rows, Film, Music, FileText, MonitorPlay, StickyNote as StickyNoteIcon,
-  List, ListOrdered, ArrowUpToLine, ArrowDownToLine, CopyPlus, StickyNote
+    GripVertical, Bold, Italic, 
+    Underline, Eraser, Cpu, Strikethrough, Timer,
+    Type, Heading1, Heading2, Heading3, CheckSquare, Table as TableIcon, Code, Quote, Sparkles,
+    Link as LinkIcon, Highlighter, Trash2, Copy, Replace, ListPlus, Minus,
+    Trash, Columns, Rows, Film, Music, FileText, MonitorPlay, StickyNote as StickyNoteIcon,
+    List, ListOrdered, ArrowUpToLine, ArrowDownToLine, CopyPlus, StickyNote, Image as ImageIcon,
+    Settings2, MousePointer2
 } from 'lucide-react';
 
 import { 
@@ -148,13 +151,25 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
   const [fps, setFps] = useState(0);
   const [isBlockMenuOpen, setIsBlockMenuOpen] = useState(false);
   const [targetPos, setTargetPos] = useState<number | null>(null);
+  const [stickers, setStickers] = useState<StickerData[]>([]);
   const [stickyNotes, setStickyNotes] = useState<StickyNoteData[]>([]);
+  const [isStickerMode, setIsStickerMode] = useState(false);
+  const [isStickerPanelOpen, setIsStickerPanelOpen] = useState(false);
   const blockMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setStickers(note?.stickers || []);
     setStickyNotes(note?.sticky_notes || []);
-  }, [note?.id, note?.sticky_notes]);
+  }, [note?.id, note?.stickers, note?.sticky_notes]);
+
+  const handleStickersChange = useCallback((newStickers: StickerData[]) => {
+    setStickers(newStickers);
+    if (latestNoteRef.current) {
+      latestNoteRef.current = { ...latestNoteRef.current, stickers: newStickers };
+    }
+    setIsDirty(true);
+  }, []);
 
   const handleStickyNotesChange = useCallback((newNotes: StickyNoteData[]) => {
     setStickyNotes(newNotes);
@@ -165,23 +180,43 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
   }, []);
 
   useEffect(() => {
-    const handleAddStickyNote = (e?: Event) => {
-      const detail = (e as CustomEvent<{ content?: string }>)?.detail;
-      const initialContent = detail?.content || '<p></p>';
+    const handleAddSticker = (e?: Event) => {
+      const detail = (e as CustomEvent<{ content?: string; url?: string; type?: 'image' | 'text'; x?: number; y?: number }>)?.detail;
+      const type = detail?.type || (detail?.url ? 'image' : 'text');
       
-      const newNote: StickyNoteData = {
-        id: Math.random().toString(36).substring(7),
-        x: scrollContainerRef.current ? scrollContainerRef.current.clientWidth / 2 - 130 : 100,
-        y: scrollContainerRef.current ? scrollContainerRef.current.scrollTop + 100 : 100,
-        color: 'rgba(254, 240, 138, 1)',
-        rotation: (Math.random() - 0.5) * 4,
-        content: initialContent,
-      };
-      handleStickyNotesChange([...stickyNotes, newNote]);
+      const defaultX = scrollContainerRef.current ? scrollContainerRef.current.clientWidth / 2 - 100 : 100;
+      const defaultY = scrollContainerRef.current ? scrollContainerRef.current.scrollTop + 100 : 100;
+
+      const x = detail?.x ?? defaultX;
+      const y = detail?.y ?? defaultY;
+
+      if (type === 'image' && detail?.url) {
+        const newSticker: StickerData = {
+          id: Math.random().toString(36).substring(7),
+          type: 'image',
+          url: detail.url,
+          x,
+          y,
+          scale: 1,
+          rotation: (Math.random() - 0.5) * 10,
+          opacity: 1,
+        };
+        handleStickersChange([...stickers, newSticker]);
+      } else {
+        const newSticky: StickyNoteData = {
+          id: Math.random().toString(36).substring(7),
+          x,
+          y,
+          color: 'rgba(254, 240, 138, 1)',
+          rotation: (Math.random() - 0.5) * 10,
+          content: detail?.content || '<p></p>',
+        };
+        handleStickyNotesChange([...stickyNotes, newSticky]);
+      }
     };
-    window.addEventListener('add-sticky-note', handleAddStickyNote as EventListener);
-    return () => window.removeEventListener('add-sticky-note', handleAddStickyNote as EventListener);
-  }, [stickyNotes, handleStickyNotesChange]);
+    window.addEventListener('add-sticky-note', handleAddSticker as EventListener);
+    return () => window.removeEventListener('add-sticky-note', handleAddSticker as EventListener);
+  }, [stickers, stickyNotes, handleStickersChange, handleStickyNotesChange]);
 
   const slashItemsRef = useRef<any[]>(NOVA_BLOCK_SLASH_ITEMS);
   slashItemsRef.current = NOVA_BLOCK_SLASH_ITEMS;
@@ -498,6 +533,40 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
       <div 
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto relative scrollbar-hide pt-0 custom-scrollbar"
+        onDragOver={(e) => {
+          if (isStickerMode) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }
+        }}
+        onDrop={(e) => {
+          if (!isStickerMode) return;
+          e.preventDefault();
+          
+          try {
+            const dataStr = e.dataTransfer.getData('application/json');
+            if (!dataStr) return;
+            
+            const stickerData = JSON.parse(dataStr);
+            if (stickerData.type === 'image' && stickerData.url) {
+              // 计算相对于 scrollContainer 的坐标
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const y = e.clientY - rect.top + e.currentTarget.scrollTop;
+
+              window.dispatchEvent(new CustomEvent('add-sticky-note', { 
+                detail: { 
+                  url: stickerData.url, 
+                  type: 'image',
+                  x: x - 50, // 居中落点
+                  y: y - 50 
+                } 
+              }));
+            }
+          } catch (err) {
+            console.error('Failed to handle sticker drop:', err);
+          }
+        }}
       >
         <div className="flex flex-col w-full max-w-[900px] mx-auto pb-40">
           <div className="px-12 mt-6">
@@ -513,6 +582,7 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
               showRelations={false}
               showOutline={false}
               viewMode={viewMode}
+              isStickerMode={isStickerMode}
               onSave={() => handleSave()}
               onUpdateTitle={(newTitle, isManual) => {
                 const currentNote = latestNoteRef.current;
@@ -526,6 +596,14 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
               onOutlineEnter={() => {}}
               onOutlineLeave={() => {}}
               onSetViewMode={setViewMode}
+              onToggleStickerMode={() => {
+                const newMode = !isStickerMode;
+                setIsStickerMode(newMode);
+                if (newMode) setIsStickerPanelOpen(true);
+                else setIsStickerPanelOpen(false);
+              }}
+              onOpenStickerPanel={() => setIsStickerPanelOpen(true)}
+              onClearStickers={() => handleStickersChange([])}
             />
 
             {note && (
@@ -907,14 +985,44 @@ export const NovaBlockEditor: React.FC<NovaBlockEditorProps> = ({
               </BubbleMenu>
             )}
             
-            <StickyNotesLayer notes={stickyNotes} onChange={handleStickyNotesChange} />
-            <EditorContent editor={editor} className="relative z-0" />
+            {/* 三层架构渲染 */}
+            {/* Layer 2: Stickers (Decorations) */}
+            <StickerLayer 
+              stickers={stickers} 
+              isEditable={isStickerMode}
+              onChange={handleStickersChange} 
+            />
+
+            {/* Layer 1: Tiptap Editor */}
+            <EditorContent 
+              editor={editor} 
+              className={`relative z-30 transition-all duration-500 ${isStickerMode ? 'opacity-40 blur-[1px] pointer-events-none' : 'opacity-100 blur-0'}`} 
+            />
+
+            {/* Layer 0: Sticky Notes (Top Layer) - Independent of Sticker Mode blur */}
+            <StickyNotesLayer
+              notes={stickyNotes}
+              onChange={handleStickyNotesChange}
+            />
           </div>
         </div>
         
         {/* TOC 挂载在滚动容器内部，相对定位 */}
         <TableOfContents outline={outline} scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>} />
       </div>
+
+      <AnimatePresence>
+        {isStickerPanelOpen && (
+          <StickerPanel 
+            onClose={() => setIsStickerPanelOpen(false)}
+            onSelect={(url) => {
+              window.dispatchEvent(new CustomEvent('add-sticky-note', { 
+                detail: { url, type: 'image' } 
+              }));
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isSaving && (
