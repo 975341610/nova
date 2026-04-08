@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
 import { Plus, CheckCircle2, Circle, Settings, Trash2, ChevronDown } from 'lucide-react';
-import { useTodo, TodoTask, TodoList } from '../../contexts/TodoContext';
+import { useTodo } from '../../contexts/TodoContext';
+import type { TodoTask, TodoList } from '../../contexts/TodoContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // 莫兰迪色系配置
