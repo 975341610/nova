@@ -113,16 +113,16 @@ const Stamp = ({ color }: { color: string }) => (
     className="absolute inset-0 flex items-center justify-center pointer-events-none"
   >
     <div 
-      className="w-8 h-8 rounded-full border-[3px] flex items-center justify-center font-serif font-bold text-[10px] tracking-tighter"
+      className="w-6 h-6 rounded-full border-[2px] flex items-center justify-center font-serif font-bold text-[8px] tracking-tighter"
       style={{ 
         borderColor: color, 
         color: color,
-        boxShadow: `inset 0 0 4px ${color}44`,
-        filter: 'contrast(1.2) brightness(0.9) blur(0.2px)',
+        boxShadow: `inset 0 0 2px ${color}44`,
+        filter: 'contrast(1.2) brightness(0.9) blur(0.1px)',
         background: `radial-gradient(circle, ${color}11 10%, transparent 80%)`
       }}
     >
-      <div className="border border-current rounded-full w-6 h-6 flex items-center justify-center">
+      <div className="border border-current rounded-full w-4 h-4 flex items-center justify-center">
         DONE
       </div>
     </div>
@@ -149,28 +149,30 @@ const HabitCell = React.memo(({
       whileHover={{ y: -2 }}
       onClick={(e) => isCurrMonth && isEditable && onLeftClick(dateStr, e)}
       onContextMenu={(e) => { e.preventDefault(); isCurrMonth && isEditable && onRightClick(dateStr, e); }}
-      className={`relative aspect-[1/1.1] flex flex-col items-center justify-between p-1 transition-all border-b border-r border-stone-100 ${!isCurrMonth ? 'opacity-20 pointer-events-none' : 'hover:bg-stone-50/50'}`}
+      className={`relative aspect-[1/1.1] flex flex-col items-center justify-between py-2 px-1 transition-all border-b border-r border-stone-100 ${!isCurrMonth ? 'opacity-20 pointer-events-none' : 'hover:bg-stone-50/50'}`}
     >
       <span className={`text-[10px] font-serif ${today ? 'text-blue-600 font-bold' : 'text-stone-400'}`}>
         {dayNumber}
       </span>
       
-      <div className="flex-1 flex items-center justify-center w-full relative">
-        <div className={`transition-all duration-500 ${isCompleted ? 'opacity-20 grayscale scale-75' : 'opacity-40 grayscale-[0.5]'}`}>
+      <div className="flex-1 flex items-center justify-center w-full relative min-h-0">
+        <div className={`transition-all duration-500 ${isCompleted ? 'opacity-10 grayscale scale-75' : 'opacity-40 grayscale-[0.5]'}`}>
            <HabitIcon icon={icon} className="w-5 h-5 object-contain" />
         </div>
         {isCompleted && <Stamp color={themeColor || '#b91c1c'} />}
       </div>
 
-      {target > 1 && (
-        <div className="w-full bg-stone-100 h-[2px] rounded-full overflow-hidden mt-1">
-          <motion.div 
-            className="h-full" 
-            style={{ backgroundColor: themeColor }}
-            animate={{ width: `${(val / target) * 100}%` }}
-          />
-        </div>
-      )}
+      <div className="w-full px-1 h-[2px]">
+        {target > 1 && !isCompleted && (
+          <div className="w-full bg-stone-100 h-full rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full" 
+              style={{ backgroundColor: themeColor }}
+              animate={{ width: `${(val / target) * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
     </motion.button>
   );
 });
@@ -221,23 +223,23 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:20px_20px]" />
 
         {/* Left Side: Habit Info & Stats (杂志风左栏) */}
-        <div className="w-full md:w-72 bg-[#F6F3EF]/50 border-r border-stone-100 p-8 flex flex-col relative z-10">
-          <div className="mb-10">
+        <div className="w-full md:w-72 bg-[#F6F3EF]/50 border-r border-stone-100 p-8 flex flex-col relative z-10 overflow-hidden">
+          <div className="mb-10 shrink-0">
             <span className="text-[10px] tracking-[0.2em] text-stone-400 uppercase font-bold block mb-2">Selected Habit</span>
-            <div className="relative group/select">
+            <div className="relative flex items-center group/select border-b border-stone-200">
               <select
                 value={activeHabitId || ''}
                 onChange={(e) => setActiveHabitId(e.target.value)}
-                className="w-full bg-transparent border-b border-stone-200 py-2 text-xl font-serif focus:outline-none appearance-none cursor-pointer"
+                className="w-full bg-transparent py-2 text-xl font-serif focus:outline-none appearance-none cursor-pointer pr-6"
               >
                 {habits.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
-              <ChevronDown size={14} className="absolute right-0 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-0 text-stone-400 pointer-events-none" />
             </div>
           </div>
 
-          <div className="flex-1 space-y-12">
-            <div>
+          <div className="flex-1 flex flex-col min-h-0 space-y-8">
+            <div className="shrink-0">
               {/* 意境画框 */}
               <div className="relative group/frame aspect-[4/3] bg-white border border-stone-100 shadow-sm mb-6 overflow-hidden rounded-sm flex items-center justify-center">
                 {(activeHabit as any)?.bgImage ? (
@@ -282,16 +284,16 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                 )}
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white border border-stone-100 shadow-sm rounded-full flex items-center justify-center text-xl grayscale-[0.2] shrink-0">
+              <div className="flex items-center gap-3 justify-start">
+                <div className="w-10 h-10 bg-white border border-stone-100 shadow-sm rounded-full flex items-center justify-center text-xl grayscale-[0.2] shrink-0 overflow-hidden">
                   <HabitIcon icon={activeHabit?.icon} />
                 </div>
-                <h2 className="text-xl font-serif text-stone-800 leading-tight truncate">{activeHabit?.name || 'Untitled'}</h2>
+                {/* 移除重复的标题，仅保留 Icon 和引言容器的间距 */}
               </div>
-              <p className="text-xs text-stone-400 mt-2 leading-relaxed italic">"Keep going, even on the quiet days."</p>
+              <p className="text-xs text-stone-400 mt-3 leading-relaxed italic shrink-0">"Keep going, even on the quiet days."</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 shrink-0">
               <div className="p-4 bg-white/40 border border-stone-100 rounded-sm">
                 <Flame size={14} className="text-orange-400 mb-2" />
                 <div className="text-xl font-bold tabular-nums">{streak}</div>
@@ -316,24 +318,24 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
 
         {/* Right Side: Calendar Grid (手账格) */}
         <div className="flex-1 p-8 relative z-10 flex flex-col">
-          <header className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-6">
-              <h3 className="text-lg font-serif text-stone-700 uppercase tracking-widest">
-                {format(cursor, 'MMMM')} <span className="text-stone-300 ml-1">{format(cursor, 'yyyy')}</span>
+          <header className="flex items-center justify-between mb-8 h-10">
+            <div className="flex items-center gap-6 h-full">
+              <h3 className="text-lg font-serif text-stone-700 uppercase tracking-widest flex items-baseline">
+                {format(cursor, 'MMMM')} <span className="text-stone-300 ml-2 text-sm">{format(cursor, 'yyyy')}</span>
               </h3>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 h-full pt-0.5">
                 <button 
                   onClick={() => setCursor(new Date())} 
-                  className="px-2 py-1 hover:bg-stone-100 rounded text-[10px] text-stone-400 uppercase tracking-tighter transition-colors font-bold mr-1"
+                  className="px-2 py-1 hover:bg-stone-100 rounded text-[10px] text-stone-400 uppercase tracking-tighter transition-colors font-bold mr-1 h-7 flex items-center"
                 >
                   Today
                 </button>
-                <button onClick={() => setCursor(subMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors"><ChevronLeft size={16}/></button>
-                <button onClick={() => setCursor(addMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors"><ChevronRight size={16}/></button>
+                <button onClick={() => setCursor(subMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors h-7 w-7 flex items-center justify-center"><ChevronLeft size={16}/></button>
+                <button onClick={() => setCursor(addMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors h-7 w-7 flex items-center justify-center"><ChevronRight size={16}/></button>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-               <span className="text-[10px] text-stone-300 uppercase tracking-widest font-bold flex items-center gap-1">
+            <div className="flex items-center gap-4 h-full">
+               <span className="text-[10px] text-stone-300 uppercase tracking-widest font-bold flex items-center gap-1.5">
                  <CalendarDays size={12} /> Journal Entry
                </span>
             </div>
