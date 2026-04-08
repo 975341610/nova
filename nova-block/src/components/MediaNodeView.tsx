@@ -131,41 +131,43 @@ export function MediaNodeView({ node, updateAttributes, deleteNode, selected, ki
         }
       >
         {/* Floating Toolbar (Hover to show) */}
-        <div 
-          className="absolute top-3 right-3 z-30 flex items-center gap-1.5 opacity-0 group-hover/media:opacity-100 transition-opacity duration-200" 
-          contentEditable={false}
-        >
-          <div className="flex items-center bg-white/90 dark:bg-stone-800/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-700 rounded-lg shadow-sm overflow-hidden text-stone-500">
-            <button 
-              className="p-1.5 hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-stone-800 dark:hover:text-stone-200 cursor-grab active:cursor-grabbing transition-colors" 
-              data-drag-handle 
-              type="button"
-              title="拖拽"
-            >
-              <GripVertical size={14} />
-            </button>
-
-            {kind === 'embed' && isInteractive && (
+        {kind !== 'audio' && (
+          <div 
+            className="absolute top-3 right-3 z-30 flex items-center gap-1.5 opacity-0 group-hover/media:opacity-100 transition-opacity duration-200" 
+            contentEditable={false}
+          >
+            <div className="flex items-center bg-white/90 dark:bg-stone-800/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-700 rounded-lg shadow-sm overflow-hidden text-stone-500">
               <button 
-                className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-500 transition-colors border-l border-stone-200 dark:border-stone-700" 
-                type="button" 
-                onClick={() => setIsInteractive(false)}
-                title="锁定交互 (方便拖拽排版)"
+                className="p-1.5 hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-stone-800 dark:hover:text-stone-200 cursor-grab active:cursor-grabbing transition-colors" 
+                data-drag-handle 
+                type="button"
+                title="拖拽"
               >
-                <LockOpen size={14} />
+                <GripVertical size={14} />
               </button>
-            )}
 
-            <button 
-              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors border-l border-stone-200 dark:border-stone-700" 
-              type="button" 
-              onClick={() => deleteNode()}
-              title="删除"
-            >
-              <Trash2 size={14} />
-            </button>
+              {kind === 'embed' && isInteractive && (
+                <button 
+                  className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-500 transition-colors border-l border-stone-200 dark:border-stone-700" 
+                  type="button" 
+                  onClick={() => setIsInteractive(false)}
+                  title="锁定交互 (方便拖拽排版)"
+                >
+                  <LockOpen size={14} />
+                </button>
+              )}
+
+              <button 
+                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 transition-colors border-l border-stone-200 dark:border-stone-700" 
+                type="button" 
+                onClick={() => deleteNode()}
+                title="删除"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content */}
         {content}
