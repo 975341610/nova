@@ -30,6 +30,14 @@ import { useHabit } from '../../contexts/HabitContext';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const MinimalIllustration = () => (
+  <svg viewBox="0 0 200 200" className="w-full h-full text-stone-200" fill="none" stroke="currentColor" strokeWidth="0.5">
+    <path d="M100,40 L100,160 M40,100 L160,100" />
+    <circle cx="100" cy="100" r="40" />
+    <path d="M70,70 L130,130 M130,70 L70,130" />
+  </svg>
+);
+
 const isImageIcon = (icon?: string) => {
   if (!icon) return false;
   return icon.startsWith('data:image/') || icon.startsWith('http');
@@ -230,10 +238,56 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
 
           <div className="flex-1 space-y-12">
             <div>
-              <div className="w-16 h-16 bg-white border border-stone-100 shadow-sm rounded-full flex items-center justify-center text-3xl mb-4 grayscale-[0.2]">
-                <HabitIcon icon={activeHabit?.icon} />
+              {/* 意境画框 */}
+              <div className="relative group/frame aspect-[4/3] bg-white border border-stone-100 shadow-sm mb-6 overflow-hidden rounded-sm flex items-center justify-center">
+                {(activeHabit as any)?.bgImage ? (
+                  <img 
+                    src={(activeHabit as any).bgImage} 
+                    className="w-full h-full object-cover grayscale-[0.2] opacity-80" 
+                    alt="background"
+                  />
+                ) : (
+                  <div className="w-1/2 h-1/2">
+                    <MinimalIllustration />
+                  </div>
+                )}
+                
+                {isEditable && (
+                  <label className="absolute inset-0 bg-stone-900/40 opacity-0 group-hover/frame:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white gap-2">
+                    <Camera size={24} />
+                    <span className="text-[10px] uppercase tracking-widest">Upload Illustration</span>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          try {
+                            const url = await uploadFileToLocal(f);
+                            updateHabit(activeHabit.id, { bgImage: url } as any);
+                          } catch (err) {
+                            console.warn('Upload failed, fallback to base64:', err);
+                            try {
+                              const base64 = await fileToCompressedDataUrl(f, 800, 0.8);
+                              updateHabit(activeHabit.id, { bgImage: base64 } as any);
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }
+                        }
+                      }} 
+                    />
+                  </label>
+                )}
               </div>
-              <h2 className="text-2xl font-serif text-stone-800 leading-tight">{activeHabit?.name || 'Untitled'}</h2>
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white border border-stone-100 shadow-sm rounded-full flex items-center justify-center text-xl grayscale-[0.2] shrink-0">
+                  <HabitIcon icon={activeHabit?.icon} />
+                </div>
+                <h2 className="text-xl font-serif text-stone-800 leading-tight truncate">{activeHabit?.name || 'Untitled'}</h2>
+              </div>
               <p className="text-xs text-stone-400 mt-2 leading-relaxed italic">"Keep going, even on the quiet days."</p>
             </div>
 
@@ -267,7 +321,13 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
               <h3 className="text-lg font-serif text-stone-700 uppercase tracking-widest">
                 {format(cursor, 'MMMM')} <span className="text-stone-300 ml-1">{format(cursor, 'yyyy')}</span>
               </h3>
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setCursor(new Date())} 
+                  className="px-2 py-1 hover:bg-stone-100 rounded text-[10px] text-stone-400 uppercase tracking-tighter transition-colors font-bold mr-1"
+                >
+                  Today
+                </button>
                 <button onClick={() => setCursor(subMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors"><ChevronLeft size={16}/></button>
                 <button onClick={() => setCursor(addMonths(cursor, 1))} className="p-1 hover:bg-stone-100 rounded text-stone-400 transition-colors"><ChevronRight size={16}/></button>
               </div>
