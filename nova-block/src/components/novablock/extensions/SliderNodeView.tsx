@@ -28,6 +28,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const wheelTimeout = useRef<any>(null);
 
   const nextSlide = useCallback(() => {
@@ -123,7 +124,14 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
             if (diff < -images.length / 2) diff += images.length;
 
             const absDiff = Math.abs(diff);
-            const isVisible = absDiff <= Math.floor(visibleCount / 2);
+            
+            // Logic for visibleCount: 
+            // If visibleCount is 4, we want index (0), and then 3 more. 
+            // For odd, it's balanced. For even, one side will have more.
+            // Let's use a logic that works for both:
+            const leftVisible = Math.floor((visibleCount - 1) / 2);
+            const rightVisible = visibleCount - 1 - leftVisible;
+            const isVisible = (diff >= -leftVisible && diff <= rightVisible);
 
             if (!isVisible) return null;
 
@@ -141,7 +149,13 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 className="absolute w-2/3 aspect-video rounded-xl shadow-2xl overflow-hidden bg-gray-200 border border-white/20 cursor-pointer"
-                onClick={() => setCurrentIndex(index)}
+                onClick={() => {
+                  if (index === currentIndex) {
+                    setIsLightboxOpen(true);
+                  } else {
+                    setCurrentIndex(index);
+                  }
+                }}
               >
                 {failedImages.has(index) ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400">
@@ -152,9 +166,16 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                   <img
                     src={url}
                     alt={`Slide ${index + 1}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover select-none"
                     onError={() => setFailedImages((prev) => new Set(prev).add(index))}
                   />
+                )}
+                {index === currentIndex && (
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center group/center">
+                    <div className="opacity-0 group-hover/center:opacity-100 transform translate-y-4 group-hover/center:translate-y-0 transition-all bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/30 text-white text-sm font-medium">
+                      点击放大
+                    </div>
+                  </div>
                 )}
               </motion.div>
             );
@@ -177,6 +198,63 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
             </button>
           </>
         )}
+
+        {/* Lightbox Implementation */}
+        <AnimatePresence>
+          {isLightboxOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 sm:p-12 cursor-zoom-out"
+              onClick={() => setIsLightboxOpen(false)}
+              onWheel={(e) => {
+                e.preventDefault();
+                if (wheelTimeout.current) return;
+                if (e.deltaY > 0) nextSlide();
+                else if (e.deltaY < 0) prevSlide();
+                wheelTimeout.current = setTimeout(() => {
+                  wheelTimeout.current = null;
+                }, 300);
+              }}
+            >
+              <button 
+                onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false); }}
+                className="absolute top-8 right-8 p-4 text-white hover:bg-white/10 rounded-full transition-all z-[1010] shadow-2xl"
+              >
+                <X size={48} strokeWidth={2} />
+              </button>
+
+              <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                <motion.img
+                  key={currentIndex}
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                  src={images[currentIndex]}
+                  className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                />
+
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); prevSlide(); }}
+                      className="absolute left-0 p-4 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                    >
+                      <ChevronLeft size={48} strokeWidth={1.5} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); nextSlide(); }}
+                      className="absolute right-0 p-4 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                    >
+                      <ChevronRight size={48} strokeWidth={1.5} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   };
@@ -236,20 +314,23 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">布局配置</h4>
                   <div className="bg-gray-50 p-4 rounded-xl">
-                    <label className="block text-sm font-medium text-gray-600 mb-2">可见层级数量: {visibleCount}</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">可见层级数量 (支持偶数/单张): {visibleCount}</label>
                     <input
                       type="range"
-                      min="3"
-                      max="9"
-                      step="2"
+                      min="1"
+                      max="11"
+                      step="1"
                       value={visibleCount}
                       onChange={(e) => updateAttributes({ visibleCount: parseInt(e.target.value) })}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <div className="flex justify-between text-[10px] text-gray-400 mt-2">
-                      <span>精简 (3)</span>
-                      <span>标准 (5)</span>
-                      <span>丰富 (9)</span>
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-2 px-1">
+                      <span>1</span>
+                      <span>3</span>
+                      <span>5</span>
+                      <span>7</span>
+                      <span>9</span>
+                      <span>11</span>
                     </div>
                   </div>
                 </div>
