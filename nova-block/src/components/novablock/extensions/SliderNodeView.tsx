@@ -298,22 +298,22 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
 
   return (
     <NodeViewWrapper className="slider-node my-8 relative group select-none">
-      <div className="relative w-full aspect-[21/9] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
+      <div className="relative w-full aspect-[21/9] bg-transparent rounded-2xl overflow-hidden">
         {images.length > 0 ? (
           renderCoverflow()
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-950 border-2 border-dashed border-slate-800 rounded-2xl m-1">
-            <div className="p-4 bg-slate-900 rounded-full mb-4">
-              <Plus size={48} className="text-slate-400" />
+          <div className="w-full h-full flex flex-col items-center justify-center text-stone-500 bg-stone-50/50 dark:bg-stone-900/50 border-2 border-dashed border-stone-200 dark:border-stone-800 rounded-2xl m-1">
+            <div className="p-4 bg-white dark:bg-stone-800 rounded-full mb-4 shadow-sm">
+              <Plus size={48} className="text-stone-400" />
             </div>
-            <p className="font-medium text-lg">开启 Coverflow 画廊之旅</p>
-            <p className="text-sm opacity-60">点击右上角设置图标上传或添加图片</p>
+            <p className="font-medium text-lg text-stone-600 dark:text-stone-300">开启 Coverflow 画廊之旅</p>
+            <p className="text-sm opacity-60 mt-1">点击右上角设置图标上传或添加图片</p>
           </div>
         )}
 
         <button
           onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          className="absolute top-4 right-4 z-[110] p-2 bg-slate-800/80 hover:bg-slate-700 backdrop-blur-md rounded-xl shadow-lg text-slate-200 border border-slate-700 transition-all opacity-0 group-hover:opacity-100"
+          className="absolute top-4 right-4 z-[110] p-2 bg-white/80 dark:bg-stone-800/80 hover:bg-white dark:hover:bg-stone-700 backdrop-blur-md rounded-xl shadow-lg text-stone-600 dark:text-stone-300 border border-stone-200/50 dark:border-stone-700/50 transition-all opacity-0 group-hover:opacity-100"
         >
           <Settings size={20} />
         </button>
