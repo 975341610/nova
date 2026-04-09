@@ -170,15 +170,22 @@ export const SidebarTree = ({
       `}
     >
       {/* Sidebar Header */}
-      <div className="p-6 pb-2 flex items-center h-[72px]">
-        <div className="flex items-center gap-3 overflow-hidden">
+      <div className="flex items-center h-[72px] overflow-hidden">
+        <motion.div 
+          animate={{ 
+            paddingLeft: isCollapsed ? 0 : 24,
+            width: isCollapsed ? 64 : "auto",
+            justifyContent: isCollapsed ? "center" : "flex-start"
+          }}
+          className={`flex items-center shrink-0 ${isCollapsed ? 'gap-0' : 'gap-3'}`}
+        >
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary/80 to-primary shadow-soft flex items-center justify-center shrink-0">
             <Layers size={16} className="text-primary-foreground" />
           </div>
           <AnimatedLabel isCollapsed={isCollapsed}>
             <span className="text-sm font-bold text-foreground/80 tracking-tight">Nova Block</span>
           </AnimatedLabel>
-        </div>
+        </motion.div>
         
         <AnimatePresence>
           {!isCollapsed && (
@@ -187,7 +194,7 @@ export const SidebarTree = ({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               onClick={() => setIsCollapsed(true)}
-              className="p-2 ml-auto rounded-xl hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-all duration-300 shrink-0"
+              className="p-2 ml-auto mr-6 rounded-xl hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-all duration-300 shrink-0"
             >
               <ChevronLeft size={18} />
             </motion.button>
@@ -210,14 +217,17 @@ export const SidebarTree = ({
       </div>
 
       <motion.div 
+        layout
         animate={{ 
+          flexDirection: isCollapsed ? "column" : "row",
           gap: isCollapsed ? 8 : 16,
           paddingLeft: isCollapsed ? 12 : 16,
           paddingRight: isCollapsed ? 12 : 16
         }}
         className="py-2 flex items-center justify-center border-b border-border/10 mb-2 min-h-[56px] overflow-hidden"
       >
-        <button
+        <motion.button
+          layout
           onClick={() => setActiveTab('tree')}
           title="文件树"
           className={`relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all shrink-0 ${
@@ -228,8 +238,9 @@ export const SidebarTree = ({
           <div className="absolute left-full ml-2 px-2 py-1 bg-foreground text-background text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
             文件树
           </div>
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          layout
           onClick={() => setActiveTab('search')}
           title="全局搜索"
           className={`relative group flex items-center justify-center w-10 h-10 rounded-xl transition-all shrink-0 ${
@@ -240,7 +251,7 @@ export const SidebarTree = ({
           <div className="absolute left-full ml-2 px-2 py-1 bg-foreground text-background text-[10px] rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
             全局搜索
           </div>
-        </button>
+        </motion.button>
       </motion.div>
 
       {activeTab === 'search' && (
@@ -268,7 +279,7 @@ export const SidebarTree = ({
                   marginLeft: isCollapsed ? 0 : 4,
                   marginRight: isCollapsed ? 0 : 4
                 }}
-                className="h-10 flex items-center justify-center shrink-0"
+                className="h-10 flex items-center justify-center shrink-0 w-full"
               >
                 <Search size={14} className="group-hover:scale-110 transition-transform shrink-0" />
               </motion.div>
@@ -294,7 +305,7 @@ export const SidebarTree = ({
                   marginLeft: isCollapsed ? 0 : 4,
                   marginRight: isCollapsed ? 0 : 4
                 }}
-                className="h-10 flex items-center justify-center shrink-0"
+                className="h-10 flex items-center justify-center shrink-0 w-full"
               >
                 <Sparkles size={14} className={`${activeView === 'moodboard' ? 'text-primary' : 'text-muted-foreground'} shrink-0`} />
               </motion.div>
@@ -331,7 +342,7 @@ export const SidebarTree = ({
                <div className="flex flex-col items-center gap-2 py-2">
                  <button 
                    onClick={() => onNodeAdd?.(null, 'file')}
-                   className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                   className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center w-10 h-10"
                    title="新建笔记"
                  >
                    <FilePlus size={16} />
@@ -373,7 +384,7 @@ export const SidebarTree = ({
           </div>
 
           {/* Footer */}
-          <div className="p-3 border-t border-border/20 flex justify-center">
+          <div className="p-3 border-t border-border/20 flex justify-center overflow-hidden">
             <button 
               className="flex items-center h-11 w-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-300 overflow-hidden"
               title={isCollapsed ? "设置与空间管理" : undefined}
@@ -384,7 +395,7 @@ export const SidebarTree = ({
                   marginLeft: isCollapsed ? 0 : 4,
                   marginRight: isCollapsed ? 0 : 4
                 }}
-                className="h-10 flex items-center justify-center shrink-0"
+                className="h-10 flex items-center justify-center shrink-0 w-full"
               >
                 <Settings size={14} className="shrink-0" />
               </motion.div>
