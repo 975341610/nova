@@ -230,9 +230,9 @@ def main():
 
         elif command == "system:version":
             print(json.dumps({
-                "version": "0.07",
+                "version": "0.10.2",
                 "git_commit": "7fb7e2f",
-                "build_time": "2026-03-31",
+                "build_time": "2026-04-09",
                 "executable": sys.executable
             }))
 
