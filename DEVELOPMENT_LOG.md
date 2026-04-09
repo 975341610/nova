@@ -5,6 +5,7 @@
 ### 表情包面板完全体
 - **彻底脱离 BubbleMenu**：重构了表情包面板的挂载结构，将其从容易被 Tiptap 拦截销毁的 `BubbleMenu` 中抽离，采用 `fixed` 全局居中挂载与 `z-[99999]` 高层级，解决了点击笑脸按钮面板瞬间闪退的 Bug。
 - **预装动态表情**：在 `data/emoticons/` 目录下预装了 Google Noto Animated Emojis，使用高品质 WebP 动态表情替换了原先的测试动图，支持面板秒开即用与点击插入。
+- **合规合规声明**：新建 `CREDITS.md` 以确保 Google Noto 动态表情的 CC BY 4.0 商用合规声明。
 - **极客唤醒快捷键**：拦截编辑器键盘事件，实现打字时敲击 `/e + 回车`，瞬间删除 `/e` 并唤起表情面板。
 
 ### [2026-04-09] - 接入 Google Noto Animated Emojis

@@ -527,3 +527,24 @@ INFO:     fdbd:dc07:fe:4005::2158:0 - "GET /api/emoticons/static/files/test_boun
 INFO:     fdbd:dc07:fe:4005::2326:0 - "GET /api/emoticons/static/files/test_text_flash.gif HTTP/1.1" 404 Not Found
 INFO:     fdbd:dc07:fe:4005::201b:0 - "GET /api/emoticons/static/files/test_color_blink.gif HTTP/1.1" 404 Not Found
 INFO:     fdbd:dc07:fe:4005::2398:0 - "GET /api/emoticons/static/files/test_bounce.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::269a:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::24cc:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::21ec:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::213e:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::2626:0 - "GET /api/emoticons/static/files/test_bounce.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::23b7:0 - "GET /api/emoticons/static/files/1f60d_heart_eyes.webp HTTP/1.1" 304 Not Modified
+INFO:     fdbd:dc07:fe:4005::2255:0 - "GET /api/emoticons/static/files/test_text_flash.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::272d:0 - "GET /api/emoticons/static/files/test_color_blink.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::2438:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::2327:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::269b:0 - "GET /api/emoticons/static/files/test_bounce.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::21fb:0 - "GET /api/emoticons/static/files/test_color_blink.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::270d:0 - "GET /api/emoticons/static/files/test_text_flash.gif HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::2675:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::210d:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::257a:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::22e3:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::261c:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::2232:0 - "GET /api/media/music-library HTTP/1.1" 200 OK
+INFO:     fdbd:dc07:fe:4005::2392:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
+INFO:     fdbd:dc07:fe:4005::2576:0 - "GET /api/media/files/b714d05c-a849-4f33-b153-37bc2a15794a.png HTTP/1.1" 404 Not Found
