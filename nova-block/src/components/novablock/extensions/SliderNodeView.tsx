@@ -197,7 +197,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                   <img
                     src={url}
                     alt={`Slide ${index + 1}`}
-                    className="w-full h-full object-cover select-none"
+                    className="w-full h-full object-cover select-none !m-0"
                     onError={() => setFailedImages((prev) => new Set(prev).add(index))}
                   />
                 )}
@@ -269,7 +269,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: -20 }}
                   src={images[currentIndex]}
-                  className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                  className="max-w-full max-h-full object-contain shadow-2xl rounded-lg !m-0"
                 />
 
                 {images.length > 1 && (
@@ -429,7 +429,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                     <div className="grid grid-cols-4 gap-2 max-h-[160px] overflow-y-auto p-1 pr-2">
                       {images.map((url: string, index: number) => (
                         <div key={index} className="relative aspect-square group/item rounded-lg overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
-                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          <img src={url} alt="" className="w-full h-full object-cover !m-0" />
                           <button
                             onClick={() => removeImage(index)}
                             className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity"
