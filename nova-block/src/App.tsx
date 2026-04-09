@@ -112,6 +112,7 @@ function App() {
   })
   const [activeView, setActiveView] = useState<'notes' | 'moodboard'>('notes')
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // 全局快捷键 Cmd+K
   useEffect(() => {
@@ -299,10 +300,33 @@ function App() {
           onQuickSearchOpen={() => setIsCommandPaletteOpen(true)}
           activeView={activeView}
           className="z-20"
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={setIsSidebarCollapsed}
         />
 
         {/* 主编辑区 */}
-        <main className="flex-1 h-full relative overflow-hidden flex flex-col z-10">
+        <motion.main 
+          animate={{ 
+            scale: isSidebarCollapsed ? 1 : 0.95,
+            borderRadius: isSidebarCollapsed ? "0px" : "16px",
+            x: isSidebarCollapsed ? 0 : 0, // 侧边栏变宽时，主页面保持原位但缩放
+          }}
+          transition={{ 
+            duration: 0.4, 
+            ease: [0.32, 0.72, 0, 1] 
+          }}
+          className="flex-1 h-full relative overflow-hidden flex flex-col z-10 bg-background shadow-2xl origin-left"
+        >
+          {/* 主页面遮罩 - 当侧边栏展开时显现 */}
+          {!isSidebarCollapsed && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/5 z-50 pointer-events-none"
+            />
+          )}
+
           <AnimatePresence mode="wait">
             {activeView === 'notes' ? (
               <motion.div
@@ -335,7 +359,7 @@ function App() {
 
           {/* 底部装饰线 */}
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white/5 to-transparent absolute bottom-0 left-0" />
-        </main>
+        </motion.main>
 
         {/* Command Palette */}
         <CommandPalette 

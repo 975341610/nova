@@ -21,6 +21,8 @@ interface SidebarTreeProps {
   onQuickSearchOpen?: () => void;
   className?: string;
   activeView?: 'notes' | 'moodboard';
+  isCollapsed?: boolean;
+  onToggleCollapse?: (collapsed: boolean) => void;
 }
 
 export const SidebarTree = ({
@@ -36,10 +38,22 @@ export const SidebarTree = ({
   onQuickSearchOpen,
   className = '',
   activeView = 'notes',
+  isCollapsed: externalIsCollapsed,
+  onToggleCollapse,
 }: SidebarTreeProps) => {
   const [nodes, setNodes] = useState<TreeNode[]>(initialNodes);
   const [selectedId, setSelectedId] = useState<string>();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
+  
+  const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
+  const setIsCollapsed = (collapsed: boolean) => {
+    if (onToggleCollapse) {
+      onToggleCollapse(collapsed);
+    } else {
+      setInternalIsCollapsed(collapsed);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'tree' | 'search'>('tree');
   
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, node: TreeNode } | null>(null);
@@ -126,9 +140,16 @@ export const SidebarTree = ({
 
   return (
     <motion.aside
-      animate={{ width: isCollapsed ? 64 : 280 }}
+      initial={false}
+      animate={{ 
+        width: isCollapsed ? 64 : 280,
+      }}
+      transition={{ 
+        duration: 0.4, 
+        ease: [0.32, 0.72, 0, 1] 
+      }}
       className={`
-        h-full border-r border-border/40 bg-background/60 backdrop-blur-2xl flex flex-col transition-all duration-500 ease-in-out
+        h-full border-r border-border/40 bg-background/60 backdrop-blur-2xl flex flex-col
         ${className}
       `}
     >
