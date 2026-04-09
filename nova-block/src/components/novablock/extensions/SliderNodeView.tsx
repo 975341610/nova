@@ -173,7 +173,12 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                   filter: `brightness(${1 - absDiff * 0.2}) blur(${absDiff * 1}px)`,
                 }}
                 exit={{ opacity: 0, scale: 0.5 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                transition={{ 
+                  type: 'spring', 
+                  stiffness: 300, 
+                  damping: 30,
+                  filter: { type: 'tween', duration: 0.3, ease: "easeOut" } 
+                }}
                 className="absolute w-2/3 aspect-video rounded-xl shadow-2xl overflow-hidden bg-gray-200 border border-white/20 cursor-pointer"
                 onClick={() => {
                   if (index === currentIndex) {
