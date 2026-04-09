@@ -167,10 +167,10 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                 initial={{ opacity: 0, scale: 0.5, x: diff * 100 }}
                 animate={{
                   opacity: 1,
-                  scale: 1 - absDiff * 0.15,
-                  x: `${diff * 40}%`,
+                  scale: Math.max(0.3, 1 - absDiff * 0.15),
+                  x: `${diff === 0 ? 0 : Math.sign(diff) * (absDiff * 12 + 12)}%`,
                   zIndex: 50 - absDiff,
-                  filter: `brightness(${1 - absDiff * 0.2}) blur(${absDiff * 1}px)`,
+                  filter: `brightness(${Math.max(0.2, 1 - absDiff * 0.2)}) blur(${absDiff * 1}px)`,
                 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ 

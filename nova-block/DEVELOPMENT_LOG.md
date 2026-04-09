@@ -315,3 +315,4 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
 - **优化 Slider 视觉样式**: 移除了主容器原本沉闷的黑色背景 (`bg-slate-900`)，改为完全透明背景，以更好融入编辑器主轴的浅色风格。同时将空的上传状态引导区和右上角设置按钮全部替换为浅色/毛玻璃通透质感样式。
 
 - **修复 Slider 图片白边**: 修复了由于 Tiptap 编辑器全局 `img` 样式默认注入 `margin: 1rem 0` 而导致 Slider 内的图片上下出现底色“厚白边”的问题，通过为画廊内的所有 `img` 添加 `!m-0` 强行覆盖全局边距。
+- **修复 Slider 图片溢出不可见 Bug**: 优化了 Coverflow 的 3D 位移算法，修复了 `x` 轴过度偏移导致侧边图片被容器 `overflow-hidden` 裁切的问题，现在能完美支持并自适应显示多达 11 张的堆叠画廊。
