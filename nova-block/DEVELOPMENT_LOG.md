@@ -310,3 +310,5 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
 </system-reminder>
 - **修复 Slider 滚轮报错**: 移除 React 的 `onWheel`，改为原生 `addEventListener('wheel', { passive: false })` 以允许 `e.preventDefault()`, 防止滚动图片时页面跟着乱跳。
 - **修复 Slider Filter 动画报错**: 针对 Framer Motion 的 Spring 物理效果在内插值时的负数越界问题导致 `blur(-0.004px)` 报错，单独将 `filter` 属性的过渡效果替换为了 `tween`，避免了越界。
+
+- **实现 Slider 分页指示器**: 补充了丢失的 `showDots` 渲染逻辑，并在底部居中增加了带磨砂玻璃效果的点击跳转小圆点。

@@ -230,6 +230,20 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
           </>
         )}
 
+        {showDots && images.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[100] px-3 py-2 bg-black/20 backdrop-blur-md rounded-full">
+            {images.map((_: any, idx: number) => (
+              <button
+                key={idx}
+                onClick={(e) => { e.stopPropagation(); setCurrentIndex(idx); }}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  idx === currentIndex ? 'bg-white scale-125' : 'bg-white/50 hover:bg-white/80'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Lightbox Implementation */}
         <AnimatePresence>
           {isLightboxOpen && (
