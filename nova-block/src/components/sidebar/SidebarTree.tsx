@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints } from 'lucide-react';
+import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints, LayoutGrid } from 'lucide-react';
 import { buildTree, moveNode, isDescendant } from '../../lib/novablock/treeUtils';
 import type { TreeNode } from '../../lib/novablock/treeUtils';
 import { TreeNodeItem } from './TreeNodeItem';
@@ -13,7 +13,7 @@ interface SidebarTreeProps {
   initialNodes?: TreeNode[];
   notes?: Note[];
   onNodeSelect?: (nodeId: string) => void;
-  onNodeAdd?: (parentId: string | null, type?: 'file' | 'folder') => void;
+  onNodeAdd?: (parentId: string | null, type?: 'file' | 'folder' | 'canvas') => void;
   onNodeMove?: (nodeId: string, parentId: string | null, sortKey: string) => void;
   onNodeRename?: (nodeId: string, newTitle: string) => void;
   onNodeDelete?: (nodeId: string, deleteChildren: boolean) => void;
@@ -354,6 +354,13 @@ export const SidebarTree = ({
                     <FilePlus size={14} />
                   </button>
                   <button 
+                    onClick={() => onNodeAdd?.(null, 'canvas')}
+                    className="p-1 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-110"
+                    title="新建画布"
+                  >
+                    <LayoutGrid size={14} />
+                  </button>
+                  <button 
                     onClick={() => onNodeAdd?.(null, 'folder')}
                     className="p-1 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-110"
                     title="新建文件夹"
@@ -371,6 +378,13 @@ export const SidebarTree = ({
                    title="新建笔记"
                  >
                    <FilePlus size={16} />
+                 </button>
+                 <button 
+                   onClick={() => onNodeAdd?.(null, 'canvas')}
+                   className="p-2 rounded-xl bg-accent/40 text-muted-foreground hover:bg-accent/70 hover:text-foreground transition-all flex items-center justify-center w-10 h-10"
+                   title="新建画布"
+                 >
+                   <LayoutGrid size={16} />
                  </button>
                </div>
             )}
@@ -452,6 +466,15 @@ export const SidebarTree = ({
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/50 text-foreground transition-colors"
               >
                 <FilePlus size={14} className="text-muted-foreground" /> 新建笔记
+              </button>
+              <button 
+                onClick={() => {
+                  onNodeAdd?.(contextMenu.node.id, 'canvas');
+                  setContextMenu(null);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/50 text-foreground transition-colors"
+              >
+                <LayoutGrid size={14} className="text-muted-foreground" /> 新建画布
               </button>
               <button 
                 onClick={() => {

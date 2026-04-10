@@ -31,6 +31,7 @@ export type Note = {
   title: string;
   icon: string;
   content: string;
+  type?: string;
   summary: string;
   is_title_manually_edited: boolean;
   tags: string[];

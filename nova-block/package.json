@@ -30,6 +30,7 @@
     "@tiptap/starter-kit": "^3.22.1",
     "@tiptap/suggestion": "^3.22.3",
     "@types/katex": "^0.16.8",
+    "@xyflow/react": "^12.10.2",
     "canvas-confetti": "^1.9.4",
     "date-fns": "^3.6.0",
     "framer-motion": "^12.38.0",

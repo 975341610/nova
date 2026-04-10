@@ -43,6 +43,11 @@ export const TreeNodeItem = ({
   const handleDragStart = (e: React.DragEvent | PointerEvent | TouchEvent | MouseEvent) => {
     if ('dataTransfer' in e && e.dataTransfer) {
       e.dataTransfer.setData('nodeId', node.id);
+      // For Canvas Drag and Drop
+      if (!node.isFolder) {
+        e.dataTransfer.setData('application/x-nova-note-id', node.id);
+        e.dataTransfer.effectAllowed = 'copyMove';
+      }
     }
     e.stopPropagation();
   };

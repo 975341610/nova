@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { NovaBlockEditor } from './components/novablock/NovaBlockEditor'
+import { CanvasEditor } from './components/canvas/CanvasEditor'
 import { SidebarTree } from './components/sidebar/SidebarTree'
 import { MoodboardView } from './components/moodboard/MoodboardView'
 import CommandPalette from './components/search/CommandPalette'
@@ -189,13 +190,22 @@ function App() {
     }
   }
 
-  const handleAddNote = (parentId: string | null, type: 'file' | 'folder' = 'file') => {
+  const handleAddNote = (parentId: string | null, type: 'file' | 'folder' | 'canvas' = 'file') => {
     const newId = Math.max(...notes.map(n => n.id), 0) + 1
+
+    const isFolder = type === 'folder'
+    const isCanvas = type === 'canvas'
+
     const newNote: Note = {
       id: newId,
-      title: type === 'folder' ? 'Untitled Folder' : 'Untitled Note',
-      icon: type === 'folder' ? '📂' : '📝',
-      content: type === 'folder' ? '' : '<p></p>',
+      title: isFolder ? '无标题文件夹' : isCanvas ? '无标题画布' : '无标题笔记',
+      icon: isFolder ? '📂' : isCanvas ? '🧩' : '📝',
+      content: isFolder
+        ? ''
+        : isCanvas
+          ? JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+          : '<p></p>',
+      type: isCanvas ? 'canvas' : undefined,
       tags: [],
       properties: [],
       links: [],
@@ -205,11 +215,13 @@ function App() {
       sort_key: 'm',
       summary: '',
       is_title_manually_edited: false,
-      is_folder: type === 'folder',
-      created_at: new Date().toISOString()
+      is_folder: isFolder,
+      created_at: new Date().toISOString(),
     }
+
     setNotes([...notes, newNote])
-    if (type !== 'folder') {
+
+    if (!isFolder) {
       setCurrentNoteId(newId)
       setActiveView('notes')
     }
@@ -361,11 +373,20 @@ function App() {
                 transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
                 className="flex-1 h-full"
               >
-                <NovaBlockEditor 
-                  note={currentNote} 
-                  onSave={handleSave}
-                  onNotify={(text, tone) => console.log(`[NovaNotify] ${tone}: ${text}`)}
-                />
+                {currentNote?.type === 'canvas' ? (
+                  <CanvasEditor
+                    note={currentNote}
+                    notes={notes}
+                    onSave={handleSave}
+                    onNotify={(text, tone) => console.log(`[NovaNotify] ${tone}: ${text}`)}
+                  />
+                ) : (
+                  <NovaBlockEditor 
+                    note={currentNote} 
+                    onSave={handleSave}
+                    onNotify={(text, tone) => console.log(`[NovaNotify] ${tone}: ${text}`)}
+                  />
+                )}
               </motion.div>
             ) : (
               <motion.div
