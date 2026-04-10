@@ -44,6 +44,7 @@ class Note(Base):
     content: Mapped[str] = mapped_column(Text)
     summary: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(500), default="")
+    type: Mapped[str] = mapped_column(String(50), default="note")
     notebook_id: Mapped[int | None] = mapped_column(ForeignKey("notebooks.id", ondelete="SET NULL"), nullable=True, index=True)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("notes.id", ondelete="SET NULL"), nullable=True, index=True)
     is_folder: Mapped[bool] = mapped_column(Integer, default=0)  # 0 for false, 1 for true

@@ -94,10 +94,11 @@ def get_note(db: Session, note_id: int) -> Note | None:
     return db.get(Note, note_id)
 
 
-def create_note(db: Session, title: str, content: str, summary: str, tags: list[str] | None, notebook_id: int | None, icon: str = "📝", parent_id: int | None = None, is_title_manually_edited: bool = False, is_folder: bool = False) -> Note:
+def create_note(db: Session, title: str, content: str, summary: str, tags: list[str] | None, notebook_id: int | None, icon: str = "📝", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False, is_folder: bool = False) -> Note:
     note = Note(
         title=title,
         icon=icon,
+        type=type,
         content=content,
         summary=summary,
         tags=",".join(tags) if tags else "",
@@ -115,7 +116,7 @@ def create_note(db: Session, title: str, content: str, summary: str, tags: list[
 
 from backend.models.schemas import NotePropertyBase
 
-def update_note(db: Session, note_id: int, title: str | None = None, content: str | None = None, summary: str | None = None, tags: list[str] | None = None, icon: str | None = None, parent_id: int | None = None, is_title_manually_edited: bool | None = None, is_folder: bool | None = None, properties: list[NotePropertyBase] | None = None) -> Note | None:
+def update_note(db: Session, note_id: int, title: str | None = None, content: str | None = None, summary: str | None = None, tags: list[str] | None = None, icon: str | None = None, type: str | None = None, parent_id: int | None = None, is_title_manually_edited: bool | None = None, is_folder: bool | None = None, properties: list[NotePropertyBase] | None = None) -> Note | None:
     note = db.get(Note, note_id)
     if not note:
         return None
@@ -138,6 +139,9 @@ def update_note(db: Session, note_id: int, title: str | None = None, content: st
             changed = True
     if icon is not None and note.icon != icon:
         note.icon = icon
+        changed = True
+    if type is not None and note.type != type:
+        note.type = type
         changed = True
     # parent_id 允许为 None 以清空父节点关联
     if note.parent_id != parent_id:

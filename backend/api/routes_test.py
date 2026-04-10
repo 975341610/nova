@@ -87,6 +87,7 @@ def note_to_response(note: Note) -> NoteResponse:
         id=note.id,
         title=note.title,
         icon=note.icon,
+        type=note.type,
         content=note.content,
         summary=note.summary,
         tags=[tag for tag in note.tags.split(",") if tag],
@@ -120,7 +121,7 @@ async def index_note(db: Session, note_id: int | None, title: str, content: str,
         notebook_id = notebook_id or get_or_create_default_notebook(db).id
         note = create_note(db, title=title, content=content, summary=summary, tags=tags, notebook_id=notebook_id, icon=icon, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
     else:
-        note = update_note(db, note_id, title, content, summary, tags, icon, parent_id, is_title_manually_edited)
+        note = update_note(db, note_id, title=title, content=content, summary=summary, tags=tags, icon=icon, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
     
     chunks = chunk_text(content, settings.chunk_size_words, settings.chunk_overlap_words)
     records = []

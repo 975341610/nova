@@ -19,6 +19,7 @@ def note_to_dict(note):
         "title": note.title,
         "content": note.content,
         "summary": note.summary,
+        "type": note.type,
         "tags": [t for t in note.tags.split(",") if t] if note.tags else [],
         "notebook_id": note.notebook_id,
         "parent_id": note.parent_id,
@@ -79,6 +80,7 @@ def main():
                 tags=params.get("tags"),
                 notebook_id=params.get("notebook_id"),
                 icon=params.get("icon", "📝"),
+                type=params.get("type", "note"),
                 parent_id=params.get("parent_id"),
                 is_folder=params.get("is_folder", False),
                 is_title_manually_edited=params.get("is_title_manually_edited", False)
@@ -94,6 +96,7 @@ def main():
                 tags=params.get("tags"),
                 notebook_id=params.get("notebook_id"),
                 icon=params.get("icon", "📂"),
+                type=params.get("type", "note"),
                 parent_id=params.get("parent_id"),
                 is_folder=True,
                 is_title_manually_edited=False
@@ -102,7 +105,7 @@ def main():
 
         elif command == "notes:update":
             # Only pass keys that are explicitly in params to avoid overwriting with None
-            update_keys = ["title", "content", "tags", "icon", "parent_id", "is_folder", "is_title_manually_edited"]
+            update_keys = ["title", "content", "tags", "icon", "type", "parent_id", "is_folder", "is_title_manually_edited"]
             kwargs = {k: params[k] for k in update_keys if k in params}
             note = repositories.update_note(
                 db,

@@ -124,7 +124,7 @@ def extract_manual_links(content: str) -> list[int]:
     # Convert to unique integers
     return list(set(int(id_str) for id_str in ids))
 
-async def background_index_note(note_id: int, title: str, content: str, tags: list[str] | None = None, icon: str = "\U0001f4dd", parent_id: int | None = None, is_title_manually_edited: bool = False):
+async def background_index_note(note_id: int, title: str, content: str, tags: list[str] | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False):
     """异步执行 AI 处理：摘要、向量化、自动链接"""
     db = SessionLocal()
     try:
@@ -145,7 +145,7 @@ async def background_index_note(note_id: int, title: str, content: str, tags: li
         from backend.database import with_db_retry
         @with_db_retry(max_retries=5, delay=0.5)
         def save_summary():
-            update_note(db, note_id, title=title, content=content, summary=summary, tags=tags, icon=icon, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
+            update_note(db, note_id, title=title, content=content, summary=summary, tags=tags, icon=icon, type=type, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
         
         save_summary()
         
@@ -202,6 +202,7 @@ def note_to_response(note: Note) -> NoteResponse:
         id=note.id,
         title=note.title,
         icon=note.icon,
+        type=note.type,
         content=note.content,
         summary=note.summary,
         tags=[tag for tag in note.tags.split(",") if tag],
@@ -228,7 +229,7 @@ def note_to_tree_response(note: Note) -> NoteTreeResponse:
 def notebook_to_response(notebook: Notebook) -> NotebookResponse:
     return NotebookResponse.model_validate(notebook)
 
-async def persist_note(db: Session, title: str, content: str, background_tasks: BackgroundTasks, notebook_id: int | None = None, icon: str = "\U0001f4dd", parent_id: int | None = None, is_title_manually_edited: bool = False, tags: list[str] | None = None) -> NoteResponse:
+async def persist_note(db: Session, title: str, content: str, background_tasks: BackgroundTasks, notebook_id: int | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False, tags: list[str] | None = None) -> NoteResponse:
     # 1. 快速创建数据库记录
     from backend.database import with_db_retry
     
@@ -236,7 +237,7 @@ async def persist_note(db: Session, title: str, content: str, background_tasks: 
     def do_create():
         nonlocal notebook_id
         notebook_id = notebook_id or get_or_create_default_notebook(db).id
-        return create_note(db, title=title, content=content, summary="", tags=tags, notebook_id=notebook_id, icon=icon, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
+        return create_note(db, title=title, content=content, summary="", tags=tags, notebook_id=notebook_id, icon=icon, type=type, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited)
     
     note = do_create()
     
@@ -247,9 +248,15 @@ async def persist_note(db: Session, title: str, content: str, background_tasks: 
     
     # 2. 异步执行 AI 任务
     background_tasks.add_task(
-        background_index_note, 
-        note.id, title, content, 
-        tags, icon, parent_id, is_title_manually_edited
+        background_index_note,
+        note.id,
+        title,
+        content,
+        tags=tags,
+        icon=icon,
+        type=type,
+        parent_id=parent_id,
+        is_title_manually_edited=is_title_manually_edited,
     )
     
     return note_to_response(note)
@@ -318,7 +325,7 @@ async def quick_capture_api(payload: QuickCaptureRequest, background_tasks: Back
     inbox = get_or_create_inbox_notebook(db)
     
     # 2. 持久化笔记
-    note_resp = await persist_note(db, title, payload.content, background_tasks, notebook_id=inbox.id, icon="⚡")
+    note_resp = await persist_note(db, title, payload.content, background_tasks, notebook_id=inbox.id, icon="⚡", type="note")
     
     # 3. 增加 EXP
     exp_gained = 10
@@ -609,7 +616,7 @@ async def create_folder_api(payload: NoteCreate, db: Session = Depends(get_db)) 
     @with_db_retry(max_retries=3)
     def do_create():
         notebook_id = payload.notebook_id or get_or_create_default_notebook(db).id
-        return create_note(db, title=payload.title, content="", summary="", tags=payload.tags, notebook_id=notebook_id, icon="📂", parent_id=payload.parent_id, is_folder=True)
+        return create_note(db, title=payload.title, content="", summary="", tags=payload.tags, notebook_id=notebook_id, icon="📂", type=payload.type, parent_id=payload.parent_id, is_folder=True)
     
     folder = do_create()
     return note_to_response(folder)
@@ -687,7 +694,7 @@ def purge_notebook_api(notebook_id: int, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/notes", response_model=NoteResponse)
 async def create_note_api(payload: NoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
-    return await persist_note(db, payload.title, payload.content, background_tasks, payload.notebook_id, payload.icon, payload.parent_id, payload.is_title_manually_edited, payload.tags)
+    return await persist_note(db, payload.title, payload.content, background_tasks, payload.notebook_id, payload.icon, payload.type, payload.parent_id, payload.is_title_manually_edited, payload.tags)
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
 async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
@@ -701,6 +708,7 @@ async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: B
     title = update_data.get("title", existing.title)
     content = update_data.get("content", existing.content)
     icon = update_data.get("icon", existing.icon)
+    type = update_data.get("type", existing.type)
     parent_id = update_data.get("parent_id", existing.parent_id)
     is_title_manually_edited = update_data.get("is_title_manually_edited", (existing.is_title_manually_edited == 1))
     tags = update_data.get("tags")
@@ -710,7 +718,19 @@ async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: B
     from backend.database import with_db_retry
     @with_db_retry(max_retries=3)
     def do_quick_update():
-        return update_note(db, note_id, title, content, existing.summary, tags, icon, parent_id, is_title_manually_edited, properties=properties)
+        return update_note(
+            db,
+            note_id,
+            title=title,
+            content=content,
+            summary=existing.summary,
+            tags=tags,
+            icon=icon,
+            type=type,
+            parent_id=parent_id,
+            is_title_manually_edited=is_title_manually_edited,
+            properties=properties,
+        )
     
     note = do_quick_update()
     
@@ -723,7 +743,7 @@ async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: B
     background_tasks.add_task(
         background_index_note,
         note.id, title, content,
-        tags, icon, parent_id, is_title_manually_edited
+        tags=tags, icon=icon, type=type, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited
     )
     
     return note_to_response(note)

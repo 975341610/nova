@@ -32,6 +32,7 @@ class NoteBase(BaseModel):
     title: str = "Untitled"
     content: str
     icon: str = "📝"
+    type: str = "note"
     is_title_manually_edited: bool = False
     is_folder: bool = False
 
@@ -46,6 +47,7 @@ class NoteUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
     icon: str | None = None
+    type: str | None = None
     parent_id: int | None = None
     is_folder: bool | None = None
     is_title_manually_edited: bool | None = None

@@ -139,6 +139,8 @@ def run_migrations() -> None:
             connection.execute(text("ALTER TABLE notes ADD COLUMN position INTEGER DEFAULT 0"))
         if "icon" not in note_columns:
             connection.execute(text("ALTER TABLE notes ADD COLUMN icon VARCHAR(500) DEFAULT '📝'"))
+        if "type" not in note_columns:
+            connection.execute(text("ALTER TABLE notes ADD COLUMN type VARCHAR(50) DEFAULT 'note'"))
         if "deleted_at" not in note_columns:
             connection.execute(text("ALTER TABLE notes ADD COLUMN deleted_at DATETIME"))
         if "is_title_manually_edited" not in note_columns:
