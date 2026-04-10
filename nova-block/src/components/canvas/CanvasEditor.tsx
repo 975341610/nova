@@ -1393,6 +1393,11 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     [note?.id, onNotify],
   );
 
+  const handleClearBackground = useCallback(() => {
+    setBackgroundUrl(undefined);
+    onNotify?.('已清除背景图片', 'info');
+  }, [onNotify]);
+
   const openNotePicker = useCallback((mode: 'toolbar' | 'context', position?: { x: number; y: number }, groupId?: string | null) => {
     pendingDropPositionRef.current = position ?? null;
     pendingDropGroupIdRef.current = groupId ?? null;
@@ -1440,29 +1445,34 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     onNotify?.('已移除选中元素', 'info');
   }, [onNotify, selection.edges, selection.nodes, setEdges, setNodes]);
 
-  const saveSnapshot = useMemo(() => {
-    const serializedNodes: CanvasNode[] = hydratedNodes.map((item) => {
-      if (item.type === TEXT_NODE_TYPE) {
-        return {
-          ...item,
-          data: {
-            title: item.data.title,
-            body: item.data.body,
-          },
-        } satisfies CanvasTextNode;
-      }
+  const serializeCanvasContent = useCallback(
+    (nextBackgroundUrl: string | undefined) => {
+      const serializedNodes: CanvasNode[] = hydratedNodes.map((item) => {
+        if (item.type === TEXT_NODE_TYPE) {
+          return {
+            ...item,
+            data: {
+              title: item.data.title,
+              body: item.data.body,
+            },
+          } satisfies CanvasTextNode;
+        }
 
-      return item;
-    });
+        return item;
+      });
 
-    return JSON.stringify({
-      version: 'v1',
-      nodes: serializedNodes,
-      edges,
-      viewport,
-      backgroundUrl,
-    } satisfies CanvasSerialized);
-  }, [edges, hydratedNodes, viewport, backgroundUrl]);
+      return JSON.stringify({
+        version: 'v1',
+        nodes: serializedNodes,
+        edges,
+        viewport,
+        backgroundUrl: nextBackgroundUrl,
+      } satisfies CanvasSerialized);
+    },
+    [edges, hydratedNodes, viewport],
+  );
+
+  const saveSnapshot = useMemo(() => serializeCanvasContent(backgroundUrl), [backgroundUrl, serializeCanvasContent]);
 
   useEffect(() => {
     if (!note) return;
@@ -2025,13 +2035,27 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
                       <Search size={18} />
                     </button>
 
-                    <button
-                      onClick={() => backgroundInputRef.current?.click()}
-                      className="flex h-9 w-9 items-center justify-center rounded-full text-emerald-400 transition hover:bg-emerald-400/10"
-                      title="更换画布背景"
-                    >
-                      <Palette size={18} />
-                    </button>
+                    <div className="group flex items-center">
+                      <button
+                        onClick={() => backgroundInputRef.current?.click()}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-emerald-400 transition hover:bg-emerald-400/10"
+                        title="更换画布背景"
+                      >
+                        <Palette size={18} />
+                      </button>
+                      
+                      {backgroundUrl && (
+                        <div className="flex w-0 items-center overflow-hidden transition-all duration-300 ease-out group-hover:w-8 group-hover:ml-1">
+                          <button
+                            onClick={handleClearBackground}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/10 text-rose-400 transition hover:bg-rose-500/20"
+                            title="清除背景图片"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
                     <input
                       type="file"
