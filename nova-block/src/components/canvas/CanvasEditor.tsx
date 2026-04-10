@@ -12,6 +12,8 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  getRectOfNodes,
+  getTransformForBounds,
   type Connection,
   type Edge,
   type Node,
@@ -30,14 +32,23 @@ import {
   StickyNote,
   Trash2,
   X,
+  Type,
+  Video,
+  Image as ImageIcon,
+  File as FileIcon,
+  MousePointer2,
 } from 'lucide-react';
 import type { Note } from '../../lib/types';
+import { BaseNode } from './BaseNode';
+import { api } from '../../lib/api';
 
 type CanvasTextNodeData = {
   title: string;
   body: string;
+  memo?: string;
   // 仅用于运行时注入，序列化时会剥离
-  onChange?: (id: string, patch: { title?: string; body?: string }) => void;
+  onChange?: (id: string, patch: { title?: string; body?: string; memo?: string }) => void;
+  onInfoClick?: (id: string) => void;
 };
 
 type CanvasReferenceNodeData = {
@@ -46,13 +57,39 @@ type CanvasReferenceNodeData = {
   icon: string;
   summary: string;
   tags: string[];
+  memo?: string;
+  onChange?: (id: string, patch: { memo?: string }) => void;
+  onInfoClick?: (id: string) => void;
+};
+
+type CanvasMediaNodeData = {
+  url: string;
+  type: 'image' | 'video' | 'file';
+  title?: string;
+  memo?: string;
+  onChange?: (id: string, patch: { memo?: string }) => void;
+  onInfoClick?: (id: string) => void;
+};
+
+type CanvasLinkNodeData = {
+  url: string;
+  title?: string;
+  memo?: string;
+  onChange?: (id: string, patch: { memo?: string }) => void;
+  onInfoClick?: (id: string) => void;
+};
+
+type CanvasGroupNodeData = {
+  label?: string;
 };
 
 type CanvasTextNode = Node<CanvasTextNodeData, 'canvas-text-card'>;
-
 type CanvasReferenceNode = Node<CanvasReferenceNodeData, 'canvas-note-reference'>;
+type CanvasMediaNode = Node<CanvasMediaNodeData, 'canvas-media-node'>;
+type CanvasLinkNode = Node<CanvasLinkNodeData, 'canvas-link-node'>;
+type CanvasGroupNode = Node<CanvasGroupNodeData, 'groupNode'>;
 
-type CanvasNode = CanvasTextNode | CanvasReferenceNode;
+type CanvasNode = CanvasTextNode | CanvasReferenceNode | CanvasMediaNode | CanvasLinkNode | CanvasGroupNode;
 
 type CanvasSerialized = {
   version: 'v1';
@@ -70,6 +107,9 @@ type CanvasEditorProps = {
 
 const TEXT_NODE_TYPE = 'canvas-text-card';
 const REFERENCE_NODE_TYPE = 'canvas-note-reference';
+const MEDIA_NODE_TYPE = 'canvas-media-node';
+const LINK_NODE_TYPE = 'canvas-link-node';
+const GROUP_NODE_TYPE = 'groupNode';
 
 const createTextNode = (id: string, x: number, y: number): CanvasTextNode => ({
   id,
@@ -81,7 +121,7 @@ const createTextNode = (id: string, x: number, y: number): CanvasTextNode => ({
     onChange: () => undefined,
   },
   dragHandle: '.canvas-card-drag-handle',
-  style: { width: 280 },
+  style: { width: 280, height: 260 },
 });
 
 const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number): CanvasReferenceNode => ({
@@ -96,7 +136,31 @@ const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number)
     tags: sourceNote.tags || [],
   },
   dragHandle: '.canvas-card-drag-handle',
-  style: { width: 320 },
+  style: { width: 320, height: 160 },
+});
+
+const createMediaNode = (id: string, url: string, type: 'image' | 'video' | 'file', title: string, x: number, y: number): CanvasMediaNode => ({
+  id,
+  type: MEDIA_NODE_TYPE,
+  position: { x, y },
+  data: { url, type, title },
+  style: { width: 300, height: 200 },
+});
+
+const createLinkNode = (id: string, url: string, title: string, x: number, y: number): CanvasLinkNode => ({
+  id,
+  type: LINK_NODE_TYPE,
+  position: { x, y },
+  data: { url, title },
+  style: { width: 300, height: 80 },
+});
+
+const createGroupNode = (id: string, x: number, y: number, width: number, height: number): CanvasGroupNode => ({
+  id,
+  type: GROUP_NODE_TYPE,
+  position: { x, y },
+  data: { label: '未命名分组' },
+  style: { width, height },
 });
 
 function summarizeNote(note: Note) {
@@ -136,83 +200,155 @@ function parseCanvasContent(content?: string): CanvasSerialized {
   }
 }
 
-function TextCardNode({ id, data, selected }: NodeProps<CanvasTextNode>) {
+function TextCardNode(props: NodeProps<CanvasTextNode>) {
+  const { id, data, selected } = props;
   return (
-    <div
-      className={`group rounded-[28px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(255,248,240,0.92))] shadow-[0_20px_70px_-28px_rgba(244,173,138,0.55),0_10px_24px_-16px_rgba(92,74,58,0.25)] backdrop-blur-xl transition-all duration-300 ${
-        selected ? 'ring-2 ring-[#e7b28a]/70 shadow-[0_24px_80px_-26px_rgba(231,178,138,0.7),0_16px_34px_-18px_rgba(109,78,56,0.28)]' : 'hover:-translate-y-0.5'
-      }`}
-    >
-      <div className="canvas-card-drag-handle flex items-center justify-between gap-3 rounded-t-[28px] border-b border-[#efd8c5]/80 bg-[linear-gradient(90deg,rgba(255,236,223,0.95),rgba(255,247,240,0.9))] px-4 py-3 cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-2 text-[#8c5b3b]">
-          <StickyNote size={15} />
-          <span className="text-xs font-semibold tracking-[0.16em] uppercase">文本卡片</span>
+    <BaseNode {...props} onInfoClick={data.onInfoClick}>
+      <div
+        className={`group h-full flex flex-col rounded-[28px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(255,248,240,0.92))] shadow-[0_20px_70px_-28px_rgba(244,173,138,0.55),0_10px_24px_-16px_rgba(92,74,58,0.25)] backdrop-blur-xl transition-all duration-300 ${
+          selected ? 'ring-2 ring-[#e7b28a]/70 shadow-[0_24px_80px_-26px_rgba(231,178,138,0.7),0_16px_34px_-18px_rgba(109,78,56,0.28)]' : ''
+        }`}
+      >
+        <div className="canvas-card-drag-handle flex items-center justify-between gap-3 rounded-t-[28px] border-b border-[#efd8c5]/80 bg-[linear-gradient(90deg,rgba(255,236,223,0.95),rgba(255,247,240,0.9))] px-4 py-3 cursor-grab active:cursor-grabbing">
+          <div className="flex items-center gap-2 text-[#8c5b3b]">
+            <StickyNote size={15} />
+            <span className="text-xs font-semibold tracking-[0.16em] uppercase">文本卡片</span>
+          </div>
+          <div className="h-2.5 w-2.5 rounded-full bg-[#f4b78f] shadow-[0_0_0_6px_rgba(244,183,143,0.16)]" />
         </div>
-        <div className="h-2.5 w-2.5 rounded-full bg-[#f4b78f] shadow-[0_0_0_6px_rgba(244,183,143,0.16)]" />
+        <div className="flex-1 space-y-3 px-4 pb-4 pt-3 overflow-hidden">
+          <input
+            value={data.title}
+            onChange={(event) => data.onChange?.(id, { title: event.target.value })}
+            placeholder="写下这张卡片的标题"
+            className="w-full rounded-2xl border border-transparent bg-white/70 px-3 py-2 text-sm font-semibold text-[#5f4330] outline-none transition focus:border-[#edc7a9] focus:bg-white"
+          />
+          <textarea
+            value={data.body}
+            onChange={(event) => data.onChange?.(id, { body: event.target.value })}
+            placeholder="记录零散灵感、任务拆解、会议要点……"
+            className="h-[calc(100%-48px)] w-full resize-none rounded-[22px] border border-transparent bg-[#fffdfa]/88 px-3 py-3 text-sm leading-6 text-[#6f5a4d] outline-none transition focus:border-[#edd6c3] focus:bg-white"
+          />
+        </div>
       </div>
-      <div className="space-y-3 px-4 pb-4 pt-3">
-        <input
-          value={data.title}
-          onChange={(event) => data.onChange?.(id, { title: event.target.value })}
-          placeholder="写下这张卡片的标题"
-          className="w-full rounded-2xl border border-transparent bg-white/70 px-3 py-2 text-sm font-semibold text-[#5f4330] outline-none transition focus:border-[#edc7a9] focus:bg-white"
-        />
-        <textarea
-          value={data.body}
-          onChange={(event) => data.onChange?.(id, { body: event.target.value })}
-          placeholder="记录零散灵感、任务拆解、会议要点……"
-          className="min-h-[128px] w-full resize-none rounded-[22px] border border-transparent bg-[#fffdfa]/88 px-3 py-3 text-sm leading-6 text-[#6f5a4d] outline-none transition focus:border-[#edd6c3] focus:bg-white"
-        />
-      </div>
-    </div>
+    </BaseNode>
   );
 }
 
-function ReferenceCardNode({ data, selected }: NodeProps<CanvasReferenceNode>) {
+function ReferenceCardNode(props: NodeProps<CanvasReferenceNode>) {
+  const { data, selected } = props;
   return (
-    <div
-      className={`group rounded-[30px] border border-[#dbe9f4] bg-[linear-gradient(145deg,rgba(244,250,255,0.95),rgba(255,255,255,0.92))] shadow-[0_24px_80px_-32px_rgba(136,190,235,0.55),0_12px_26px_-18px_rgba(80,113,141,0.22)] backdrop-blur-xl transition-all duration-300 ${
-        selected ? 'ring-2 ring-[#9fc9ea]/70 shadow-[0_28px_90px_-34px_rgba(136,190,235,0.7),0_16px_34px_-18px_rgba(80,113,141,0.26)]' : 'hover:-translate-y-0.5'
-      }`}
-    >
-      <div className="canvas-card-drag-handle flex items-center justify-between gap-3 rounded-t-[30px] border-b border-[#d8e8f4] bg-[linear-gradient(90deg,rgba(231,244,255,0.95),rgba(245,250,255,0.92))] px-4 py-3 cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-2 text-[#4a7fa8]">
-          <Link2 size={15} />
-          <span className="text-xs font-semibold tracking-[0.16em] uppercase">笔记引用</span>
-        </div>
-        <div className="rounded-full border border-[#cfe4f4] bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#5a84a4]">#{data.noteId}</div>
-      </div>
-      <div className="space-y-3 px-4 pb-4 pt-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#fef6ef,#f6fbff)] text-xl shadow-inner">
-            {data.icon || '📝'}
+    <BaseNode {...props} onInfoClick={data.onInfoClick}>
+      <div
+        className={`group h-full flex flex-col rounded-[30px] border border-[#dbe9f4] bg-[linear-gradient(145deg,rgba(244,250,255,0.95),rgba(255,255,255,0.92))] shadow-[0_24px_80px_-32px_rgba(136,190,235,0.55),0_12px_26px_-18px_rgba(80,113,141,0.22)] backdrop-blur-xl transition-all duration-300 ${
+          selected ? 'ring-2 ring-[#9fc9ea]/70 shadow-[0_28px_90px_-34px_rgba(136,190,235,0.7),0_16px_34px_-18px_rgba(80,113,141,0.26)]' : ''
+        }`}
+      >
+        <div className="canvas-card-drag-handle flex items-center justify-between gap-3 rounded-t-[30px] border-b border-[#d8e8f4] bg-[linear-gradient(90deg,rgba(231,244,255,0.95),rgba(245,250,255,0.92))] px-4 py-3 cursor-grab active:cursor-grabbing">
+          <div className="flex items-center gap-2 text-[#4a7fa8]">
+            <Link2 size={15} />
+            <span className="text-xs font-semibold tracking-[0.16em] uppercase">笔记引用</span>
           </div>
-          <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('nova-select-note', { detail: { noteId: data.noteId } }));
-              }}
-              title="点击打开笔记"
-              className="truncate text-left text-sm font-semibold text-[#35546d] transition hover:text-[#2f6d96] hover:underline"
-            >
-              {data.title || '无标题笔记'}
-            </button>
-            <div className="mt-1 text-xs leading-5 text-[#6d8496]">{data.summary}</div>
-          </div>
+          <div className="rounded-full border border-[#cfe4f4] bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#5a84a4]">#{data.noteId}</div>
         </div>
-        {data.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {data.tags.slice(0, 4).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-[#dcebf7] bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#5d85a6]"
+        <div className="flex-1 space-y-3 px-4 pb-4 pt-3 overflow-hidden">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#fef6ef,#f6fbff)] text-xl shadow-inner">
+              {data.icon || '📝'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('nova-select-note', { detail: { noteId: data.noteId } }));
+                }}
+                title="点击打开笔记"
+                className="truncate text-left text-sm font-semibold text-[#35546d] transition hover:text-[#2f6d96] hover:underline"
               >
-                #{tag}
-              </span>
-            ))}
+                {data.title || '无标题笔记'}
+              </button>
+              <div className="mt-1 text-xs leading-5 text-[#6d8496]">{data.summary}</div>
+            </div>
+          </div>
+          {data.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {data.tags.slice(0, 4).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full border border-[#dcebf7] bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#5d85a6]"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </BaseNode>
+  );
+}
+
+function MediaNode(props: NodeProps<CanvasMediaNode>) {
+  const { data, selected } = props;
+  return (
+    <BaseNode {...props} onInfoClick={data.onInfoClick}>
+      <div
+        className={`group relative h-full w-full overflow-hidden rounded-3xl border border-white/80 shadow-xl transition-all duration-300 ${
+          selected ? 'ring-2 ring-primary/70' : ''
+        }`}
+      >
+        {data.type === 'image' && (
+          <img src={data.url} alt={data.title} className="h-full w-full object-cover" />
+        )}
+        {data.type === 'video' && (
+          <video src={data.url} controls className="h-full w-full object-cover" />
+        )}
+        {data.type === 'file' && (
+          <div className="flex h-full w-full flex-col items-center justify-center bg-white/90 p-4 text-center">
+            <FileIcon size={40} className="mb-2 text-primary/60" />
+            <div className="text-sm font-medium text-foreground truncate w-full">{data.title || '未知文件'}</div>
+            <a href={data.url} target="_blank" rel="noreferrer" className="mt-2 text-xs text-primary underline">下载预览</a>
           </div>
         )}
+        <div className="absolute inset-x-0 bottom-0 bg-black/40 px-3 py-2 text-xs text-white backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+          {data.title}
+        </div>
+      </div>
+    </BaseNode>
+  );
+}
+
+function LinkNode(props: NodeProps<CanvasLinkNode>) {
+  const { data, selected } = props;
+  return (
+    <BaseNode {...props} onInfoClick={data.onInfoClick}>
+      <a 
+        href={data.url} 
+        target="_blank" 
+        rel="noreferrer"
+        className={`group flex h-full items-center gap-3 rounded-2xl border border-white/80 bg-white/90 px-4 shadow-lg transition-all duration-300 hover:bg-white ${
+          selected ? 'ring-2 ring-primary/70' : ''
+        }`}
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Link2 size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-foreground">{data.title || data.url}</div>
+          <div className="truncate text-[10px] text-muted-foreground">{data.url}</div>
+        </div>
+      </a>
+    </BaseNode>
+  );
+}
+
+function GroupNode({ data, selected }: NodeProps<CanvasGroupNode>) {
+  return (
+    <div className={`h-full w-full rounded-3xl border-2 border-dashed transition-all duration-300 ${
+      selected ? 'border-[#d7a685] bg-[#d7a685]/5 shadow-lg' : 'border-[#d7a685]/30 bg-[#d7a685]/2'
+    }`}>
+      <div className="absolute -top-3 left-6 rounded-full bg-[#d7a685] px-3 py-0.5 text-[10px] font-semibold text-white">
+        {data.label || '新分组'}
       </div>
     </div>
   );
@@ -377,6 +513,101 @@ function NotePickerModal({
   );
 }
 
+function MemoDrawer({ nodeId, nodes, onClose, onChange }: { 
+  nodeId: string | null; 
+  nodes: CanvasNode[]; 
+  onClose: () => void; 
+  onChange: (id: string, patch: any) => void 
+}) {
+  const node = useMemo(() => nodes.find(n => n.id === nodeId), [nodeId, nodes]);
+  if (!node) return null;
+
+  return (
+    <AnimatePresence>
+      {nodeId && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-[120] bg-black/10 backdrop-blur-[2px]"
+          />
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed right-0 top-0 z-[130] h-full w-80 border-l border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(255,248,244,0.96))] p-6 shadow-[-20px_0_50px_rgba(0,0,0,0.05)] backdrop-blur-xl"
+          >
+            <div className="mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#6e4b35]">
+                <Sparkles size={18} />
+                <h3 className="text-sm font-semibold">节点备注</h3>
+              </div>
+              <button onClick={onClose} className="rounded-full p-1 hover:bg-black/5 text-muted-foreground">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">关联内容</label>
+                <div className="rounded-xl bg-black/2 p-3 text-xs text-[#5a4232]">
+                  {(node.data as any).title || '无标题节点'}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">备注 (Data.memo)</label>
+                <textarea
+                  value={(node.data as any).memo || ''}
+                  onChange={(e) => onChange(node.id, { memo: e.target.value })}
+                  placeholder="在此输入对该节点的详细补充说明，支持自动保存..."
+                  className="min-h-[200px] w-full resize-none rounded-2xl border border-[#f0dfd4] bg-white/50 p-4 text-sm leading-relaxed text-[#5a4232] outline-none focus:border-primary/50 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+            
+            <div className="absolute bottom-10 left-6 right-6 text-center text-[10px] text-muted-foreground">
+              修改后将实时同步至画布数据模型
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SelectionToolbar({ selectedNodes, onGroup, onRemove }: { selectedNodes: Node[]; onGroup: () => void; onRemove: () => void }) {
+  if (selectedNodes.length < 2) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className="flex items-center gap-1 rounded-full border border-white/80 bg-white/90 p-1 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] backdrop-blur-xl"
+    >
+      <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        已选中 {selectedNodes.length} 个节点
+      </div>
+      <div className="mx-1 h-4 w-px bg-black/5" />
+      <button
+        onClick={onGroup}
+        className="flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-[#8a5d3f] hover:bg-[#fff3ea] transition-colors"
+      >
+        <LayoutGrid size={14} /> 编组 (Group)
+      </button>
+      <button
+        onClick={onRemove}
+        className="flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+      >
+        <Trash2 size={14} /> 批量删除
+      </button>
+    </motion.div>
+  );
+}
+
 function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   const parsedContent = useMemo(() => parseCanvasContent(note?.content), [note?.content]);
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>(parsedContent.nodes);
@@ -385,24 +616,69 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   const [pickerMode, setPickerMode] = useState<'toolbar' | 'context' | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
   const [selection, setSelection] = useState<OnSelectionChangeParams<CanvasNode>>({ nodes: [], edges: [] });
+  const [memoOpenId, setMemoOpenId] = useState<string | null>(null);
   const [isDraggingNoteFromSidebar, setIsDraggingNoteFromSidebar] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const reactFlow = useReactFlow();
   const saveTimerRef = useRef<number | null>(null);
   const idRef = useRef(0);
   const pendingDropPositionRef = useRef<{ x: number; y: number } | null>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const rightClickGuardRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+
+  const handleCanvasMouseDown = useCallback((event: any) => {
+    if (event.button !== 2) return;
+    rightClickGuardRef.current = { x: event.clientX, y: event.clientY, moved: false };
+  }, []);
+
+  const handleCanvasMouseMove = useCallback((event: any) => {
+    const state = rightClickGuardRef.current;
+    if (!state) return;
+    const dx = Math.abs(event.clientX - state.x);
+    const dy = Math.abs(event.clientY - state.y);
+    if (dx + dy > 6) state.moved = true;
+  }, []);
+
+  const handleCanvasMouseUp = useCallback((event: any) => {
+    if (event.button !== 2) return;
+    // 延迟清理，确保 contextmenu 事件有机会读取 moved 标记
+    window.setTimeout(() => {
+      rightClickGuardRef.current = null;
+    }, 120);
+  }, []);
+
+  const updateNodeData = useCallback((id: string, patch: any) => {
+    setNodes((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          data: {
+            ...item.data,
+            ...patch,
+          },
+        };
+      }),
+    );
+  }, [setNodes]);
 
   useEffect(() => {
     idRef.current = Math.max(0, ...parsedContent.nodes.map((item) => Number(String(item.id).replace(/[^0-9]/g, '')) || 0));
     setNodes(
       parsedContent.nodes.map((item) => {
+        const commonData = {
+          memo: (item.data as any)?.memo ?? '',
+          onChange: updateNodeData,
+          onInfoClick: (id: string) => setMemoOpenId(id),
+        };
+
         if (item.type === TEXT_NODE_TYPE) {
           return {
             ...item,
             data: {
+              ...commonData,
               title: (item.data as CanvasTextNodeData | undefined)?.title ?? '灵感便签',
               body: (item.data as CanvasTextNodeData | undefined)?.body ?? '',
-              onChange: () => undefined,
             },
           };
         }
@@ -410,12 +686,12 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         if (item.type === REFERENCE_NODE_TYPE) {
           const noteId = Number((item.data as Partial<CanvasReferenceNodeData> | undefined)?.noteId);
           const linked = notes.find((candidate) => candidate.id === noteId);
-          if (!linked) return item;
+          if (!linked) return { ...item, data: { ...item.data, ...commonData } } as CanvasReferenceNode;
 
           return {
             ...item,
             data: {
-              ...(item.data as CanvasReferenceNodeData),
+              ...commonData,
               noteId: linked.id,
               title: linked.title || '无标题笔记',
               icon: linked.icon || '📝',
@@ -425,12 +701,22 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           };
         }
 
+        if (item.type === MEDIA_NODE_TYPE || item.type === LINK_NODE_TYPE) {
+          return {
+            ...item,
+            data: {
+              ...item.data,
+              ...commonData,
+            },
+          } as CanvasMediaNode | CanvasLinkNode;
+        }
+
         return item;
       }),
     );
     setEdges(parsedContent.edges);
     setViewport(parsedContent.viewport ?? { x: 0, y: 0, zoom: 1 });
-  }, [note?.id, notes, parsedContent, setEdges, setNodes]);
+  }, [note?.id, notes, parsedContent, setEdges, setNodes, updateNodeData]);
 
   const didInitViewportRef = useRef(false);
 
@@ -453,40 +739,15 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     return reactFlow.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   }, [reactFlow]);
 
-  const updateTextNode = useCallback((id: string, patch: { title?: string; body?: string }) => {
-    setNodes((prev) =>
-      prev.map((item) => {
-        if (item.id !== id || item.type !== TEXT_NODE_TYPE) return item;
-        return {
-          ...item,
-          data: {
-            ...item.data,
-            ...patch,
-          },
-        };
-      }),
-    );
-  }, [setNodes]);
-
-  const hydratedNodes = useMemo(
-    () =>
-      nodes.map((item) => {
-        if (item.type !== TEXT_NODE_TYPE) return item;
-        return {
-          ...item,
-          data: {
-            ...item.data,
-            onChange: updateTextNode,
-          },
-        };
-      }),
-    [nodes, updateTextNode],
-  );
+  const hydratedNodes = nodes;
 
   const nodeTypes = useMemo(
     () => ({
       [TEXT_NODE_TYPE]: TextCardNode,
       [REFERENCE_NODE_TYPE]: ReferenceCardNode,
+      [MEDIA_NODE_TYPE]: MediaNode,
+      [LINK_NODE_TYPE]: LinkNode,
+      [GROUP_NODE_TYPE]: GroupNode,
     }),
     [],
   );
@@ -598,6 +859,12 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
 
   const handleCanvasContextMenu = useCallback(
     (event: any) => {
+      // 若右键按住拖拽过，视为“右键拖动手势”，不弹出菜单，避免误触。
+      if (rightClickGuardRef.current?.moved) {
+        rightClickGuardRef.current = null;
+        return;
+      }
+
       event.preventDefault();
       const paneBounds = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
       if ((event.target as HTMLElement).closest('.react-flow__node')) return;
@@ -609,27 +876,120 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         flowX: flowPosition.x,
         flowY: flowPosition.y,
       });
+
+      rightClickGuardRef.current = null;
     },
     [reactFlow],
   );
 
+  const handleGroupSelection = useCallback(() => {
+    if (selection.nodes.length < 2) return;
+
+    const nodesToGroup = selection.nodes;
+    const bounds = getRectOfNodes(nodesToGroup);
+    const padding = 40;
+    
+    const groupId = nextId('group');
+    const groupNode = createGroupNode(
+      groupId, 
+      bounds.x - padding, 
+      bounds.y - padding, 
+      bounds.width + padding * 2, 
+      bounds.height + padding * 2
+    );
+
+    setNodes((nds) => {
+      return [
+        ...nds.map((node) => {
+          if (nodesToGroup.find((n) => n.id === node.id)) {
+            return {
+              ...node,
+              parentId: groupId,
+              extent: 'parent' as const,
+              position: {
+                x: node.position.x - (bounds.x - padding),
+                y: node.position.y - (bounds.y - padding),
+              },
+            };
+          }
+          return node;
+        }),
+        groupNode,
+      ];
+    });
+
+    onNotify?.('已成功创建节点分组', 'success');
+  }, [selection.nodes, nextId, setNodes, onNotify]);
+
   const handleCanvasDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
+    async (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       setIsDraggingNoteFromSidebar(false);
-      const noteId = event.dataTransfer.getData('application/x-nova-note-id');
-      if (!noteId) return;
-      const matched = notes.find((item) => item.id === Number(noteId) && !item.is_folder);
-      if (!matched) return;
+      
       const flowPosition = reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      insertReferenceNode(matched, flowPosition);
+
+      // 1. Handle sidebar note drag
+      const noteId = event.dataTransfer.getData('application/x-nova-note-id');
+      if (noteId) {
+        const matched = notes.find((item) => item.id === Number(noteId) && !item.is_folder);
+        if (matched) {
+          insertReferenceNode(matched, flowPosition);
+        }
+        return;
+      }
+
+      // 2. Handle local files drag
+      if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        setIsUploading(true);
+        try {
+          const files = Array.from(event.dataTransfer.files);
+          const uploadResults = await api.upload(files);
+          
+          const newNodes: CanvasNode[] = uploadResults.map((res: any, idx: number) => {
+            const file = files[idx];
+            const mime = file.type;
+            let type: 'image' | 'video' | 'file' = 'file';
+            if (mime.startsWith('image/')) type = 'image';
+            else if (mime.startsWith('video/')) type = 'video';
+            
+            return createMediaNode(
+              nextId('media'),
+              res.url,
+              type,
+              file.name,
+              flowPosition.x + idx * 20,
+              flowPosition.y + idx * 20
+            );
+          });
+          
+          setNodes((prev) => [...prev, ...newNodes]);
+          onNotify?.(`成功上传并插入 ${newNodes.length} 个媒体文件`, 'success');
+        } catch (err) {
+          onNotify?.('文件上传失败，请稍后重试', 'error');
+        } finally {
+          setIsUploading(false);
+        }
+        return;
+      }
+
+      // 3. Handle plain text URLs
+      const text = event.dataTransfer.getData('text/plain');
+      if (text) {
+        try {
+          const url = new URL(text);
+          setNodes((prev) => [...prev, createLinkNode(nextId('link'), url.href, url.hostname, flowPosition.x, flowPosition.y)]);
+          onNotify?.('已成功从链接创建节点', 'success');
+        } catch {
+          // Not a URL, maybe just text - could create a text card if wanted
+        }
+      }
     },
-    [insertReferenceNode, notes, reactFlow],
+    [insertReferenceNode, notes, reactFlow, nextId, setNodes, onNotify],
   );
 
   const handleCanvasDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    if (event.dataTransfer.types.includes('application/x-nova-note-id')) {
-      event.preventDefault();
+    event.preventDefault();
+    if (event.dataTransfer.types.includes('application/x-nova-note-id') || event.dataTransfer.types.includes('Files')) {
       event.dataTransfer.dropEffect = 'copy';
       setIsDraggingNoteFromSidebar(true);
     }
@@ -662,6 +1022,9 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         onDrop={handleCanvasDrop}
         onDragOver={handleCanvasDragOver}
         onDragLeave={handleCanvasDragLeave}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
       >
         <ReactFlow
           nodes={hydratedNodes}
@@ -676,7 +1039,12 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           minZoom={0.25}
           maxZoom={2}
           selectionOnDrag
-          panOnDrag
+          panOnDrag={[1]}
+          panActivationKeyCode="Space"
+          panOnScroll
+          panOnScrollMode="free"
+          zoomOnScroll={false}
+          selectionMode="partial"
           elevateNodesOnSelect
           defaultEdgeOptions={{
             type: 'smoothstep',
@@ -719,7 +1087,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
             </div>
           </Panel>
 
-          <Panel position="top-center">
+          <Panel position="top-center" className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-2 rounded-[28px] border border-white/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(255,248,244,0.92))] px-3 py-2 shadow-[0_30px_90px_-36px_rgba(229,169,134,0.5)] backdrop-blur-xl">
               <button
                 onClick={handleAddTextCard}
@@ -737,9 +1105,15 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
               </button>
               <div className="hidden items-center gap-2 rounded-full bg-[#fff5ee] px-3 py-2 text-xs text-[#a47b61] sm:flex">
                 <Sparkles size={14} />
-                也支持从左侧侧边栏直接拖进来
+                拖拽文件或链接直接落点
               </div>
             </div>
+
+            <SelectionToolbar 
+              selectedNodes={selection.nodes} 
+              onGroup={handleGroupSelection} 
+              onRemove={removeSelection} 
+            />
           </Panel>
 
           <Panel position="bottom-center">
@@ -787,6 +1161,22 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         }}
         onSelect={(selectedNote) => insertReferenceNode(selectedNote)}
       />
+
+      <MemoDrawer
+        nodeId={memoOpenId}
+        nodes={nodes}
+        onClose={() => setMemoOpenId(null)}
+        onChange={updateNodeData}
+      />
+
+      {isUploading && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-8 shadow-2xl">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <div className="text-sm font-semibold text-primary">正在处理并上传媒体文件...</div>
+          </div>
+        </div>
+      )}
 
       <button
         onClick={removeSelection}
