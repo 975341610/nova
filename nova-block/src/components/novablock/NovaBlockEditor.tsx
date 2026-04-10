@@ -1,4 +1,4 @@
-import { getApiBase } from "../../lib/api";
+import { formatUrl } from "../../lib/api";
 import React, { useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { EditorContent, useEditor, Editor } from '@tiptap/react';
 import { NodeSelection } from '@tiptap/pm/state';
@@ -1165,10 +1165,6 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                 >
                   <EmoticonPanel
                     onSelect={(emoticon) => {
-                      const formatUrl = (url: string) => {
-                        if (!url) return '';
-                        return url.startsWith('/') ? `${getApiBase()}${url.replace('/api', '')}` : url;
-                      };
                       editor?.chain().focus().setEmoticon({ src: formatUrl(emoticon.url), alt: emoticon.name }).run();
                       setIsEmoticonPanelOpen(false);
                     }}
@@ -1203,10 +1199,6 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
           <StickerPanel 
             onClose={() => setIsStickerPanelOpen(false)}
             onSelect={(url) => {
-              const formatUrl = (u: string) => {
-                if (!u) return '';
-                return u.startsWith('/') ? `${getApiBase()}${u.replace('/api', '')}` : u;
-              };
               window.dispatchEvent(new CustomEvent('add-sticky-note', { 
                 detail: { url: formatUrl(url), type: 'image' } 
               }));

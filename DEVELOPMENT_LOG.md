@@ -1,5 +1,27 @@
 # Development Log
 
+## [2026-04-10] - 修复图片裂开、Slider 本地图片导致 localStorage 爆仓 (QuotaExceededError)
+
+### 问题根因
+- Slider 组件将本地图片 `FileReader.readAsDataURL()` 转成 **base64** 存入笔记内容，最终跟随 `App.tsx` 的 `localStorage.setItem('nova-block-notes', ...)` 一起写入，超过浏览器 LocalStorage 配额（~5MB）触发 `QuotaExceededError`。
+- 多处媒体渲染直接使用后端返回的相对路径（如 `/api/media/static/files/...`），在 Electron / 非同源场景下会变成“裂开的图片”。
+
+### 修复内容
+- `nova-block/src/lib/api.ts`
+  - 新增 `formatUrl()`：将 `/api/...` 相对路径统一转为可用的绝对 URL（兼容 strato-https-proxy / Electron）。
+- `nova-block/src/components/novablock/extensions/SliderNodeView.tsx`
+  - 本地图片上传改为走后端 `api.upload()`，不再写入 base64。
+  - Slider 渲染时统一 `formatUrl()`，避免相对路径导致图片裂开。
+- `nova-block/src/components/canvas/CanvasEditor.tsx` / `nova-block/src/components/MediaNodeView.tsx`
+  - 媒体渲染统一 `formatUrl()`。
+- `nova-block/src/components/editor/EmoticonPanel.tsx` / `StickerPanel.tsx` / `NovaBlockEditor.tsx`
+  - 统一使用 `formatUrl()`，修复历史表情包/贴纸在非同源环境下裂开。
+- `nova-block/src/App.tsx`
+  - `localStorage.setItem('nova-block-notes', ...)` 增加 try/catch，避免 QuotaExceededError 直接把应用打崩，并输出更明确的诊断日志。
+
+### 构建与同步
+- 已执行 `nova-block/npm run build`，并同步 `nova-block/dist/*` 到 `frontend_dist/`。
+
 ## [2026-04-10] - Canvas 禁用右键拖动，修复右键菜单冲突
 
 - `CanvasEditor.tsx`：将 ReactFlow `panOnDrag` 从 `panOnDrag={[1, 2]}` 调整为 `panOnDrag={[1]}`，彻底移除右键拖动画布，避免与右键菜单手势冲突。

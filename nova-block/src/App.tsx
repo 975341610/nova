@@ -147,7 +147,15 @@ function App() {
 
   // 同步到 localStorage
   useEffect(() => {
-    localStorage.setItem('nova-block-notes', JSON.stringify(notes))
+    try {
+      localStorage.setItem('nova-block-notes', JSON.stringify(notes))
+    } catch (e) {
+      console.error('Failed to save notes to localStorage (likely quota exceeded)', e)
+      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+        // 如果爆了，尝试清理一些不必要的大数据，或者至少通知用户
+        console.warn('LocalStorage Quota Exceeded! Some data may not be saved.')
+      }
+    }
     // @ts-ignore
     window.novaNotes = notes
     window.dispatchEvent(new Event('nova-notes-updated'))

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Smile, Plus, Loader2, X } from 'lucide-react';
-import { getApiBase } from '../../lib/api';
+import { getApiBase, formatUrl } from '../../lib/api';
 import { HoverPlayImage } from './HoverPlayImage';
 
 interface EmoticonResource {
@@ -112,10 +112,6 @@ export const EmoticonPanel: React.FC<EmoticonPanelProps> = ({ onSelect, classNam
         ) : filteredEmoticons.length > 0 ? (
           <div className="grid grid-cols-5 gap-2">
             {filteredEmoticons.map((emoticon) => {
-              const formatUrl = (url: string) => {
-                if (!url) return '';
-                return url.startsWith('/') ? `${getApiBase()}${url.replace('/api', '')}` : url;
-              };
               return (
                 <div key={emoticon.name} className="relative group">
                   <button

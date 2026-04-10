@@ -18,6 +18,25 @@ export const getApiBase = () => {
   return 'http://127.0.0.1:8765/api';
 };
 
+/**
+ * 格式化 API 返回的相对路径为绝对 URL
+ */
+export const formatUrl = (url: string | undefined | null) => {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  
+  const base = getApiBase(); // e.g. http://127.0.0.1:8765/api
+  
+  // 如果路径以 /api 开头，我们需要处理掉重复的 /api
+  if (url.startsWith('/api/')) {
+    const apiBaseWithoutTrailingSlash = base.endsWith('/api') ? base.slice(0, -4) : base;
+    return `${apiBaseWithoutTrailingSlash}${url}`;
+  }
+  
+  // 否则直接拼接
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 
 
 declare global {

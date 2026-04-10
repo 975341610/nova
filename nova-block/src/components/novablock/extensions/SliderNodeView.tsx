@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
-import { Settings, ChevronLeft, ChevronRight, Plus, X, Trash2, Upload, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Plus, X, Trash2, Upload, Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { api, formatUrl } from '../../../lib/api';
 
 const Toggle = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) => (
   <label className="flex items-center justify-between gap-4 cursor-pointer group">
@@ -89,26 +90,27 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
     };
   }, [isLightboxOpen, handleWheel]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const newImages = [...images];
-    let loadedCount = 0;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newImages.push(event.target.result as string);
-          loadedCount++;
-          if (loadedCount === files.length) {
-            updateAttributes({ images: newImages });
-          }
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setIsUploading(true);
+    try {
+      const fileList = Array.from(files);
+      const results = await api.upload(fileList);
+      const uploadedUrls = results.map((res: any) => res.url);
+      
+      updateAttributes({
+        images: [...images, ...uploadedUrls],
+      });
+    } catch (err) {
+      console.error('Slider upload failed:', err);
+      alert('上传失败，请稍后重试');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const addImage = () => {
@@ -194,8 +196,8 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                     <span className="text-sm">图片加载失败</span>
                   </div>
                 ) : (
-                  <img
-                    src={url}
+                    <img
+                    src={formatUrl(url)}
                     alt={`Slide ${index + 1}`}
                     className="w-full h-full object-cover select-none !m-0"
                     onError={() => setFailedImages((prev) => new Set(prev).add(index))}
@@ -268,7 +270,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                   initial={{ opacity: 0, scale: 0.9, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                  src={images[currentIndex]}
+                  src={formatUrl(images[currentIndex])}
                   className="max-w-full max-h-full object-contain shadow-2xl rounded-lg !m-0"
                 />
 
@@ -404,13 +406,20 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                     onChange={handleFileUpload}
                     className="hidden"
                     id="slider-file-upload"
+                    disabled={isUploading}
                   />
                   <label
                     htmlFor="slider-file-upload"
-                    className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all group"
+                    className={`flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl transition-all group ${
+                      isUploading ? 'opacity-60 cursor-not-allowed' : 'hover:border-blue-400 hover:bg-blue-50 cursor-pointer'
+                    }`}
                   >
-                    <Upload size={24} className="text-gray-400 group-hover:text-blue-500 mb-2" />
-                    <span className="text-sm font-medium text-gray-600 group-hover:text-blue-600">本地多选上传</span>
+                    {isUploading ? (
+                      <Loader2 size={24} className="text-blue-500 mb-2 animate-spin" />
+                    ) : (
+                      <Upload size={24} className="text-gray-400 group-hover:text-blue-500 mb-2" />
+                    )}
+                    <span className="text-sm font-medium text-gray-600 group-hover:text-blue-600">{isUploading ? '上传中...' : '本地多选上传'}</span>
                     <span className="text-xs text-gray-400 mt-1">支持拖拽或点击</span>
                   </label>
                 </div>
@@ -429,7 +438,7 @@ export const SliderNodeView: React.FC<any> = ({ node, updateAttributes }) => {
                     <div className="grid grid-cols-4 gap-2 max-h-[160px] overflow-y-auto p-1 pr-2">
                       {images.map((url: string, index: number) => (
                         <div key={index} className="relative aspect-square group/item rounded-lg overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
-                          <img src={url} alt="" className="w-full h-full object-cover !m-0" />
+                          <img src={formatUrl(url)} alt="" className="w-full h-full object-cover !m-0" />
                           <button
                             onClick={() => removeImage(index)}
                             className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity"

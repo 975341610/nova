@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Search, Image as ImageIcon, Plus, Loader2 } from 'lucide-react';
-import { getApiBase } from '../../lib/api';
+import { getApiBase, formatUrl } from '../../lib/api';
 import { HoverPlayImage } from './HoverPlayImage';
 
 interface StickerResource {
@@ -131,10 +131,6 @@ export const StickerPanel: React.FC<StickerPanelProps> = ({ onSelect, onClose })
         ) : filteredStickers.length > 0 ? (
           <div className="grid grid-cols-3 gap-3">
             {filteredStickers.map((sticker, idx) => {
-              const formatUrl = (url: string) => {
-                if (!url) return '';
-                return url.startsWith('/') ? `${getApiBase()}${url.replace('/api', '')}` : url;
-              };
               return (
                 <div key={sticker.name} className="relative group">
                   <motion.div

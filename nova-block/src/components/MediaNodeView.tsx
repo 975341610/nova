@@ -3,7 +3,7 @@ import { NodeViewWrapper } from '@tiptap/react';
 import { GripVertical, Trash2, FileIcon, Download, LockOpen, Lock, ExternalLink } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { formatFileSize } from '../lib/mediaUtils';
-import { api, getApiBase } from '../lib/api';
+import { api, formatUrl } from '../lib/api';
 
 type MediaKind = 'image' | 'video' | 'audio' | 'embed' | 'file';
 
@@ -21,9 +21,8 @@ export function MediaNodeView({ node, updateAttributes, deleteNode, selected, ki
 
   const content = useMemo(() => {
     // If it's a relative URL from our backend, prefix it with the API base
-    const absoluteSrc = (src?.startsWith('/api/media/files/') || src?.startsWith('/api/media/static/files/'))
-      ? `${getApiBase().replace(/\/api$/, '')}${src}` 
-      : src;
+    // (use formatUrl so it also works under strato-https-proxy / different origin)
+    const absoluteSrc = formatUrl(src);
 
     if (kind === 'image') return <img src={absoluteSrc} alt="" className="w-full h-auto object-cover rounded-lg" draggable={false} />;
     if (kind === 'video') return <video src={absoluteSrc} controls muted playsInline className="w-full h-auto rounded-lg" />;

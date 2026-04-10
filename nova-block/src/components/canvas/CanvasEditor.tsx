@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import type { Note } from '../../lib/types';
 import { BaseNode } from './BaseNode';
-import { api } from '../../lib/api';
+import { api, formatUrl } from '../../lib/api';
 
 type CanvasTextNodeData = {
   title: string;
@@ -312,14 +312,14 @@ function MediaNode(props: NodeProps<CanvasMediaNode>) {
         } ${data.type === 'embed' ? 'bg-black' : 'bg-white/90'}`}
       >
         {data.type === 'image' && (
-          <img src={data.url} alt={data.title} className="h-full w-full object-cover" draggable={false} />
+          <img src={formatUrl(data.url)} alt={data.title} className="h-full w-full object-cover" draggable={false} />
         )}
         {data.type === 'video' && (
-          <video src={data.url} controls muted playsInline className="h-full w-full object-cover" />
+          <video src={formatUrl(data.url)} controls muted playsInline className="h-full w-full object-cover" />
         )}
         {data.type === 'audio' && (
           <div className="flex h-full w-full flex-col items-center justify-center p-4">
-            <audio src={data.url} controls className="w-full" />
+            <audio src={formatUrl(data.url)} controls className="w-full" />
             <div className="mt-2 text-sm font-medium text-foreground truncate w-full text-center">{data.title || '音频文件'}</div>
           </div>
         )}
