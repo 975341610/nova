@@ -100,6 +100,16 @@ const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number)
 });
 
 function summarizeNote(note: Note) {
+  if (note.type === 'canvas') {
+    try {
+      const data = JSON.parse(note.content || '{}') as CanvasSerialized;
+      const nodeCount = data.nodes?.length || 0;
+      return `[无界画布] 包含 ${nodeCount} 个节点`;
+    } catch {
+      return '[无界画布]';
+    }
+  }
+
   const plainText = (note.content || '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
@@ -385,22 +395,42 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   useEffect(() => {
     idRef.current = Math.max(0, ...parsedContent.nodes.map((item) => Number(String(item.id).replace(/[^0-9]/g, '')) || 0));
     setNodes(
-      parsedContent.nodes.map((item) =>
-        item.type === TEXT_NODE_TYPE
-          ? {
-              ...item,
-              data: {
-                title: (item.data as CanvasTextNodeData | undefined)?.title ?? '灵感便签',
-                body: (item.data as CanvasTextNodeData | undefined)?.body ?? '',
-                onChange: () => undefined,
-              },
-            }
-          : item,
-      ),
+      parsedContent.nodes.map((item) => {
+        if (item.type === TEXT_NODE_TYPE) {
+          return {
+            ...item,
+            data: {
+              title: (item.data as CanvasTextNodeData | undefined)?.title ?? '灵感便签',
+              body: (item.data as CanvasTextNodeData | undefined)?.body ?? '',
+              onChange: () => undefined,
+            },
+          };
+        }
+
+        if (item.type === REFERENCE_NODE_TYPE) {
+          const noteId = Number((item.data as Partial<CanvasReferenceNodeData> | undefined)?.noteId);
+          const linked = notes.find((candidate) => candidate.id === noteId);
+          if (!linked) return item;
+
+          return {
+            ...item,
+            data: {
+              ...(item.data as CanvasReferenceNodeData),
+              noteId: linked.id,
+              title: linked.title || '无标题笔记',
+              icon: linked.icon || '📝',
+              summary: summarizeNote(linked),
+              tags: linked.tags || [],
+            },
+          };
+        }
+
+        return item;
+      }),
     );
     setEdges(parsedContent.edges);
     setViewport(parsedContent.viewport ?? { x: 0, y: 0, zoom: 1 });
-  }, [note?.id, parsedContent, setEdges, setNodes]);
+  }, [note?.id, notes, parsedContent, setEdges, setNodes]);
 
   const didInitViewportRef = useRef(false);
 

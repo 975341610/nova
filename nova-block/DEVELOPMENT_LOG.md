@@ -365,6 +365,13 @@
     - 采用 `rounded-[30px]` 级大圆角与弥散性彩色阴影，消除技术感，提升手写质感。
     - 集成 `backdrop-blur` 毛玻璃质感控制面板。
 
+## 2026-04-10 (体验优化)
+### Refactor
+- **Canvas 笔记引用卡片摘要优化**:
+  - 当被引用笔记 `type === 'canvas'` 时，不再直接展示 JSON 格式的 `content`，改为友好提示：`[无界画布] 包含 x 个节点`。
+  - 打开画布时，会基于最新笔记数据自动刷新（hydrate）引用卡片的标题/图标/摘要/标签，避免历史画布里残留旧的 JSON 摘要。
+- Commit: [Latest] `refactor(canvas): improve snippet display for canvas notes in reference cards`
+
 ## 2026-04-10 (功能新增)
 ### Added
 - **核心功能：双向链接 (Bi-directional Links) 与反向链接 (Backlinks)**:
