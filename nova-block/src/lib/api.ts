@@ -154,15 +154,48 @@ export const api = {
     }
   },
   upload: async (files: File[]) => {
-    // Upload is complex via IPC without proper encoding, keep it for now or implement as FS copy
     const API_BASE = getApiBase();
-    // Back-end expects single 'file' field for each upload, but let's support multi for future
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+
     const results = await Promise.all(files.map(async (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch(`${API_BASE}/media/upload`, { method: 'POST', body: formData });
-      if (!response.ok) throw new Error(await response.text());
-      return response.json();
+      if (file.size <= CHUNK_SIZE) {
+        // Small files, use simple upload
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch(`${API_BASE}/media/upload`, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+      } else {
+        // Large files, use chunked upload
+        const initForm = new FormData();
+        initForm.append('filename', file.name);
+        initForm.append('size', file.size.toString());
+        
+        const initRes = await fetch(`${API_BASE}/media/upload/init`, { method: 'POST', body: initForm });
+        if (!initRes.ok) throw new Error('Failed to init upload');
+        const { upload_id } = await initRes.json();
+
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          const chunkForm = new FormData();
+          chunkForm.append('upload_id', upload_id);
+          chunkForm.append('chunk_index', i.toString());
+          chunkForm.append('file', chunk);
+          
+          const chunkRes = await fetch(`${API_BASE}/media/upload/chunk`, { method: 'POST', body: chunkForm });
+          if (!chunkRes.ok) throw new Error(`Failed to upload chunk ${i}`);
+        }
+
+        const compForm = new FormData();
+        compForm.append('upload_id', upload_id);
+        compForm.append('filename', file.name);
+        compForm.append('content_type', file.type);
+        
+        const compRes = await fetch(`${API_BASE}/media/upload/complete`, { method: 'POST', body: compForm });
+        if (!compRes.ok) throw new Error('Failed to complete upload');
+        return compRes.json();
+      }
     }));
     return results;
   },
