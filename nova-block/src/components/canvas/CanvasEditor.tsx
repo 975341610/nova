@@ -811,7 +811,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   const handleCanvasMouseDown = useCallback((event: any) => {
     if (event.button !== 2) return;
     // 右键作为画布平移手势时，浏览器可能仍会弹出原生菜单；这里提前 preventDefault 兜底。
-    event.preventDefault?.();
+    event.preventDefault();
     rightClickGuardRef.current = { x: event.clientX, y: event.clientY, moved: false };
   }, []);
 
@@ -1446,8 +1446,8 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
 
   const handleCanvasContextMenu = useCallback(
     (event: any) => {
-      event.preventDefault?.();
-      event.stopPropagation?.();
+      event.preventDefault();
+      event.stopPropagation();
 
       // 若右键按住拖拽过，视为“右键拖动手势”，不弹出菜单，避免误触。
       if (rightClickGuardRef.current?.moved) {
@@ -1862,8 +1862,12 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
       <div
         ref={canvasWrapperRef}
         className="relative z-10 h-full w-full"
+        onContextMenuCapture={(event) => {
+          // 兜底（捕获阶段）：无论内部是否 stopPropagation，都强制阻止浏览器原生右键菜单
+          event.preventDefault();
+        }}
         onContextMenu={(event) => {
-          // 兜底：阻止画布区域出现浏览器原生右键菜单
+          // 兜底（冒泡阶段）：阻止画布区域出现浏览器原生右键菜单
           event.preventDefault();
         }}
         onDrop={handleCanvasDrop}
@@ -1904,11 +1908,17 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
             className: 'custom-edge',
           }}
           className="canvas-flow"
-          onPaneContextMenu={(event) => handleCanvasContextMenu(event as any)}
-          onNodeContextMenu={(event) => handleCanvasContextMenu(event as any)}
+          onPaneContextMenu={(event) => {
+            event.preventDefault();
+            handleCanvasContextMenu(event as any);
+          }}
+          onNodeContextMenu={(event) => {
+            event.preventDefault();
+            handleCanvasContextMenu(event as any);
+          }}
           onEdgeContextMenu={(event) => {
-            (event as any).preventDefault?.();
-            (event as any).stopPropagation?.();
+            event.preventDefault();
+            event.stopPropagation();
             setContextMenu(null);
           }}
         >

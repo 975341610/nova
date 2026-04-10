@@ -1,5 +1,16 @@
 # Development Log
 
+## [2026-04-10] - 彻底禁用 Canvas 原生右键菜单 (v0.14.2)
+
+### 1. 右键菜单深度清理
+- 修复 `CanvasEditor.tsx` 中 `onPaneContextMenu` 和 `onNodeContextMenu` 漏掉显式调用 `event.preventDefault()` 的问题。
+- 在 ReactFlow 容器外层 wrapper 上新增 `onContextMenuCapture` 捕获阶段拦截，确保无论子组件是否阻止冒泡，都能最终拦截原生菜单。
+- 将所有 `preventDefault?.()` 的可选调用改为强制调用 `preventDefault()`，确保拦截逻辑的确定性。
+- 优化了 `onEdgeContextMenu` 的拦截逻辑。
+
+### 2. 构建与同步
+- 执行 `npm run build` 并将最新产物同步至 `frontend_dist/`。
+
 ## [2026-04-10] - 修复 Canvas 右键菜单与分组拖拽回归 (v0.14.1)
 
 ### 1. 右键菜单：阻止原生浏览器菜单
