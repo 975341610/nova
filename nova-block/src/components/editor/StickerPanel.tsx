@@ -144,11 +144,11 @@ export const StickerPanel: React.FC<StickerPanelProps> = ({ onSelect, onClose })
                   >
                     <button
                       type="button"
-                      onClick={() => onSelect(sticker.url)}
+                      onClick={() => onSelect(formatUrl(sticker.url))}
                       draggable={true}
                       onDragStart={(e: React.DragEvent<HTMLButtonElement>) => {
                         e.dataTransfer.setData('application/json', JSON.stringify({
-                          url: sticker.url,
+                          url: formatUrl(sticker.url),
                           type: 'image',
                           name: sticker.name,
                         }));

@@ -367,3 +367,14 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
 - **性能优化 (Performance)**:
   - **表情包面板悬停播放 (Hover to Play)**: 引入 `<HoverPlayImage>` 组件。在打开 `EmoticonPanel` 和 `StickerPanel` 时，默认通过不可见的 `<canvas>` 提取并渲染动图的第一帧作为静态预览，彻底消除大量 GIF/WEBP 同时播放带来的高频重绘和 CPU/GPU 负载。
   - **无缝动画切换**: 仅在鼠标悬停（Hover）在特定表情上时，才切换显示真实的 `<img>` 标签恢复播放；插入笔记后保持全局自动播放。该方案大幅提升了表情面板加载速度和整体界面的流畅度。
+
+## [v0.11] 2026-04-10 - 解决云端环境下表情与贴纸相对路径图片破裂问题
+
+### 🐛 Bug Fixes
+- **图片路径破损修复 (Broken Image Fix)**：修复了由于后端服务被 Vite proxy 环境代理导致直接插入 `/api/emoticons/...` 等相对路径时出现的 404 图片破裂 BUG。
+  - 在 `NovaBlockEditor.tsx` 中的 `onSelect` 回调里，通过动态注入 `getApiBase()` 给表情包和贴纸的 `url` 前缀化，确保最终渲染进 Tiptap 笔记以及通过拖拽插入到画板内的图片均拥有正确的绝对路径或本地后端直连地址。
+  - 在 `StickerPanel.tsx` 拖拽生成事件 `onDragStart` 时也同步格式化 `url`，使得侧边栏拖拽直接进入画布中的贴纸显示正常。
+
+### 📅 Next Steps
+- 确认用户在最新版本下能够正确插入并显示动态表情及贴纸。
+- 准备开展 Phase 4 最终的大招：整体迁移至 Electron 原生架构，打造商业级桌面交互体验。
