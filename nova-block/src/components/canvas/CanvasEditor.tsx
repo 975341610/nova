@@ -14,6 +14,7 @@ import {
   useReactFlow,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeProps,
   type OnSelectionChangeParams,
@@ -841,36 +842,34 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     [],
   );
 
-  const handleSelectionDrag = useCallback(() => {
-    const selectionEl = document.querySelector('.react-flow__selection');
-    if (!selectionEl) return;
-
-    const rect = selectionEl.getBoundingClientRect();
-    const edgeEls = document.querySelectorAll('.react-flow__edge');
-    const edgeChanges: any[] = [];
-
-    edgeEls.forEach((el) => {
-      const edgeId = el.getAttribute('data-id');
-      if (!edgeId) return;
-
-      const edgeRect = el.getBoundingClientRect();
-      const intersect = !(
-        rect.right < edgeRect.left ||
-        rect.left > edgeRect.right ||
-        rect.bottom < edgeRect.top ||
-        rect.top > edgeRect.bottom
-      );
-
-      const isSelected = el.classList.contains('selected');
-      if (intersect !== isSelected) {
-        edgeChanges.push({ id: edgeId, type: 'select', selected: intersect });
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      const selectedNodes = new Set(hydratedNodes.filter((n) => n.selected).map((n) => n.id));
+      const filtered = changes.filter((c) => {
+        if (c.type === 'select' && !c.selected) {
+          const edge = edges.find((e) => e.id === c.id);
+          if (edge && selectedNodes.has(edge.source) && selectedNodes.has(edge.target)) {
+            return false; // Prevent deselection if both connected nodes are selected
+          }
+        }
+        return true;
+      });
+      if (filtered.length > 0) {
+        onEdgesChange(filtered);
       }
-    });
+    },
+    [hydratedNodes, edges, onEdgesChange]
+  );
 
-    if (edgeChanges.length > 0) {
-      onEdgesChange(edgeChanges);
-    }
-  }, [onEdgesChange]);
+  const edgesWithSelection = useMemo(() => {
+    const selectedNodes = new Set(hydratedNodes.filter((n) => n.selected).map((n) => n.id));
+    return edges.map((e) => {
+      if (selectedNodes.has(e.source) && selectedNodes.has(e.target)) {
+        return { ...e, selected: true };
+      }
+      return e;
+    });
+  }, [edges, hydratedNodes]);
 
   const handleConnect = useCallback(
     (connection: Connection) => {
@@ -1335,14 +1334,13 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
       >
         <ReactFlow
           nodes={hydratedNodes}
-          edges={edges}
+          edges={edgesWithSelection}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={handleConnect}
           onMoveEnd={(_, currentViewport) => setViewport(currentViewport)}
           onSelectionChange={handleSelectionChange}
-          onSelectionDrag={handleSelectionDrag}
           fitView={hydratedNodes.length === 0}
           minZoom={0.25}
           maxZoom={2}
