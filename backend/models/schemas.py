@@ -30,7 +30,7 @@ class NotePropertyResponse(NotePropertyBase):
 
 class NoteBase(BaseModel):
     title: str = "Untitled"
-    content: str
+    content: str | None = None
     icon: str = "📝"
     type: str = "note"
     is_title_manually_edited: bool = False
@@ -79,6 +79,30 @@ class NoteResponse(NoteBase):
     parent_id: int | None = None
     position: int = 0
     is_title_manually_edited: bool = False
+    created_at: datetime
+    deleted_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class NoteListItemResponse(BaseModel):
+    """笔记列表条目（不包含 content 大字段）"""
+
+    id: int
+    title: str = "Untitled"
+    icon: str = "📝"
+    type: str = "note"
+    summary: str
+    tags: list[str]
+    properties: list[NotePropertyResponse] = []
+    links: list[int]
+    ai_links: list[int] = []
+    notebook_id: int | None = None
+    parent_id: int | None = None
+    position: int = 0
+    is_title_manually_edited: bool = False
+    is_folder: bool = False
     created_at: datetime
     deleted_at: datetime | None = None
 

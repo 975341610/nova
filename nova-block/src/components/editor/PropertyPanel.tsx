@@ -109,7 +109,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({ note, onUpdate, on
     setIsSuggesting(true);
     setIsSuggestionsExpanded(true);
     try {
-      const response = await api.suggestTags(note.content);
+      const response = await api.suggestTags(note.content || "");
       setSuggestedTags(response.tags);
     } catch (error) {
       console.error('Failed to suggest tags:', error);

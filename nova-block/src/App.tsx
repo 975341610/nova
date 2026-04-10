@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { NovaBlockEditor } from './components/novablock/NovaBlockEditor'
 import { CanvasEditor } from './components/canvas/CanvasEditor'
 import { SidebarTree } from './components/sidebar/SidebarTree'
 import { MoodboardView } from './components/moodboard/MoodboardView'
 import CommandPalette from './components/search/CommandPalette'
 import type { Note } from './lib/types'
+import { api } from './lib/api'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MusicProvider, useMusicControls } from './contexts/MusicContext'
 import { HabitProvider } from './contexts/HabitContext'
@@ -178,6 +179,24 @@ function App() {
   const currentNote = useMemo(() => {
     return notes.find(n => n.id === currentNoteId) || null
   }, [notes, currentNoteId])
+
+  const loadNoteContent = useCallback(async (noteId: number) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || note.content !== undefined) return;
+
+    try {
+      const fullNote = await api.getNote(noteId);
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: fullNote.content } : n));
+    } catch (err) {
+      console.error('Failed to load note content:', err);
+    }
+  }, [notes]);
+
+  useEffect(() => {
+    if (activeView === 'notes' && currentNoteId) {
+      loadNoteContent(currentNoteId);
+    }
+  }, [currentNoteId, activeView, loadNoteContent]);
 
   // 节点转换 (TreeNode <-> Note)
   const treeNodes = useMemo(() => {

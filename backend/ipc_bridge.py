@@ -12,12 +12,11 @@ from backend.database import SessionLocal
 from backend.services import repositories
 from backend.models.schemas import NoteCreate, NoteUpdate, NotebookCreate, NotebookUpdate, TaskCreate, TaskUpdate
 
-def note_to_dict(note):
+def note_to_dict(note, include_content=True):
     if not note: return None
-    return {
+    d = {
         "id": note.id,
         "title": note.title,
-        "content": note.content,
         "summary": note.summary,
         "type": note.type,
         "tags": [t for t in note.tags.split(",") if t] if note.tags else [],
@@ -28,8 +27,12 @@ def note_to_dict(note):
         "is_folder": bool(note.is_folder),
         "is_title_manually_edited": bool(note.is_title_manually_edited),
         "created_at": note.created_at.isoformat() if note.created_at else None,
+        "updated_at": note.updated_at.isoformat() if hasattr(note, 'updated_at') and note.updated_at else None,
         "deleted_at": note.deleted_at.isoformat() if note.deleted_at else None,
     }
+    if include_content:
+        d["content"] = note.content
+    return d
 
 def notebook_to_dict(nb):
     if not nb: return None
@@ -64,8 +67,12 @@ def main():
     db = SessionLocal()
     try:
         if command == "notes:list":
-            notes = repositories.list_notes(db)
-            print(json.dumps([note_to_dict(n) for n in notes]))
+            notes = repositories.list_notes(db, include_content=False)
+            print(json.dumps([note_to_dict(n, include_content=False) for n in notes]))
+
+        elif command == "notes:get":
+            note = repositories.get_note(db, params.get("id"))
+            print(json.dumps(note_to_dict(note, include_content=True)))
         
         elif command == "notebooks:list":
             notebooks = repositories.list_notebooks(db)

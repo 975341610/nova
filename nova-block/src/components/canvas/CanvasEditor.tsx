@@ -1459,27 +1459,42 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
 
   const serializeCanvasContent = useCallback(
     (nextBackgroundUrl: string | undefined) => {
-      const serializedNodes: CanvasNode[] = hydratedNodes.map((item) => {
-        if (item.type === TEXT_NODE_TYPE) {
-          return {
-            ...item,
-            data: {
-              title: item.data.title,
-              body: item.data.body,
-            },
-          } satisfies CanvasTextNode;
-        }
+      const serializedNodes = hydratedNodes.map((item) => {
+        // 核心性能优化：仅保留持久化所需的最小字段，剔除 selected, dragging, measured 等高频变动的运行时状态
+        const { id, type, position, data, style, parentId, extent, width, height } = item;
+        
+        const cleanData = { ...data };
+        // 剔除 runtime inject 的函数
+        delete (cleanData as any).onChange;
+        delete (cleanData as any).onInfoClick;
+        delete (cleanData as any).onToggleCollapse;
+        delete (cleanData as any).onUngroup;
 
-        return item;
+        return {
+          id,
+          type,
+          position,
+          data: cleanData,
+          style,
+          parentId,
+          extent,
+          width,
+          height,
+        };
+      });
+
+      const serializedEdges = edges.map(edge => {
+        const { id, source, target, type, label, data, style, animated, markerEnd } = edge;
+        return { id, source, target, type, label, data, style, animated, markerEnd };
       });
 
       return JSON.stringify({
         version: 'v1',
         nodes: serializedNodes,
-        edges,
+        edges: serializedEdges,
         viewport,
         backgroundUrl: nextBackgroundUrl,
-      } satisfies CanvasSerialized);
+      });
     },
     [edges, hydratedNodes, viewport],
   );

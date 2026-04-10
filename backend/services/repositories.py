@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from backend.models.db_models import (
     Achievement,
@@ -76,13 +76,17 @@ def next_note_position(db: Session, notebook_id: int | None, parent_id: int | No
     return (max_position or 0) + 1
 
 
-def list_notes(db: Session, property_filter: dict[str, str] | None = None) -> list[Note]:
+def list_notes(db: Session, property_filter: dict[str, str] | None = None, *, include_content: bool = True) -> list[Note]:
     query = select(Note).where(Note.deleted_at.is_(None))
-    
+
+    # 列表接口通常不需要拉取大字段 content，否则会导致巨大网络/内存开销
+    if not include_content:
+        query = query.options(defer(Note.content))
+
     if property_filter:
         for name, value in property_filter.items():
             query = query.join(NoteProperty).where(NoteProperty.name == name, NoteProperty.value == value)
-            
+
     return list(db.scalars(query.order_by(Note.notebook_id.asc(), Note.position.asc(), Note.updated_at.desc())))
 
 
@@ -188,9 +192,14 @@ def update_note(db: Session, note_id: int, title: str | None = None, content: st
     return note
 
 
-def list_notes_tree(db: Session) -> list[Note]:
+def list_notes_tree(db: Session, *, include_content: bool = False) -> list[Note]:
     # 获取所有非删除的笔记，按位置排序
-    notes = list(db.scalars(select(Note).where(Note.deleted_at.is_(None)).order_by(Note.position.asc())))
+    query = select(Note).where(Note.deleted_at.is_(None)).order_by(Note.position.asc())
+    
+    if not include_content:
+        query = query.options(defer(Note.content))
+        
+    notes = list(db.scalars(query))
     
     # 在内存中构建树形结构
     note_map = {note.id: note for note in notes}

@@ -34,9 +34,9 @@ const GlobalSearchPanel: React.FC<GlobalSearchPanelProps> = ({
       const titleMatch = note.title.toLowerCase().includes(q);
       
       // 合并主内容和所有便利贴内容进行全局搜索
-      let fullContent = note.content;
+      let fullContent = note.content || "";
       if (note.sticky_notes && note.sticky_notes.length > 0) {
-        fullContent += " " + note.sticky_notes.map(sn => sn.content).join(" ");
+        fullContent += " " + note.sticky_notes.map(sn => sn.content || "").join(" ");
       }
       
       // 合并标签内容，让标签也能被全局搜索到

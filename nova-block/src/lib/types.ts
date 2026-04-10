@@ -30,7 +30,7 @@ export type Note = {
   id: number;
   title: string;
   icon: string;
-  content: string;
+  content?: string;
   type?: string;
   summary: string;
   is_title_manually_edited: boolean;

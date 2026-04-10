@@ -54,22 +54,18 @@ export const MoodboardView: React.FC = () => {
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const url = event.target?.result as string
-        const mockId = Math.random().toString(36).substr(2, 9)
-        const newItem: MoodboardItem = {
-          id: mockId,
-          url: url,
-          tags: [],
-          dayIndex,
-          rotation: (Math.random() - 0.5) * 15,
-          isAnalyzing: true
-        }
-        setItems(prev => [...prev, newItem])
-        simulateAIAnalysis(mockId)
+      const url = URL.createObjectURL(file)
+      const mockId = Math.random().toString(36).substr(2, 9)
+      const newItem: MoodboardItem = {
+        id: mockId,
+        url: url,
+        tags: [],
+        dayIndex,
+        rotation: (Math.random() - 0.5) * 15,
+        isAnalyzing: true
       }
-      reader.readAsDataURL(file)
+      setItems(prev => [...prev, newItem])
+      simulateAIAnalysis(mockId)
     }
   }
 

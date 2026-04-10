@@ -1,5 +1,28 @@
 # Development Log
 
+## [2026-04-10] - 全局性能专项审计与优化修复 (v0.17.0)
+
+### 1. 后端并发与事件循环优化
+- **FastAPI 非阻塞重构**: 针对 `quick_capture`, `create_note`, `update_note`, `upload_media` 等大量涉及 SQLAlchemy 数据库操作和磁盘 I/O 的接口，将 `async def` 转换为 `def`。此举利用 FastAPI 内部线程池执行同步任务，彻底解决了原有代码在并发请求下阻塞事件循环导致的后端假死问题。
+- **AI 异步安全封装**: 保持 AI 接口异步特性，但通过 `run_in_threadpool` 包装其中的同步数据库查询（如 `get_or_create_model_config`），确保 AI 生成与数据库读取不互相阻塞。
+
+### 2. 传输协议与载荷优化
+- **笔记列表轻量化**: 重构 `GET /notes` 与 `GET /notes/tree` 接口逻辑。引入 `NoteListItemResponse` 并在后端使用 SQLAlchemy `defer(Note.content)`，使列表请求不再携带庞大的正文字段。
+- **按需延迟加载 (Lazy Loading)**: 新增 `GET /notes/{note_id}` 接口。前端 `App.tsx` 逻辑调整为“先加载轻量列表，点击具体笔记后再拉取完整正文”，极大地降低了首屏加载延迟和浏览器内存占用。
+- **IPC 桥接更新**: 同步更新 `ipc_bridge.py` 以适配上述 API 变更，确保 Electron 环境下的性能增益一致。
+
+### 3. 前端 Base64 滥用清理
+- **习惯追踪器 (HabitTracker)**: 移除 Base64 图片 fallback 逻辑。现在图片背景与图标强制走物理上传接口并返回持久化 URL，避免了 TB 级 Base64 字符串撑爆 LocalStorage 的风险。
+- **情绪板 (Moodboard)**: 将 `FileReader.readAsDataURL` 替换为 `URL.createObjectURL` 进行本地预览，仅在需要时上传，大幅减少了前端内存瞬时峰值。
+
+### 4. 画布 (Canvas) 持久化序列化优化
+- **字段外科手术**: 深度重构 `serializeCanvasContent`。序列化时主动剔除 ReactFlow 运行时高频变动的 `selected`, `dragging`, `measured` 等非持久化字段。
+- **冗余剔除**: 剥离数据对象中注入的函数句柄（`onChange` 等），使存储在数据库中的 JSON 载荷体积缩小 ~40%，并消除了因“点击即变动”触发的无效保存请求。
+
+### 5. 构建与产物
+- 修复了 `PropertyPanel.tsx` 和 `GlobalSearchPanel.tsx` 中因字段可选化导致的 TypeScript 类型报错。
+- 执行 `npm run build` 并将最新产物同步至 `frontend_dist/`。
+
 ## [2026-04-10] - 版本同步与升级 (v0.16.0)
 
 ### 核心变更

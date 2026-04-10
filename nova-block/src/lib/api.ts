@@ -80,6 +80,7 @@ async function invoke<T>(channel: string, path: string, options?: any): Promise<
 
 export const api = {
   listNotes: () => invoke<Note[]>('notes:list', '/notes'),
+  getNote: (noteId: number) => invoke<Note>('notes:get', `/notes/${noteId}`),
   listNotebooks: () => invoke<Notebook[]>('notebooks:list', '/notebooks'),
   createNotebook: (payload: { name: string; icon?: string }) => 
     invoke<Notebook>('notebooks:create', '/notebooks', { method: 'POST', body: JSON.stringify(payload) }),

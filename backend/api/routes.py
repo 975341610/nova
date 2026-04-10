@@ -2,9 +2,11 @@ from __future__ import annotations
 import os
 import uuid
 import shutil
+import asyncio
 from PIL import Image
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -28,6 +30,7 @@ from backend.models.schemas import (
     NotePropertyResponse,
     NotePropertyUpdate,
     NoteResponse,
+    NoteListItemResponse,
     NoteTreeResponse,
     NoteUpdate,
     QuickCaptureRequest,
@@ -124,7 +127,7 @@ def extract_manual_links(content: str) -> list[int]:
     # Convert to unique integers
     return list(set(int(id_str) for id_str in ids))
 
-async def background_index_note(note_id: int, title: str, content: str, tags: list[str] | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False):
+async def background_index_note_async(note_id: int, title: str, content: str, tags: list[str] | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False):
     """异步执行 AI 处理：摘要、向量化、自动链接"""
     db = SessionLocal()
     try:
@@ -194,6 +197,30 @@ async def background_index_note(note_id: int, title: str, content: str, tags: li
         db.close()
 
 
+def background_index_note_task(*args, **kwargs):
+    """BackgroundTasks 只能执行同步 callable；这里用一个 sync wrapper 安全执行协程。"""
+
+    async def _run():
+        # 背景任务中避免复用全局 ai_client（AsyncClient 跨 event loop/线程复用风险较高）
+        local_ai_client = AIClient()
+        try:
+            # 临时替换全局引用：复用 background_index_note_async 的逻辑
+            global ai_client
+            old = ai_client
+            ai_client = local_ai_client
+            try:
+                await background_index_note_async(*args, **kwargs)
+            finally:
+                ai_client = old
+        finally:
+            try:
+                await local_ai_client.client.aclose()
+            except Exception:
+                pass
+
+    asyncio.run(_run())
+
+
 def note_to_response(note: Note) -> NoteResponse:
     links = [link.target_note_id for link in note.links_from if link.link_type == "manual"]
     ai_links = [link.target_note_id for link in note.links_from if link.link_type == "ai"]
@@ -218,18 +245,43 @@ def note_to_response(note: Note) -> NoteResponse:
         deleted_at=note.deleted_at,
     )
 
+
+def note_to_list_item_response(note: Note) -> NoteListItemResponse:
+    links = [link.target_note_id for link in note.links_from if link.link_type == "manual"]
+    ai_links = [link.target_note_id for link in note.links_from if link.link_type == "ai"]
+    properties = [NotePropertyResponse.model_validate(p) for p in note.properties]
+    return NoteListItemResponse(
+        id=note.id,
+        title=note.title,
+        icon=note.icon,
+        type=note.type,
+        summary=note.summary,
+        tags=[tag for tag in note.tags.split(",") if tag],
+        properties=properties,
+        links=links,
+        ai_links=ai_links,
+        notebook_id=note.notebook_id,
+        parent_id=note.parent_id,
+        position=note.position,
+        is_title_manually_edited=(note.is_title_manually_edited == 1),
+        is_folder=(note.is_folder == 1),
+        created_at=note.created_at,
+        deleted_at=note.deleted_at,
+    )
+
 def note_to_tree_response(note: Note) -> NoteTreeResponse:
-    resp = note_to_response(note)
+    # 树形列表默认不返回 content，避免大字段导致的网络/内存开销
+    resp = note_to_list_item_response(note)
     children = [note_to_tree_response(child) for child in note.children if child.deleted_at is None]
     return NoteTreeResponse(
         **resp.model_dump(),
-        children=children
+        children=children,
     )
 
 def notebook_to_response(notebook: Notebook) -> NotebookResponse:
     return NotebookResponse.model_validate(notebook)
 
-async def persist_note(db: Session, title: str, content: str, background_tasks: BackgroundTasks, notebook_id: int | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False, tags: list[str] | None = None) -> NoteResponse:
+def persist_note_sync(db: Session, title: str, content: str, background_tasks: BackgroundTasks, notebook_id: int | None = None, icon: str = "\U0001f4dd", type: str = "note", parent_id: int | None = None, is_title_manually_edited: bool = False, tags: list[str] | None = None) -> NoteResponse:
     # 1. 快速创建数据库记录
     from backend.database import with_db_retry
     
@@ -248,7 +300,7 @@ async def persist_note(db: Session, title: str, content: str, background_tasks: 
     
     # 2. 异步执行 AI 任务
     background_tasks.add_task(
-        background_index_note,
+        background_index_note_task,
         note.id,
         title,
         content,
@@ -317,7 +369,7 @@ def list_emoticons():
     return sorted(files, key=lambda x: x["name"])
 
 @router.post("/notes/quick-capture", response_model=QuickCaptureResponse)
-async def quick_capture_api(payload: QuickCaptureRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> QuickCaptureResponse:
+def quick_capture_api(payload: QuickCaptureRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> QuickCaptureResponse:
     from datetime import datetime
     title = f"灵感碎片 - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     
@@ -325,7 +377,7 @@ async def quick_capture_api(payload: QuickCaptureRequest, background_tasks: Back
     inbox = get_or_create_inbox_notebook(db)
     
     # 2. 持久化笔记
-    note_resp = await persist_note(db, title, payload.content, background_tasks, notebook_id=inbox.id, icon="⚡", type="note")
+    note_resp = persist_note_sync(db, title, payload.content, background_tasks, notebook_id=inbox.id, icon="⚡", type="note")
     
     # 3. 增加 EXP
     exp_gained = 10
@@ -376,11 +428,11 @@ async def upload_documents(background_tasks: BackgroundTasks, files: list[Upload
     for file in files:
         content = await file.read()
         title, parsed = parse_document(file.filename, content)
-        imported.append(await persist_note(db, title, parsed, background_tasks, default_notebook.id))
+        imported.append(persist_note_sync(db, title, parsed, background_tasks, default_notebook.id))
     return UploadResponse(imported_notes=imported)
 
 @router.post("/media/upload")
-async def upload_media_api(file: UploadFile = File(...), note_id: str = Form(None)):
+def upload_media_api(file: UploadFile = File(...), note_id: str = Form(None)):
     try:
         ext = os.path.splitext(file.filename)[1]
         unique_name = f"{uuid.uuid4()}{ext}"
@@ -393,7 +445,8 @@ async def upload_media_api(file: UploadFile = File(...), note_id: str = Form(Non
             
         save_path = upload_base / unique_name
         with open(save_path, "wb") as f:
-            f.write(await file.read())
+            # Sync read from UploadFile
+            f.write(file.file.read())
             
         url_path = f"{note_id}/{unique_name}" if note_id else unique_name
         return {
@@ -406,14 +459,14 @@ async def upload_media_api(file: UploadFile = File(...), note_id: str = Form(Non
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/media/upload/init")
-async def upload_media_init(filename: str = Form(...), size: int = Form(...), note_id: str = Form(None)):
+def upload_media_init(filename: str = Form(...), size: int = Form(...), note_id: str = Form(None)):
     upload_id = str(uuid.uuid4())
     temp_dir = Path(settings.uploads_path) / "temp" / upload_id
     temp_dir.mkdir(parents=True, exist_ok=True)
     return {"upload_id": upload_id}
 
 @router.post("/media/upload/chunk")
-async def upload_media_chunk(
+def upload_media_chunk(
     upload_id: str = Form(...),
     chunk_index: int = Form(...),
     file: UploadFile = File(...),
@@ -424,11 +477,11 @@ async def upload_media_chunk(
         raise HTTPException(status_code=400, detail="Invalid upload_id")
     chunk_path = temp_dir / f"chunk_{chunk_index}"
     with open(chunk_path, "wb") as f:
-        f.write(await file.read())
+        f.write(file.file.read())
     return {"status": "ok"}
 
 @router.post("/media/upload/complete")
-async def upload_media_complete(
+def upload_media_complete(
     upload_id: str = Form(...),
     filename: str = Form(...),
     content_type: str = Form(...),
@@ -466,7 +519,7 @@ async def upload_media_complete(
 
 @router.post("/ask", response_model=AskResponse)
 async def ask_question(payload: AskRequest, db: Session = Depends(get_db)) -> AskResponse:
-    model_config = get_or_create_model_config(db)
+    model_config = await run_in_threadpool(get_or_create_model_config, db)
     llm_config = {
         "provider": model_config.provider,
         "api_key": model_config.api_key,
@@ -482,18 +535,18 @@ async def ask_question(payload: AskRequest, db: Session = Depends(get_db)) -> As
         return AskResponse(answer=answer, citations=[], mode="chat")
     else:
         results = await search_knowledge(payload.question, ai_client=ai_client)
-        citations = citations_from_results(db, results)
+        citations = await run_in_threadpool(citations_from_results, db, results)
         answer = await ai_client.answer(payload.question, citations, llm_config)
         return AskResponse(answer=answer, citations=[Citation(**item) for item in citations], mode="rag")
 
 @router.post("/search")
 async def search_api(payload: SearchRequest, db: Session = Depends(get_db)) -> dict:
     results = await search_knowledge(payload.query, ai_client=ai_client, top_k=payload.top_k)
-    return {"results": citations_from_results(db, results)}
+    return {"results": await run_in_threadpool(citations_from_results, db, results)}
 
 @router.post("/ai/inline")
 async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
-    model_config = get_or_create_model_config(db)
+    model_config = await run_in_threadpool(get_or_create_model_config, db)
     llm_config = {
         "provider": model_config.provider,
         "api_key": model_config.api_key,
@@ -535,7 +588,7 @@ async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
 
 @router.post("/chat")
 async def global_chat(payload: AskRequest, db: Session = Depends(get_db)):
-    model_config = get_or_create_model_config(db)
+    model_config = await run_in_threadpool(get_or_create_model_config, db)
     llm_config = {
         "provider": model_config.provider,
         "api_key": model_config.api_key,
@@ -545,7 +598,7 @@ async def global_chat(payload: AskRequest, db: Session = Depends(get_db)):
     
     if payload.mode == "rag":
         results = await search_knowledge(payload.question, ai_client=ai_client, top_k=5)
-        citations = citations_from_results(db, results)
+        citations = await run_in_threadpool(citations_from_results, db, results)
         citation_block = "\n\n".join(
             f"[{idx + 1}] {item['title']}\n{item['excerpt']}" for idx, item in enumerate(citations)
         )
@@ -584,7 +637,7 @@ async def global_chat(payload: AskRequest, db: Session = Depends(get_db)):
 
 @router.post("/tags/suggest", response_model=TagSuggestResponse)
 async def suggest_tags(payload: TagSuggestRequest, db: Session = Depends(get_db)):
-    model_config = get_or_create_model_config(db)
+    model_config = await run_in_threadpool(get_or_create_model_config, db)
     llm_config = {
         "provider": model_config.provider,
         "api_key": model_config.api_key,
@@ -626,11 +679,12 @@ def get_note_backlinks(note_id: int, db: Session = Depends(get_db)) -> list[Note
 
 @router.get("/notes/tree", response_model=list[NoteTreeResponse])
 def get_notes_tree(db: Session = Depends(get_db)) -> list[NoteTreeResponse]:
-    roots = list_notes_tree(db)
+    # 树形接口也不返回 content
+    roots = list_notes_tree(db, include_content=False)
     return [note_to_tree_response(note) for note in roots]
 
 @router.post("/folders", response_model=NoteResponse)
-async def create_folder_api(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteResponse:
+def create_folder_api(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteResponse:
     from backend.database import with_db_retry
     @with_db_retry(max_retries=3)
     def do_create():
@@ -640,12 +694,23 @@ async def create_folder_api(payload: NoteCreate, db: Session = Depends(get_db)) 
     folder = do_create()
     return note_to_response(folder)
 
-@router.get("/notes", response_model=list[NoteResponse])
-def get_notes(property_name: str | None = None, property_value: str | None = None, db: Session = Depends(get_db)) -> list[NoteResponse]:
+@router.get("/notes/{note_id}", response_model=NoteResponse)
+def get_note_api(note_id: int, db: Session = Depends(get_db)) -> NoteResponse:
+    """获取单条笔记详情（含 content）"""
+    note = get_note(db, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note_to_response(note)
+
+
+@router.get("/notes", response_model=list[NoteListItemResponse])
+def get_notes(property_name: str | None = None, property_value: str | None = None, db: Session = Depends(get_db)) -> list[NoteListItemResponse]:
     filter_dict = None
     if property_name and property_value:
         filter_dict = {property_name: property_value}
-    return [note_to_response(note) for note in list_notes(db, filter_dict)]
+    # 列表接口默认不返回 content 以优化性能
+    notes = list_notes(db, filter_dict, include_content=False)
+    return [note_to_list_item_response(note) for note in notes]
 
 @router.get("/notes/{note_id}/properties", response_model=list[NotePropertyResponse])
 def get_note_properties_api(note_id: int, db: Session = Depends(get_db)) -> list[NotePropertyResponse]:
@@ -712,11 +777,11 @@ def purge_notebook_api(notebook_id: int, db: Session = Depends(get_db)) -> dict:
     return {"status": "ok"}
 
 @router.post("/notes", response_model=NoteResponse)
-async def create_note_api(payload: NoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
-    return await persist_note(db, payload.title, payload.content, background_tasks, payload.notebook_id, payload.icon, payload.type, payload.parent_id, payload.is_title_manually_edited, payload.tags)
+def create_note_api(payload: NoteCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
+    return persist_note_sync(db, payload.title, payload.content or "", background_tasks, payload.notebook_id, payload.icon, payload.type, payload.parent_id, payload.is_title_manually_edited, payload.tags)
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
-async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
+def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)) -> NoteResponse:
     existing = get_note(db, note_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -754,14 +819,14 @@ async def update_note_api(note_id: int, payload: NoteUpdate, background_tasks: B
     note = do_quick_update()
     
     # 1.5 更新手动链接
-    manual_link_ids = extract_manual_links(content)
+    manual_link_ids = extract_manual_links(content or "")
     # 即使为空也更新，以防用户删除了所有链接
     replace_note_links(db, note_id, [(tid, 1.0) for tid in manual_link_ids], link_type="manual")
 
     # 2. 异步执行耗时的 AI 处理 (摘要、向量化、自动链接)
     background_tasks.add_task(
-        background_index_note,
-        note.id, title, content,
+        background_index_note_task,
+        note.id, title, content or "",
         tags=tags, icon=icon, type=type, parent_id=parent_id, is_title_manually_edited=is_title_manually_edited
     )
     
@@ -898,7 +963,7 @@ async def save_music_link(payload: dict):
 
 
 @router.post("/media/music-upload")
-async def upload_music(file: UploadFile = File(...), cover: UploadFile = File(None)):
+def upload_music(file: UploadFile = File(...), cover: UploadFile = File(None)):
     """上传接口扩展"""
     music_dir = Path(settings.music_path)
     music_dir.mkdir(parents=True, exist_ok=True)
@@ -909,8 +974,7 @@ async def upload_music(file: UploadFile = File(...), cover: UploadFile = File(No
     
     try:
         with open(audio_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+            f.write(file.file.read())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save audio file: {str(e)}")
         
@@ -921,8 +985,7 @@ async def upload_music(file: UploadFile = File(...), cover: UploadFile = File(No
         cover_path = music_dir / safe_cover_name
         try:
             with open(cover_path, "wb") as f:
-                content = await cover.read()
-                f.write(content)
+                f.write(cover.file.read())
             cover_url = f"/api/media/static/music/{safe_cover_name}"
         except Exception as e:
             print(f"[!] Error saving cover: {str(e)}")
@@ -1002,7 +1065,7 @@ def list_stickers():
     return sorted(files, key=lambda x: x["name"])
 
 @router.post("/stickers/upload")
-async def upload_sticker(file: UploadFile = File(...)):
+def upload_sticker(file: UploadFile = File(...)):
     """上传新贴纸"""
     try:
         ext = os.path.splitext(file.filename)[1].lower()
@@ -1013,7 +1076,7 @@ async def upload_sticker(file: UploadFile = File(...)):
         save_path = Path(settings.stickers_path) / unique_name
         
         with open(save_path, "wb") as f:
-            f.write(await file.read())
+            f.write(file.file.read())
             
         return {
             "name": unique_name,
@@ -1069,7 +1132,7 @@ def clear_completed_tasks_api(db: Session = Depends(get_db)) -> dict:
 # ============================================================
 
 @router.post("/emoticons/upload")
-async def upload_emoticon(file: UploadFile = File(...)):
+def upload_emoticon(file: UploadFile = File(...)):
     """上传新表情"""
     try:
         emoticons_path = Path(settings.data_root) / "emoticons"
@@ -1084,7 +1147,7 @@ async def upload_emoticon(file: UploadFile = File(...)):
         save_path = emoticons_path / unique_name
         
         with open(save_path, "wb") as f:
-            f.write(await file.read())
+            f.write(file.file.read())
             
         return {
             "name": unique_name,

@@ -57,41 +57,6 @@ const HabitIcon: React.FC<{ icon?: string; className?: string }> = ({ icon, clas
   return <span className="leading-none">{value}</span>;
 };
 
-
-const fileToDataUrl = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-const fileToCompressedDataUrl = async (file: File, maxSize = 128, quality = 0.82) => {
-  const dataUrl = await fileToDataUrl(file);
-  if (!dataUrl.startsWith('data:image/')) return dataUrl;
-
-  const img = new Image();
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error('image load failed'));
-    img.src = dataUrl;
-  });
-
-  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-  const width = Math.max(1, Math.round(img.width * scale));
-  const height = Math.max(1, Math.round(img.height * scale));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext('2d');
-  ctx?.drawImage(img, 0, 0, width, height);
-
-  return canvas.toDataURL('image/webp', quality);
-};
-
 const uploadFileToLocal = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append('file', file);
@@ -287,13 +252,8 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                             const url = await uploadFileToLocal(f);
                             updateHabit(activeHabit.id, { bgImage: url } as any);
                           } catch (err) {
-                            console.warn('Upload failed, fallback to base64:', err);
-                            try {
-                              const base64 = await fileToCompressedDataUrl(f, 800, 0.8);
-                              updateHabit(activeHabit.id, { bgImage: base64 } as any);
-                            } catch (e) {
-                              console.error(e);
-                            }
+                            console.error('Upload failed:', err);
+                            alert('Failed to upload image. Please try again.');
                           }
                         }
                       }} 
@@ -435,13 +395,8 @@ export const HabitTrackerComponent: React.FC<any> = (props) => {
                                 const url = await uploadFileToLocal(f);
                                 updateHabit(h.id, { icon: url });
                               } catch (err) {
-                                console.warn('Physical upload failed, fallback to base64:', err);
-                                try {
-                                  const base64 = await fileToCompressedDataUrl(f, 128, 0.8);
-                                  updateHabit(h.id, { icon: base64 });
-                                } catch (e) {
-                                  console.error(e);
-                                }
+                                console.error('Icon upload failed:', err);
+                                alert('Failed to upload icon.');
                               }
                             }
                           }} />
