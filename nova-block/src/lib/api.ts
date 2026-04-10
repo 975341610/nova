@@ -155,7 +155,7 @@ export const api = {
   },
   upload: async (files: File[]) => {
     const API_BASE = getApiBase();
-    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+    const CHUNK_SIZE = 1024 * 256; // 256KB chunks (Strato proxy is extremely strict)
 
     const results = await Promise.all(files.map(async (file) => {
       if (file.size <= CHUNK_SIZE) {
