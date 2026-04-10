@@ -1311,3 +1311,15 @@ input {
 
 .journal-stamp-inline[data-stamp-type="weather"][data-value="rainy"] { background-color: #e7f5ff; border-color: #339af0; color: #1971c2; }
 .journal-stamp-inline[data-stamp-type="weather"][data-value="rainy"]::before { content: "🌧️ "; }
+
+/* Canvas Editor ReactFlow Styles */
+.canvas-flow .react-flow__edge.selected .react-flow__edge-path {
+  stroke: #ff9966 !important;
+  stroke-width: 3.5 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 153, 102, 0.6));
+}
+
+.canvas-flow .react-flow__edge-interaction {
+  stroke-width: 24px;
+  cursor: pointer;
+}

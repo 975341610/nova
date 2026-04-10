@@ -836,13 +836,28 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
 
   const handleConnect = useCallback(
     (connection: Connection) => {
+      // 当连线被创建时，如果用户觉得箭头反向了，实际上可以通过对调 source 和 target 来修正。
+      // 因为视觉上从 A 拖到 B，其实就是希望建立从 A 指向 B 的关联。
+      // 这里将其反转为从 source (拉起端) 指向 target (落点)，但把 marker 放在前端或者倒转关系。
+      // 现在的做法：将用户的源作为 target，用户的目标作为 source，从而让箭头方向“调转”，
+      // 但为了语义不混乱，也可以只将箭头 Marker 放到 start，然后让它呈现反向。
+      // 这里直接反转连接关系，使得数据和视觉同时反向：
+      const reversedConnection = {
+        ...connection,
+        source: connection.target,
+        target: connection.source,
+        sourceHandle: connection.targetHandle,
+        targetHandle: connection.sourceHandle,
+      };
+      
       setEdges((prev) =>
         addEdge(
           {
-            ...connection,
+            ...reversedConnection,
             type: 'smoothstep',
             markerEnd: { type: MarkerType.ArrowClosed, color: '#d7a685' },
             style: { stroke: '#d7a685', strokeWidth: 2 },
+            className: 'custom-edge',
           },
           prev,
         ),
@@ -1286,17 +1301,21 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           minZoom={0.25}
           maxZoom={2}
           selectionOnDrag
-          panOnDrag={[1]}
+          panOnDrag={[1, 2]} // 允许中键或右键平移
           panActivationKeyCode="Space"
           panOnScroll
           panOnScrollMode={'free' as any}
           zoomOnScroll={false}
           selectionMode={'partial' as any}
           elevateNodesOnSelect
+          elementsSelectable={true}
+          edgesFocusable={true}
+          deleteKeyCode={['Backspace', 'Delete']}
           defaultEdgeOptions={{
             type: 'smoothstep',
             markerEnd: { type: MarkerType.ArrowClosed, color: '#d7a685' },
             style: { stroke: '#d7a685', strokeWidth: 2 },
+            className: 'custom-edge',
           }}
           className="canvas-flow"
           onPaneContextMenu={(event) => handleCanvasContextMenu(event as any)}
