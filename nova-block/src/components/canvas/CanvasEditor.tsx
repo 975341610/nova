@@ -33,6 +33,7 @@ import {
   Trash2,
   X,
   File as FileIcon,
+  FolderPlus,
   ExternalLink,
   Globe,
   HardDrive,
@@ -787,24 +788,35 @@ function SelectionToolbar({ selectedNodes, onGroup, onRemove }: { selectedNodes:
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      className="flex items-center gap-1 rounded-full border border-white/80 bg-white/90 p-1 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] backdrop-blur-xl"
+      className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(17,24,39,0.75),rgba(17,24,39,0.45))] p-1.5 shadow-[0_18px_60px_-22px_rgba(0,0,0,0.55)] backdrop-blur-xl"
     >
-      <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
-        已选中 {selectedNodes.length} 个节点
+      <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-slate-200/70 uppercase tracking-[0.14em]">
+        <span className="opacity-70">Selected</span>
+        <span className="flex h-4 min-w-[16px] items-center justify-center rounded bg-white/10 px-1 text-[10px] text-slate-100">
+          {selectedNodes.length}
+        </span>
       </div>
-      <div className="mx-1 h-4 w-px bg-black/5" />
-      <button
-        onClick={onGroup}
-        className="flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-[#8a5d3f] hover:bg-[#fff3ea] transition-colors"
-      >
-        <LayoutGrid size={14} /> 编组 (Group)
-      </button>
-      <button
-        onClick={onRemove}
-        className="flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
-      >
-        <Trash2 size={14} /> 批量删除
-      </button>
+
+      <div className="mx-1 h-4 w-px bg-white/10" />
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onGroup}
+          title="编组 (Group)"
+          aria-label="编组 (Group)"
+          className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-slate-100 transition-all duration-200 hover:bg-emerald-400/15 hover:text-emerald-200 hover:scale-105 active:scale-95"
+        >
+          <FolderPlus size={16} strokeWidth={2.5} />
+        </button>
+        <button
+          onClick={onRemove}
+          title="批量删除选中项"
+          aria-label="批量删除选中项"
+          className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-rose-300 transition-all duration-200 hover:bg-rose-500/20 hover:text-rose-200 hover:scale-105 active:scale-95"
+        >
+          <Trash2 size={16} strokeWidth={2.5} />
+        </button>
+      </div>
     </motion.div>
   );
 }
