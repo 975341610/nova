@@ -6,6 +6,7 @@ import {
   Controls,
   MarkerType,
   MiniMap,
+  NodeResizeControl,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -36,7 +37,10 @@ import {
   Globe,
   HardDrive,
   Lock,
-  LockOpen
+  LockOpen,
+  ChevronDown,
+  ChevronRight,
+  Unlink
 } from 'lucide-react';
 import type { Note } from '../../lib/types';
 import { BaseNode } from './BaseNode';
@@ -83,6 +87,12 @@ type CanvasLinkNodeData = {
 
 type CanvasGroupNodeData = {
   label?: string;
+  collapsed?: boolean;
+  expandedHeight?: number;
+  // 仅用于运行时注入，序列化时会剥离
+  onChange?: (id: string, patch: { label?: string; collapsed?: boolean; expandedHeight?: number }) => void;
+  onToggleCollapse?: (id: string) => void;
+  onUngroup?: (id: string) => void;
 };
 
 type CanvasTextNode = Node<CanvasTextNodeData, 'canvas-text-card'>;
@@ -113,10 +123,12 @@ const MEDIA_NODE_TYPE = 'canvas-media-node';
 const LINK_NODE_TYPE = 'canvas-link-node';
 const GROUP_NODE_TYPE = 'groupNode';
 
-const createTextNode = (id: string, x: number, y: number): CanvasTextNode => ({
+const createTextNode = (id: string, x: number, y: number, parentId?: string): CanvasTextNode => ({
   id,
   type: TEXT_NODE_TYPE,
   position: { x, y },
+  parentId,
+  extent: parentId ? 'parent' : undefined,
   data: {
     title: '灵感便签',
     body: '',
@@ -126,10 +138,12 @@ const createTextNode = (id: string, x: number, y: number): CanvasTextNode => ({
   style: { width: 280, height: 260 },
 });
 
-const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number): CanvasReferenceNode => ({
+const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number, parentId?: string): CanvasReferenceNode => ({
   id,
   type: REFERENCE_NODE_TYPE,
   position: { x, y },
+  parentId,
+  extent: parentId ? 'parent' : undefined,
   data: {
     noteId: sourceNote.id,
     title: sourceNote.title || '无标题笔记',
@@ -141,18 +155,22 @@ const createReferenceNode = (id: string, sourceNote: Note, x: number, y: number)
   style: { width: 320, height: 160 },
 });
 
-const createMediaNode = (id: string, url: string, type: 'image' | 'video' | 'file' | 'audio' | 'embed', title: string, x: number, y: number, source: 'local' | 'online' = 'local'): CanvasMediaNode => ({
+const createMediaNode = (id: string, url: string, type: 'image' | 'video' | 'file' | 'audio' | 'embed', title: string, x: number, y: number, source: 'local' | 'online' = 'local', parentId?: string): CanvasMediaNode => ({
   id,
   type: MEDIA_NODE_TYPE,
   position: { x, y },
+  parentId,
+  extent: parentId ? 'parent' : undefined,
   data: { url, type, title, source },
   style: { width: 300, height: 200 },
 });
 
-const createLinkNode = (id: string, url: string, title: string, x: number, y: number, source: 'local' | 'online' = 'online'): CanvasLinkNode => ({
+const createLinkNode = (id: string, url: string, title: string, x: number, y: number, source: 'local' | 'online' = 'online', parentId?: string): CanvasLinkNode => ({
   id,
   type: LINK_NODE_TYPE,
   position: { x, y },
+  parentId,
+  extent: parentId ? 'parent' : undefined,
   data: { url, title, source },
   style: { width: 300, height: 80 },
 });
@@ -161,8 +179,9 @@ const createGroupNode = (id: string, x: number, y: number, width: number, height
   id,
   type: GROUP_NODE_TYPE,
   position: { x, y },
-  data: { label: '未命名分组' },
+  data: { label: '新分组', collapsed: false, expandedHeight: height },
   style: { width, height },
+  dragHandle: '.canvas-group-drag-handle',
 });
 
 function summarizeNote(note: Note) {
@@ -394,13 +413,80 @@ function LinkNode(props: NodeProps<CanvasLinkNode>) {
   );
 }
 
-function GroupNode({ data, selected }: NodeProps<CanvasGroupNode>) {
+function GroupNode(props: NodeProps<CanvasGroupNode>) {
+  const { id, data, selected } = props;
+  const isCollapsed = !!data.collapsed;
+  const [draftLabel, setDraftLabel] = useState(data.label ?? '');
+
+  useEffect(() => {
+    setDraftLabel(data.label ?? '');
+  }, [data.label]);
+
+  const commitLabel = useCallback(() => {
+    const next = (draftLabel || '').trim() || '新分组';
+    if (next !== (data.label ?? '')) {
+      data.onChange?.(id, { label: next });
+    }
+  }, [data.label, data.onChange, draftLabel, id]);
+
   return (
-    <div className={`h-full w-full rounded-3xl border-2 border-dashed transition-all duration-300 ${
-      selected ? 'border-[#d7a685] bg-[#d7a685]/5 shadow-lg' : 'border-[#d7a685]/30 bg-[#d7a685]/2'
-    }`}>
-      <div className="absolute -top-3 left-6 rounded-full bg-[#d7a685] px-3 py-0.5 text-[10px] font-semibold text-white">
-        {data.label || '新分组'}
+    <div
+      className={`group h-full w-full rounded-[32px] border-2 border-dashed transition-all duration-300 ${
+        selected ? 'border-[#d7a685] bg-[#d7a685]/5 shadow-lg' : 'border-[#d7a685]/30 bg-[#d7a685]/2'
+      }`}
+    >
+      {/* Resizing handles for group */}
+      <NodeResizeControl
+        minWidth={200}
+        minHeight={isCollapsed ? 40 : 100}
+        position={'bottom-right' as any}
+        className="!border-none !bg-transparent !p-2 !w-6 !h-6 !flex !items-end !justify-end -bottom-2 -right-2 z-50 cursor-se-resize"
+      >
+        <div className={`h-3 w-3 rounded-full border-2 border-[#d7a685] bg-white transition-opacity ${selected ? 'opacity-100' : 'opacity-0'}`} />
+      </NodeResizeControl>
+
+      <div className="absolute -top-4 left-4 right-4 flex items-center justify-between pointer-events-auto z-[60]">
+        <div className="canvas-group-drag-handle flex items-center gap-1.5 rounded-full bg-[#d7a685] pl-2 pr-3 py-1 shadow-md transition-all hover:scale-[1.02] border border-white/20 cursor-grab active:cursor-grabbing">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onToggleCollapse?.(id);
+            }}
+            className="text-white/90 hover:text-white transition-colors"
+            title={isCollapsed ? '展开分组' : '收纳分组'}
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          <input
+            value={draftLabel}
+            onChange={(e) => setDraftLabel(e.target.value)}
+            onBlur={() => commitLabel()}
+            placeholder="新分组"
+            className="w-32 bg-transparent text-[11px] font-bold text-white outline-none placeholder:text-white/60"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitLabel();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+          />
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onUngroup?.(id);
+          }}
+          className={`flex h-7 w-7 items-center justify-center rounded-full border border-white/50 bg-white text-[#d7a685] shadow-md transition-all hover:bg-red-50 hover:text-red-500 ${
+            selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          title="解散分组 (保留内容)"
+        >
+          <Unlink size={14} />
+        </button>
       </div>
     </div>
   );
@@ -696,7 +782,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(parsedContent.edges);
   const [viewport, setViewport] = useState<Viewport>(parsedContent.viewport ?? { x: 0, y: 0, zoom: 1 });
   const [pickerMode, setPickerMode] = useState<'toolbar' | 'context' | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; flowX: number; flowY: number; groupId: string | null } | null>(null);
   const [selection, setSelection] = useState<OnSelectionChangeParams<CanvasNode>>({ nodes: [], edges: [] });
   const [memoOpenId, setMemoOpenId] = useState<string | null>(null);
 
@@ -713,6 +799,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
   const saveTimerRef = useRef<number | null>(null);
   const idRef = useRef(0);
   const pendingDropPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingDropGroupIdRef = useRef<string | null>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const rightClickGuardRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
@@ -750,6 +837,195 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         };
       }),
     );
+  }, [setNodes]);
+
+  const COLLAPSED_GROUP_HEIGHT = 40;
+
+  const handleUngroup = useCallback((groupId: string) => {
+    setNodes((nds) => {
+      const nodeMap = new Map(nds.map((n) => [n.id, n] as const));
+      const absCache = new Map<string, { x: number; y: number }>();
+
+      const getAbsPos = (node: any): { x: number; y: number } => {
+        const cached = absCache.get(node.id);
+        if (cached) return cached;
+
+        let x = node.position?.x ?? 0;
+        let y = node.position?.y ?? 0;
+        let pid: string | undefined = node.parentId;
+
+        while (pid) {
+          const parent: any = nodeMap.get(pid);
+          if (!parent) break;
+          x += parent.position?.x ?? 0;
+          y += parent.position?.y ?? 0;
+          pid = parent.parentId;
+        }
+
+        const pos = { x, y };
+        absCache.set(node.id, pos);
+        return pos;
+      };
+
+      const groupNode: any = nodeMap.get(groupId);
+      if (!groupNode) return nds;
+
+      return nds
+        .filter((n) => n.id !== groupId)
+        .map((n: any) => {
+          if (n.parentId === groupId) {
+            const abs = getAbsPos(n);
+            return {
+              ...n,
+              parentId: undefined,
+              extent: undefined,
+              hidden: false,
+              position: abs,
+            };
+          }
+          return n;
+        });
+    });
+    onNotify?.('已解散分组', 'info');
+  }, [setNodes, onNotify]);
+
+  const handleToggleCollapse = useCallback((id: string) => {
+    setNodes((nds) => {
+      const group = nds.find((n) => n.id === id && n.type === GROUP_NODE_TYPE) as CanvasGroupNode | undefined;
+      if (!group) return nds;
+
+      const nextCollapsed = !group.data.collapsed;
+      const currentHeight = (group.measured?.height ?? (group.style as any)?.height ?? 200) as number;
+      const expandedHeight = nextCollapsed ? currentHeight : (group.data.expandedHeight ?? currentHeight);
+
+      return nds.map((n: any) => {
+        if (n.id === id) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              collapsed: nextCollapsed,
+              expandedHeight,
+            },
+            style: {
+              ...n.style,
+              height: nextCollapsed ? COLLAPSED_GROUP_HEIGHT : expandedHeight,
+            },
+          };
+        }
+
+        if (n.parentId === id) {
+          return {
+            ...n,
+            hidden: nextCollapsed,
+          };
+        }
+
+        return n;
+      });
+    });
+  }, [setNodes]);
+
+  const onNodeDragStop = useCallback((_: any, node: Node) => {
+    if (node.type === GROUP_NODE_TYPE) return;
+
+    setNodes((nds) => {
+      const nodeMap = new Map(nds.map((n) => [n.id, n] as const));
+      const absCache = new Map<string, { x: number; y: number }>();
+
+      const toNumber = (value: unknown, fallback = 0) => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+          const parsed = Number.parseFloat(value);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        }
+        return fallback;
+      };
+
+      const getNodeSize = (n: any) => {
+        const width = toNumber(n.measured?.width ?? n.width ?? (n.style as any)?.width, 0);
+        const height = toNumber(n.measured?.height ?? n.height ?? (n.style as any)?.height, 0);
+        return { width, height };
+      };
+
+      const getAbsPos = (n: any): { x: number; y: number } => {
+        const cached = absCache.get(n.id);
+        if (cached) return cached;
+
+        let x = n.position?.x ?? 0;
+        let y = n.position?.y ?? 0;
+        let pid: string | undefined = n.parentId;
+
+        while (pid) {
+          const parent: any = nodeMap.get(pid);
+          if (!parent) break;
+          x += parent.position?.x ?? 0;
+          y += parent.position?.y ?? 0;
+          pid = parent.parentId;
+        }
+
+        const pos = { x, y };
+        absCache.set(n.id, pos);
+        return pos;
+      };
+
+      const dragged: any = nodeMap.get(node.id) ?? node;
+      const draggedAbs = getAbsPos(dragged);
+      const draggedSize = getNodeSize(dragged);
+      const center = {
+        x: draggedAbs.x + draggedSize.width / 2,
+        y: draggedAbs.y + draggedSize.height / 2,
+      };
+
+      const groupCandidates = nds
+        .filter((n) => n.type === GROUP_NODE_TYPE && n.id !== node.id)
+        .map((g: any) => {
+          const abs = getAbsPos(g);
+          const size = getNodeSize(g);
+          const inside = center.x >= abs.x && center.x <= abs.x + size.width && center.y >= abs.y && center.y <= abs.y + size.height;
+          return { g, abs, size, inside, area: size.width * size.height };
+        })
+        .filter((c) => c.inside && c.size.width > 0 && c.size.height > 0)
+        .sort((a, b) => a.area - b.area);
+
+      const target = groupCandidates[0]?.g as any | undefined;
+
+      if (target) {
+        if (dragged.parentId === target.id) return nds;
+
+        const targetAbs = groupCandidates[0].abs;
+        const shouldHide = !!target.data?.collapsed;
+
+        return nds.map((n: any) => {
+          if (n.id !== node.id) return n;
+          return {
+            ...n,
+            parentId: target.id,
+            extent: 'parent' as const,
+            hidden: shouldHide,
+            position: {
+              x: draggedAbs.x - targetAbs.x,
+              y: draggedAbs.y - targetAbs.y,
+            },
+          };
+        });
+      }
+
+      if (dragged.parentId) {
+        return nds.map((n: any) => {
+          if (n.id !== node.id) return n;
+          return {
+            ...n,
+            parentId: undefined,
+            extent: undefined,
+            hidden: false,
+            position: draggedAbs,
+          };
+        });
+      }
+
+      return nds;
+    });
   }, [setNodes]);
 
   useEffect(() => {
@@ -801,12 +1077,24 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           } as CanvasMediaNode | CanvasLinkNode;
         }
 
+        if (item.type === GROUP_NODE_TYPE) {
+          return {
+            ...item,
+            data: {
+              ...item.data,
+              ...commonData,
+              onUngroup: handleUngroup,
+              onToggleCollapse: handleToggleCollapse,
+            },
+          };
+        }
+
         return item;
       }),
     );
     setEdges(parsedContent.edges);
     setViewport(parsedContent.viewport ?? { x: 0, y: 0, zoom: 1 });
-  }, [note?.id, notes, parsedContent, setEdges, setNodes, updateNodeData]);
+  }, [note?.id, notes, parsedContent, setEdges, setNodes, updateNodeData, handleUngroup, handleToggleCollapse]);
 
   const didInitViewportRef = useRef(false);
 
@@ -914,8 +1202,9 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     onNotify?.('已添加文本卡片', 'success');
   }, [getCanvasCenter, nextId, onNotify, setNodes]);
 
-  const openNotePicker = useCallback((mode: 'toolbar' | 'context', position?: { x: number; y: number }) => {
+  const openNotePicker = useCallback((mode: 'toolbar' | 'context', position?: { x: number; y: number }, groupId?: string | null) => {
     pendingDropPositionRef.current = position ?? null;
+    pendingDropGroupIdRef.current = groupId ?? null;
     setPickerMode(mode);
     setContextMenu(null);
   }, []);
@@ -924,9 +1213,27 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
     (sourceNote: Note, position?: { x: number; y: number }) => {
       const fallback = getCanvasCenter();
       const targetPosition = position ?? pendingDropPositionRef.current ?? { x: fallback.x + 80, y: fallback.y - 120 };
-      setNodes((prev) => [...prev, createReferenceNode(nextId('ref'), sourceNote, targetPosition.x, targetPosition.y)]);
+      const groupId = pendingDropGroupIdRef.current;
+
+      setNodes((prev) => {
+        const group = groupId ? prev.find((n) => n.id === groupId && n.type === GROUP_NODE_TYPE) : null;
+        if (!group) {
+          return [...prev, createReferenceNode(nextId('ref'), sourceNote, targetPosition.x, targetPosition.y)];
+        }
+
+        const shouldHide = !!(group.data as any)?.collapsed;
+        return [
+          ...prev,
+          {
+            ...createReferenceNode(nextId('ref'), sourceNote, targetPosition.x - group.position.x, targetPosition.y - group.position.y, group.id),
+            hidden: shouldHide,
+          },
+        ];
+      });
+
       setPickerMode(null);
       pendingDropPositionRef.current = null;
+      pendingDropGroupIdRef.current = null;
       onNotify?.(`已将《${sourceNote.title || '无标题笔记'}》放入画布`, 'success');
     },
     [getCanvasCenter, nextId, onNotify, setNodes],
@@ -1008,10 +1315,30 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
       const paneBounds = canvasWrapperRef.current?.getBoundingClientRect();
       if (!paneBounds) return;
 
-      if ((event.target as HTMLElement).closest('.react-flow__node')) return;
+      const nodeEl = (event.target as HTMLElement).closest('.react-flow__node');
+      if (nodeEl && !nodeEl.classList.contains(`react-flow__node-${GROUP_NODE_TYPE}`)) return;
 
       const flowPosition = reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       
+      const toNumber = (value: unknown, fallback = 0) => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+          const parsed = Number.parseFloat(value);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        }
+        return fallback;
+      };
+
+      // Check if clicking inside a group
+      const targetGroup = nodes.find(n => {
+        if (n.type !== GROUP_NODE_TYPE) return false;
+        const gx = n.position.x;
+        const gy = n.position.y;
+        const gw = toNumber(n.measured?.width ?? n.width ?? (n.style as any)?.width, 0);
+        const gh = toNumber(n.measured?.height ?? n.height ?? (n.style as any)?.height, 0);
+        return flowPosition.x >= gx && flowPosition.x <= gx + gw && flowPosition.y >= gy && flowPosition.y <= gy + gh;
+      });
+
       // Calculate position relative to the container for absolute positioning
       const x = event.clientX - paneBounds.left;
       const y = event.clientY - paneBounds.top;
@@ -1021,11 +1348,12 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         y: Math.min(y, paneBounds.height - 240), // Increased margin for more menu items
         flowX: flowPosition.x,
         flowY: flowPosition.y,
+        groupId: targetGroup?.id ?? null
       });
 
       rightClickGuardRef.current = null;
     },
-    [reactFlow],
+    [reactFlow, nodes],
   );
 
   const handleGroupSelection = useCallback(() => {
@@ -1208,26 +1536,30 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
       const fileList = Array.from(files);
       const uploadResults = await api.upload(fileList);
       
-      const newNodes: CanvasNode[] = uploadResults.map((res: any, idx: number) => {
-        const file = fileList[idx];
-        const mime = file.type;
-        let type: 'image' | 'video' | 'file' | 'audio' | 'embed' = 'file';
-        if (mime.startsWith('image/')) type = 'image';
-        else if (mime.startsWith('video/')) type = 'video';
-        else if (mime.startsWith('audio/')) type = 'audio';
-        
-        return createMediaNode(
-          nextId('media'),
-          res.url,
-          type,
-          file.name,
-          contextMenu.flowX + idx * 20,
-          contextMenu.flowY + idx * 20
-        );
+      setNodes((prev) => {
+        const group = contextMenu.groupId ? prev.find((n) => n.id === contextMenu.groupId && n.type === GROUP_NODE_TYPE) : null;
+        const shouldHide = !!(group?.data as any)?.collapsed;
+
+        const newNodes: CanvasNode[] = uploadResults.map((res: any, idx: number) => {
+          const file = fileList[idx];
+          const mime = file.type;
+          let type: 'image' | 'video' | 'file' | 'audio' | 'embed' = 'file';
+          if (mime.startsWith('image/')) type = 'image';
+          else if (mime.startsWith('video/')) type = 'video';
+          else if (mime.startsWith('audio/')) type = 'audio';
+
+          const x = group ? contextMenu.flowX - group.position.x + idx * 20 : contextMenu.flowX + idx * 20;
+          const y = group ? contextMenu.flowY - group.position.y + idx * 20 : contextMenu.flowY + idx * 20;
+
+          return {
+            ...createMediaNode(nextId('media'), res.url, type, file.name, x, y, 'local', group?.id),
+            hidden: group ? shouldHide : undefined,
+          } as CanvasNode;
+        });
+
+        return [...prev, ...newNodes];
       });
-      
-      setNodes((prev) => [...prev, ...newNodes]);
-      onNotify?.(`成功上传并插入 ${newNodes.length} 个媒体文件`, 'success');
+      onNotify?.(`成功上传并插入 ${uploadResults.length} 个媒体文件`, 'success');
     } catch (err) {
       onNotify?.('文件上传失败，请稍后重试', 'error');
     } finally {
@@ -1295,10 +1627,36 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
       }
 
       if (isMedia) {
-        setNodes((prev) => [...prev, createMediaNode(nextId('media'), mediaSrc, mediaType, url.hostname || 'link', contextMenu.flowX, contextMenu.flowY, 'online')]);
+        setNodes((prev) => {
+          const group = contextMenu.groupId ? prev.find((n) => n.id === contextMenu.groupId && n.type === GROUP_NODE_TYPE) : null;
+          const shouldHide = !!(group?.data as any)?.collapsed;
+          const x = group ? contextMenu.flowX - group.position.x : contextMenu.flowX;
+          const y = group ? contextMenu.flowY - group.position.y : contextMenu.flowY;
+
+          return [
+            ...prev,
+            {
+              ...createMediaNode(nextId('media'), mediaSrc, mediaType, url.hostname || 'link', x, y, 'online', group?.id),
+              hidden: group ? shouldHide : undefined,
+            } as CanvasNode,
+          ];
+        });
         onNotify?.('已成功插入媒体资源', 'success');
       } else {
-        setNodes((prev) => [...prev, createLinkNode(nextId('link'), url.href, url.hostname || 'link', contextMenu.flowX, contextMenu.flowY)]);
+        setNodes((prev) => {
+          const group = contextMenu.groupId ? prev.find((n) => n.id === contextMenu.groupId && n.type === GROUP_NODE_TYPE) : null;
+          const shouldHide = !!(group?.data as any)?.collapsed;
+          const x = group ? contextMenu.flowX - group.position.x : contextMenu.flowX;
+          const y = group ? contextMenu.flowY - group.position.y : contextMenu.flowY;
+
+          return [
+            ...prev,
+            {
+              ...createLinkNode(nextId('link'), url.href, url.hostname || 'link', x, y, 'online', group?.id),
+              hidden: group ? shouldHide : undefined,
+            } as CanvasNode,
+          ];
+        });
         onNotify?.('已成功创建链接节点', 'success');
       }
     } catch {
@@ -1337,6 +1695,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           edges={edgesWithSelection}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           onEdgesChange={handleEdgesChange}
           onConnect={handleConnect}
           onMoveEnd={(_, currentViewport) => setViewport(currentViewport)}
@@ -1447,7 +1806,21 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
           <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#a1806d]/60">新增节点</div>
           <button
             onClick={() => {
-              setNodes((prev) => [...prev, createTextNode(nextId('text'), contextMenu.flowX, contextMenu.flowY)]);
+              setNodes((prev) => {
+                const group = contextMenu.groupId ? prev.find((n) => n.id === contextMenu.groupId && n.type === GROUP_NODE_TYPE) : null;
+                if (!group) {
+                  return [...prev, createTextNode(nextId('text'), contextMenu.flowX, contextMenu.flowY)];
+                }
+
+                const shouldHide = !!(group.data as any)?.collapsed;
+                return [
+                  ...prev,
+                  {
+                    ...createTextNode(nextId('text'), contextMenu.flowX - group.position.x, contextMenu.flowY - group.position.y, group.id),
+                    hidden: shouldHide,
+                  },
+                ];
+              });
               setContextMenu(null);
             }}
             className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#6a4a36] transition hover:bg-[#fff3ea]"
@@ -1458,7 +1831,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
             添加文本卡片
           </button>
           <button
-            onClick={() => openNotePicker('context', { x: contextMenu.flowX, y: contextMenu.flowY })}
+            onClick={() => openNotePicker('context', { x: contextMenu.flowX, y: contextMenu.flowY }, contextMenu.groupId)}
             className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[#5b7d99] transition hover:bg-[#eef7ff]"
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#eef7ff] text-[#6fa1c7]">
@@ -1505,6 +1878,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
         onClose={() => {
           setPickerMode(null);
           pendingDropPositionRef.current = null;
+          pendingDropGroupIdRef.current = null;
         }}
         onSelect={(selectedNote) => insertReferenceNode(selectedNote)}
       />
