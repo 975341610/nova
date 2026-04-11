@@ -107,11 +107,14 @@ class LocalAIManager:
         
         messages = [
             {"role": "system", "content": system_prompts.get(action, "You are a helpful writing assistant.")},
-            {"role": "user", "content": f"Context: {context or ''}\n\nInput: {prompt}"}
         ]
+        if context:
+            messages.append({"role": "user", "content": f"Context:\n{context}\n\nTask/Question:\n{prompt}"})
+        else:
+            messages.append({"role": "user", "content": prompt})
         
         if action == "search":
-            yield 'data: {"text": "[Searching the web for latest information...]\n"}\n\n'
+            yield 'data: {"text": "[Searching the web for latest information...]\\n\\n"}\n\n'
             try:
                 import urllib.parse
                 import urllib.request
@@ -129,14 +132,14 @@ class LocalAIManager:
                     search_context = "\n".join(snippets[:5])
                     messages = [
                         {"role": "system", "content": system_prompts.get(action)},
-                        {"role": "user", "content": f"Based on the following search results, answer the user's question.\n\nSearch Results:\n{search_context}\n\nUser Question: {prompt}"}
+                        {"role": "user", "content": f"Based on the following search results, please summarize and answer the user's question:\n\n{prompt}\n\nSearch Results:\n{search_context}"}
                     ]
             except Exception as e:
                 yield f'data: {{"text": "\\n[Web search failed: {str(e)}. Falling back to local knowledge...]\\n"}}\n\n'
         
         async for chunk in self.generate_chat_stream_messages(messages):
             import json
-            yield f'data: {json.dumps({"text": chunk})}\n\n'
+            yield f'data: {json.dumps({"text": chunk}, ensure_ascii=False)}\n\n'
             
         yield 'data: [DONE]\n\n'
 
