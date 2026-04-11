@@ -1,5 +1,14 @@
 # Development Log
 
+## [2026-04-12] - AI Editor Interaction & Command Stream Parser
+- [x] **Backend Prompt Update**: Updated `backend/services/local_ai.py` to instruct Gemma-4-E2B to output structured XML-like commands (e.g., `<Action type="set_title">Title</Action>`) for editor integration.
+- [x] **Frontend Stream Command Parser**: Implemented a buffering logic in `NovaBlockEditor.tsx` within the `streamInlineAI` call to intercept and parse `<Action>` tags from the SSE stream.
+- [x] **Action Interceptor**: Action commands are now extracted from the text stream and dispatched via a custom `ai-action` event, ensuring they are not rendered as plain text in the editor.
+- [x] **Automated Title & Tag Updates**:
+  - `set_title`: Automatically updates the note's H1 title and metadata when the AI generates a title suggestion.
+  - `set_tags`: Automatically parses and updates the note's tags based on AI-generated categories.
+- [x] **Robustness**: The parser handles fragmented XML tags across multiple SSE chunks and ensures UI performance is not blocked during complex action executions.
+
 ## [2026-04-12] - Local AI Inference Fixes & Web Search Integration
 - [x] Fix local AI fallback failure (`AI Config missing` error) when plugin is enabled.
   - Reason: `local_ai_manager` was instantiated correctly but `is_ready` state was not synced properly due to multi-process/reloads or event-loop context issues.

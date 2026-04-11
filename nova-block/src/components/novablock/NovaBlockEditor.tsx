@@ -55,10 +55,48 @@ const NOVA_BLOCK_SLASH_ITEMS = [
       if (!editor) return;
       try {
         const { api } = await import('../../lib/api');
+        
+        let actionBuffer = '';
+        let isInsideAction = false;
+        
         await api.streamInlineAI(
           { prompt, context: editor.getText(), action: 'ask' },
           (chunk: string) => {
-            editor.chain().focus().insertContent(chunk).run();
+            // 指令流拦截器逻辑 (Stream Command Parser)
+            let textToInsert = '';
+            for (let i = 0; i < chunk.length; i++) {
+              const char = chunk[i];
+              
+              if (char === '<' && chunk.slice(i, i + 8) === '<Action ') {
+                isInsideAction = true;
+                actionBuffer = '<';
+                continue;
+              }
+              
+              if (isInsideAction) {
+                actionBuffer += char;
+                if (char === '>' && actionBuffer.endsWith('</Action>')) {
+                  // 匹配完整 Action
+                  const match = actionBuffer.match(/<Action type="([^"]+)">([\s\S]*?)<\/Action>/);
+                  if (match) {
+                    const [, type, value] = match;
+                    console.log(`[AI Action] ${type}: ${value}`);
+                    // 触发外部定义的 Action 处理逻辑
+                    window.dispatchEvent(new CustomEvent('ai-action', { detail: { type, value } }));
+                  }
+                  actionBuffer = '';
+                  isInsideAction = false;
+                }
+                continue;
+              }
+              
+              // 只有不在 Action 内部的内容才插入编辑器
+              textToInsert += char;
+            }
+            
+            if (textToInsert) {
+              editor.chain().focus().insertContent(textToInsert).run();
+            }
           }
         );
       } catch (err: any) {
@@ -259,11 +297,38 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     };
     window.addEventListener('open-emoticon-panel', handleOpenEmoticon);
 
+    const handleAIAction = (e: any) => {
+      const { type, value } = e.detail;
+      if (type === 'set_title') {
+        const newTitle = value.trim();
+        if (newTitle) {
+          const currentNote = latestNoteRef.current;
+          if (currentNote) {
+            const payload = { ...currentNote, title: newTitle, is_title_manually_edited: true };
+            onSave(payload);
+            latestNoteRef.current = payload;
+          }
+        }
+      } else if (type === 'set_tags') {
+        const tags = value.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '');
+        if (tags.length > 0) {
+          const currentNote = latestNoteRef.current;
+          if (currentNote) {
+            const payload = { ...currentNote, tags };
+            onSave(payload);
+            latestNoteRef.current = payload;
+          }
+        }
+      }
+    };
+    window.addEventListener('ai-action', handleAIAction);
+
     return () => {
       window.removeEventListener('add-sticky-note', handleAddSticker as EventListener);
       window.removeEventListener('open-emoticon-panel', handleOpenEmoticon);
+      window.removeEventListener('ai-action', handleAIAction);
     };
-  }, [stickers, stickyNotes, handleStickersChange, handleStickyNotesChange]);
+  }, [stickers, stickyNotes, handleStickersChange, handleStickyNotesChange, onSave]);
 
   const slashItemsRef = useRef<any[]>(NOVA_BLOCK_SLASH_ITEMS);
   slashItemsRef.current = NOVA_BLOCK_SLASH_ITEMS;

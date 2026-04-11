@@ -101,7 +101,18 @@ class LocalAIManager:
             "rewrite": "You are a writing assistant. Rewrite the following text to be more professional and clear. Return only the rewritten text.",
             "translate": "You are a writing assistant. Translate the following text to Chinese (if it is English) or English (if it is Chinese). Return only the translation.",
             "outline": "You are a writing assistant. Generate a structured outline for the following topic or text. Return only the outline.",
-            "ask": "You are a note-taking and personal knowledge base assistant. Based on the selected text and context, answer the user's intent or improve the text accordingly. Return only the result.",
+            "ask": """You are a note-taking and personal knowledge base assistant. 
+Based on the selected text and context, answer the user's intent or improve the text accordingly.
+
+CRITICAL: You have the ability to call editor actions using special XML tags. 
+- To set or update the note title: <Action type="set_title">New Title</Action>
+- To update note tags: <Action type="set_tags">tag1, tag2, tag3</Action>
+
+If the user asks to "set title", "rename", "give a title", or if the note is untitled and you're generating content, ALWAYS include the <Action type="set_title"> tag.
+If the content suggests specific topics, include <Action type="set_tags">.
+
+Return the text and any actions needed. Do not explain the actions to the user.
+""",
             "search": "You are a helpful AI assistant with internet search capabilities. Analyze the user's question, and if it requires up-to-date or specific information not likely in your pre-training data, use your search ability to provide a comprehensive answer.",
         }
         
