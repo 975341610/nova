@@ -126,7 +126,7 @@ export const api = {
       return window.electron.ipcInvoke('ai:stream-inline', payload, (chunk: string) => onChunk(chunk));
     }
     const API_BASE = getApiBase();
-    const response = await fetch(`${API_BASE}/inline-ai`, {
+    const response = await fetch(`${API_BASE}/ai/inline`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -256,6 +256,12 @@ export const api = {
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   },
+  
+  // AI Plugin status and hardware check
+  getAIPluginStatus: () => invoke<{ enabled: boolean }>('ai:plugin-status', '/ai/plugin-status'),
+  toggleAIPlugin: (enabled: boolean) => 
+    invoke<{ enabled: boolean }>('ai:toggle-plugin', '/ai/toggle-plugin', { method: 'POST', body: JSON.stringify({ enabled }) }),
+  checkAIHardware: () => invoke<{ compatible: boolean; details: string }>('ai:hardware-check', '/ai/hardware-check'),
   
   // Dummy implementations for PropertyPanel
   suggestTags: async (content: string) => {

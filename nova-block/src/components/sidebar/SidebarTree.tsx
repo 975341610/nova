@@ -20,6 +20,7 @@ interface SidebarTreeProps {
   onNodeDuplicate?: (nodeId: string) => void;
   onMoodboardSelect?: () => void;
   onQuickSearchOpen?: () => void;
+  onSettingsOpen?: () => void;
   className?: string;
   activeView?: 'notes' | 'moodboard';
   isCollapsed?: boolean;
@@ -53,6 +54,7 @@ export const SidebarTree = ({
   onNodeDuplicate,
   onMoodboardSelect,
   onQuickSearchOpen,
+  onSettingsOpen,
   className = '',
   activeView = 'notes',
   isCollapsed: externalIsCollapsed,
@@ -425,6 +427,7 @@ export const SidebarTree = ({
           {/* Footer */}
           <div className="p-3 border-t border-border/20 flex justify-center overflow-hidden">
             <button 
+              onClick={onSettingsOpen}
               className="flex items-center h-11 w-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-xl transition-all duration-300 overflow-hidden"
               title={isCollapsed ? "设置与空间管理" : undefined}
             >

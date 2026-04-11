@@ -160,7 +160,7 @@ class AskRequest(BaseModel):
 class InlineAIRequest(BaseModel):
     prompt: str
     context: str | None = None
-    action: Literal["continue", "expand", "summarize", "rewrite", "translate", "outline", "ask"] = "continue"
+    action: Literal["continue", "expand", "summarize", "rewrite", "translate", "outline", "ask", "search"] = "continue"
     stream: bool = True
 
 

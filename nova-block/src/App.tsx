@@ -4,6 +4,7 @@ import { CanvasEditor } from './components/canvas/CanvasEditor'
 import { SidebarTree } from './components/sidebar/SidebarTree'
 import { MoodboardView } from './components/moodboard/MoodboardView'
 import CommandPalette from './components/search/CommandPalette'
+import { SettingsDialog } from './components/SettingsDialog'
 import type { Note } from './lib/types'
 import { api } from './lib/api'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -114,6 +115,7 @@ function App() {
   })
   const [activeView, setActiveView] = useState<'notes' | 'moodboard'>('notes')
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // 对侧边栏切换进行简单的节流处理，防止动画堆积
@@ -358,6 +360,7 @@ function App() {
           onNodeDuplicate={handleNodeDuplicate}
           onMoodboardSelect={handleMoodboardSelect}
           onQuickSearchOpen={() => setIsCommandPaletteOpen(true)}
+          onSettingsOpen={() => setIsSettingsOpen(true)}
           activeView={activeView}
           className="z-20"
           isCollapsed={isSidebarCollapsed}
@@ -439,6 +442,12 @@ function App() {
           onClose={() => setIsCommandPaletteOpen(false)}
           notes={notes}
           onSelectNote={(note) => handleSelectNode(note.id.toString())}
+        />
+
+        {/* Settings Dialog */}
+        <SettingsDialog
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
         />
 
         {/* 全局装饰 */}

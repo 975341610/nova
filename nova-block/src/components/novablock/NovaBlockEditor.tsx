@@ -23,7 +23,7 @@ import {
     Link as LinkIcon, Highlighter, Trash2, Copy, Replace, ListPlus, Minus,
     Trash, Columns, Rows, Film, Music, FileText, MonitorPlay, StickyNote as StickyNoteIcon,
     List, ListOrdered, ArrowUpToLine, ArrowDownToLine, CopyPlus, StickyNote, Smile, X,
-    Layout
+    Layout, Bot
 } from 'lucide-react';
 
 import { 
@@ -46,6 +46,30 @@ import { TableOfContents } from './components/TableOfContents';
 import { EmoticonPanel } from '../editor/EmoticonPanel';
 
 const NOVA_BLOCK_SLASH_ITEMS = [
+  // 0. AI 助理 (AI Assistant)
+  { label: 'AI 写作', description: '向本地大模型提问 (Gemma-4-E2B)', group: '🤖 AI 助理', icon: <Bot size={18} className="text-purple-500" />, keywords: ['ai', 'write', 'bot', 'gemma'], action: (chain: ChainedCommands, editor?: any) => {
+    const prompt = window.prompt('告诉 AI 你想写什么 (Gemma-4-E2B-it):');
+    if (!prompt) return chain;
+    
+    setTimeout(async () => {
+      if (!editor) return;
+      try {
+        const { api } = await import('../../lib/api');
+        await api.streamInlineAI(
+          { prompt, context: editor.getText(), action: 'ask' },
+          (chunk: string) => {
+            editor.chain().focus().insertContent(chunk).run();
+          }
+        );
+      } catch (err: any) {
+        console.error(err);
+        editor.chain().focus().insertContent(`\n[AI 生成失败: ${err.message}]`).run();
+      }
+    }, 10);
+
+    return chain;
+  } },
+
   // 1. 文本格式 (Text Formatting)
   { label: '加粗', description: '选中文本并加粗', group: '文本格式', icon: <Bold size={18} />, keywords: ['bold', 'b'], action: (chain: ChainedCommands) => chain.toggleBold() },
   { label: '倾斜', description: '选中文本并倾斜', group: '文本格式', icon: <Italic size={18} />, keywords: ['italic', 'i'], action: (chain: ChainedCommands) => chain.toggleItalic() },

@@ -55,6 +55,7 @@ import json
 from backend.config import get_settings, get_custom_config_path, PROJECT_DIR
 from backend.rag.pipeline import citations_from_results, cosine_similarity, search_knowledge
 from backend.services.ai_client import AIClient
+from backend.services.local_ai import local_ai_manager
 from backend.services.document_service import chunk_text, parse_document
 from backend.services.repositories import (
     add_exp,
@@ -105,6 +106,11 @@ settings = get_settings()
 ai_client = AIClient()
 
 import re
+import platform
+import psutil
+
+# AI 插件状态全局变量
+ai_enabled = False
 
 def extract_manual_links(content: str) -> list[int]:
     """
@@ -546,13 +552,6 @@ async def search_api(payload: SearchRequest, db: Session = Depends(get_db)) -> d
 
 @router.post("/ai/inline")
 async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
-    model_config = await run_in_threadpool(get_or_create_model_config, db)
-    llm_config = {
-        "provider": model_config.provider,
-        "api_key": model_config.api_key,
-        "base_url": model_config.base_url,
-        "model_name": model_config.model_name,
-    }
     system_prompts = {
         "continue": "You are a writing assistant. Continue writing the following text naturally. Return only the new text.",
         "expand": "You are a writing assistant. Expand the following text with more details and depth. Return only the expanded version.",
@@ -560,15 +559,57 @@ async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
         "rewrite": "You are a writing assistant. Rewrite the following text to be more professional and clear. Return only the rewritten text.",
         "translate": "You are a writing assistant. Translate the following text to Chinese (if it is English) or English (if it is Chinese). Return only the translation.",
         "outline": "You are a writing assistant. Generate a structured outline for the following topic or text. Return only the outline.",
-        "ask": "You are a writing assistant. Based on the selected text and context, answer the user's intent or improve the text accordingly. Return only the result.",
+        "ask": "You are a note-taking and personal knowledge base assistant. Based on the selected text and context, answer the user's intent or improve the text accordingly. Return only the result.",
     }
     messages = [
         {"role": "system", "content": system_prompts.get(payload.action, "You are a helpful writing assistant.")},
         {"role": "user", "content": f"Context: {payload.context or ''}\n\nInput: {payload.prompt}"}
     ]
+
+    # check local ai plugin first
+    global ai_enabled
+    import logging
+    logging.warning(f"[DEBUG] inline_ai called. ai_enabled={ai_enabled}")
+    if ai_enabled:
+        from backend.services.local_ai import local_ai_manager
+        logging.warning(f"[DEBUG] inline_ai local_ai_manager id: {id(local_ai_manager)}")
+        logging.warning(f"[DEBUG] local_ai_manager.is_ready={local_ai_manager.is_ready}")
+        if local_ai_manager.is_ready:
+            return StreamingResponse(
+                local_ai_manager.generate_chat_stream(
+                    prompt=payload.prompt,
+                    context=payload.context,
+                    action=payload.action
+                ),
+                media_type="text/event-stream"
+            )
+
+    model_config = await run_in_threadpool(get_or_create_model_config, db)
+    if not model_config.api_key or not model_config.base_url:
+        return StreamingResponse(iter([f"data: {{\"error\": \"AI Config missing (API Key or Base URL is empty). Please check your settings.\"}}\n\n"]), media_type="text/event-stream")
+    llm_config = {
+        "provider": model_config.provider,
+        "api_key": model_config.api_key,
+        "base_url": model_config.base_url,
+        "model_name": model_config.model_name,
+    }
     
     async def generate():
         try:
+            # 如果本地 AI 插件已启用，则优先使用本地模型
+            if ai_enabled:
+                status = local_ai_manager.get_status()
+                if status["is_ready"]:
+                    async for chunk in local_ai_manager.generate_chat_stream(messages):
+                        yield chunk
+                    return
+                elif status["is_loading"]:
+                    yield "Local AI model is still loading, please wait..."
+                    return
+                else:
+                    # 如果插件开启但出错或未就绪，则回退到原始 AI
+                    pass
+
             async for chunk in ai_client.stream_chat(messages, llm_config):
                 yield chunk
         except Exception as e:
@@ -1502,3 +1543,66 @@ async def import_data(payload: dict):
         import logging
         logging.getLogger(__name__).error(f"Failed to import data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to import data: {str(e)}")
+
+
+# ============================================================
+# 🤖 AI 设置相关接口
+# ============================================================
+
+@router.post("/ai/toggle-plugin")
+async def toggle_ai_plugin(payload: dict, background_tasks: BackgroundTasks):
+    """切换 AI 插件启用状态 (集成预置模型，实现瞬间就绪)"""
+    global ai_enabled
+    enabled = payload.get("enabled", False)
+    ai_enabled = enabled
+    
+    import logging
+    logging.warning(f"[DEBUG] toggle_ai_plugin called. ai_enabled={ai_enabled}")
+    
+    if ai_enabled:
+        from backend.services.local_ai import local_ai_manager
+        logging.warning(f"[DEBUG] toggle_ai_plugin local_ai_manager id: {id(local_ai_manager)}")
+        # 直接执行初始化 (由于已预置模型且逻辑已简化，此处将瞬间完成)
+        await local_ai_manager.initialize_model()
+            
+    return {"status": "success", "enabled": ai_enabled}
+
+@router.get("/ai/plugin-status")
+async def get_ai_plugin_status():
+    """获取 AI 插件启用状态"""
+    local_status = local_ai_manager.get_status()
+    return {
+        "enabled": ai_enabled,
+        "local_ai_ready": local_status["is_ready"],
+        "local_ai_loading": local_status["is_loading"],
+        "local_ai_error": local_status["error"]
+    }
+
+@router.get("/ai/hardware-check")
+async def hardware_check():
+    """检测系统硬件是否符合 AI 运行要求"""
+    try:
+        # 获取架构
+        arch = platform.machine()
+        # 获取核心数
+        cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count()
+        # 获取总内存 (GB)
+        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+        
+        # 判定标准：内存 >= 4GB
+        compatible = total_ram_gb >= 4
+        
+        status_msg = "完美兼容！" if compatible else "内存不足，可能运行缓慢。"
+        details = f"架构: {arch}, 内存: {total_ram_gb:.1f}GB, 核心: {cpu_count}. 状态: {status_msg}"
+        
+        return {
+            "compatible": compatible,
+            "details": details
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Hardware check failed: {str(e)}")
+        return {
+            "compatible": False,
+            "details": f"检测失败: {str(e)}"
+        }

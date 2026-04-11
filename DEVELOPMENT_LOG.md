@@ -1,5 +1,20 @@
 # Development Log
 
+## [2026-04-12] - Local AI Inference Fixes & Web Search Integration
+- [x] Fix local AI fallback failure (`AI Config missing` error) when plugin is enabled.
+  - Reason: `local_ai_manager` was instantiated correctly but `is_ready` state was not synced properly due to multi-process/reloads or event-loop context issues.
+  - Fix: Initialize `local_ai_manager` globally on `toggle_ai_plugin` and ensure `generate_chat_stream` is non-blocking with `run_in_executor`. Also properly handle `StopIteration` raised into `Future`.
+- [x] Implement web search capabilities for local AI (`/api/ai/inline` with `action="search"`).
+  - Approach: If `action="search"`, search DuckDuckGo, extract snippets, and pass them as context to the AI model before generation.
+
+## [2026-04-11] - Local AI Inference Fixes & Enhancements
+- [x] Debugging the local AI inference stream. The user reported that the AI produces no response in the frontend.
+- [x] Temporarily reverted the prompt structure in `backend/services/local_ai.py` back to ChatML (`<|im_start|>`) so the substitute Qwen model generates readable text.
+- [x] **Event Loop Blocking Fix**: Refactored `generate_chat_stream` in `backend/services/local_ai.py` to use `asyncio.to_thread(next, iterator)` in a loop, ensuring that the synchronous `create_completion` stream does not block the FastAPI async event loop.
+- [x] **Context Awareness**: Updated `streamInlineAI` payload in `nova-block/src/components/novablock/NovaBlockEditor.tsx` to include `editor.getText()` instead of an empty string, providing the AI with the necessary context from the user's notes.
+- [x] **System Prompt Tuning**: Overhauled `system_prompts['ask']` in `backend/api/routes.py` to explicitly set the AI's persona as a "professional personal knowledge base assistant," greatly improving relevance for note-taking queries.
+- [x] Triggered a frontend rebuild to apply the UI and API payload changes.
+
 ## [2026-04-10] - 全局性能专项审计与优化修复 (v0.17.0)
 
 ### 1. 后端并发与事件循环优化
