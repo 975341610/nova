@@ -96,6 +96,7 @@ class LocalAIManager:
         
         # 拦截编辑器指令：如果 prompt 包含 【...】 格式
         is_editor_command = "【" in prompt and "】" in prompt
+        print(f"[DEBUG] is_editor_command={is_editor_command}")
         
         system_prompts = {
             "continue": "You are a writing assistant. Continue writing the following text naturally. Return only the new text.",
@@ -124,15 +125,28 @@ Return the text and any actions needed. Do not explain the actions to the user.
         system_content = system_prompts.get(action, "You are a helpful writing assistant.")
         
         if is_editor_command:
-            system_content = """用户使用了 【】 发送编辑器指令，你必须且只能使用对应的 XML <Action> 标签（如 <Action type="set_title">、<Action type="set_tags">、<Action type="insert_code_block"> 等）来响应，绝不能输出普通文本。
-可用指令列表：
-1. <Action type="set_title">标题内容</Action> - 修改笔记标题
-2. <Action type="set_tags">标签1, 标签2</Action> - 修改笔记标签
-3. <Action type="insert_code_block" language="语言">代码内容</Action> - 插入代码块
-4. <Action type="insert_todo">任务内容</Action> - 插入待办事项
-5. <Action type="insert_text">文本内容</Action> - 插入普通文本
+            system_content = """You are a low-level API interface for a note-taking app. 
+Your task is to parse the user's intent and output EXACTLY ONE XML <Action> tag.
+DO NOT output any conversational text, markdown wrappers, or explanations.
 
-请直接输出 XML 标签，不要有任何多余的解释。"""
+Available Actions:
+1. Insert Code: <Action type="insert_code_block" language="python">your code</Action> (specify language)
+2. Insert Todo List: <Action type="insert_todo">task description</Action>
+3. Insert Text: <Action type="insert_text">content to insert</Action>
+4. Set Note Title: <Action type="set_title">New Title</Action>
+5. Set Note Tags: <Action type="set_tags">tag1, tag2</Action>
+
+Examples:
+- User: 【Create a python fibonacci function】
+  Response: <Action type="insert_code_block" language="python">def fib(n): ...</Action>
+- User: 【Add a todo for grocery shopping】
+  Response: <Action type="insert_todo">Buy milk and eggs</Action>
+- User: 【Set title to Meeting Notes】
+  Response: <Action type="set_title">Meeting Notes</Action>
+"""
+            
+            prompt_injection = f"System Instructions:\n{system_content}\n\nUser Request:\n{prompt}\n\nOutput only the <Action> tag:"
+            prompt = prompt_injection
             print(f"[*] Detected Editor Command via 【】. Switching system content. Prompt starts with: {prompt[:50]}...")
 
         messages = [
@@ -190,27 +204,40 @@ Return the text and any actions needed. Do not explain the actions to the user.
 
         # 构造 prompt (针对 Gemma 4 / Gemma 2 格式)
         # <start_of_turn>user\n...<end_of_turn>\n<start_of_turn>model\n
-        prompt = ""
-        for msg in messages:
-            role = msg["role"]
-            content = msg["content"]
-            if role == "system":
-                prompt += f"<|im_start|>system\n{content}<|im_end|>\n"
-            elif role == "user":
-                prompt += f"<|im_start|>user\n{content}<|im_end|>\n"
-            elif role == "assistant":
-                prompt += f"<|im_start|>assistant\n{content}<|im_end|>\n"
+        print(f"DEBUG messages content generate: {messages}")
         
-        prompt += "<|im_start|>assistant\n"
+        # Override the system prompt with the last system message if it was modified
+        if len(messages) > 0 and messages[0]["role"] == "system":
+            system_prompts = [messages[0]["content"]]
+        else:
+            system_prompts = [m["content"] for m in messages if m["role"] == "system"]
+        
+        user_prompts = [m["content"] for m in messages if m["role"] == "user"]
+        
+        system_text = "\n\n".join(system_prompts)
+        user_text = "\n\n".join(user_prompts)
+        
+        combined_user_text = ""
+        if system_text:
+            combined_user_text += f"{system_text}\n\n"
+        combined_user_text += f"{user_text}"
+        
+        prompt = f"<start_of_turn>user\n{combined_user_text}<end_of_turn>\n<start_of_turn>model\n"
+        
+        # Override for strict instruction mode
+        is_editor_command = any("【" in m["content"] and "】" in m["content"] for m in messages if m["role"] == "user")
+        if is_editor_command:
+            prompt = f"<start_of_turn>user\nOutput EXACTLY ONE XML <Action> tag based on the following request. DO NOT output conversational text or markdown code blocks.\n\nTask: {user_text}\n\n<end_of_turn>\n<start_of_turn>model\n"
 
         import asyncio
+        print(f"DEBUG prompt inside messages generate: {prompt}")
         loop = asyncio.get_running_loop()
         def sync_create_completion():
             return self.llm.create_completion(
                 prompt=prompt,
                 max_tokens=1024,
                 stream=True,
-                stop=["<|im_end|>", "user:", "System:"]
+                stop=["<end_of_turn>", "<|im_end|>", "user:", "System:"]
             )
             
         response = await loop.run_in_executor(None, sync_create_completion)
