@@ -1,6 +1,11 @@
 # Development Log
 
 
+## [2026-04-12] - 解决 llama-cpp-python Windows CPU 免编译安装问题
+- [x] **Windows CPU 安装脚本**:
+  - 新增 `install_windows_cpu.bat` 和 `install_windows_cpu.py`。
+  - 通过官方预编译 wheel 源 (`https://abetlen.github.io/llama-cpp-python/whl/cpu`) 实现 Windows 环境下的免编译安装，解决了用户在缺少 C++ 编译环境时安装失败的问题。
+
 ## [2026-04-12] - 修复 Nginx 代理 SSE 流式超时与缓冲问题 (ERR_INCOMPLETE_CHUNKED_ENCODING)
 - [x] **心跳保活机制**:
   - 修改 `backend/services/local_ai.py`，加入 `asyncio.wait_for` 2秒超时轮询。在模型长时思考未产出 token 时，主动向前端发送 `: ping\n\n` 心跳包，防止 Strato Proxy / Nginx 判定连接空闲而强制掐断（502 / Chunked Encoding Error）。
