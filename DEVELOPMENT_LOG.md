@@ -1,5 +1,13 @@
 # Development Log
 
+## [2026-04-12] - 修复 Windows 平台模型加载 Access Violation 0x00000000
+- [x] **禁用内存映射与锁定**:
+  - 在 `backend/services/local_ai.py` 中为 `Llama` 实例化添加 `use_mmap=False` 和 `use_mlock=False`。
+  - 彻底解决因 `mmap` 失败后底层库未处理空指针访问导致的 Windows 平台模型加载崩溃。
+- [x] **收缩 Fallback 资源占用**:
+  - 在 CPU 降级模式中进一步限制 `n_threads=1` 和 `n_batch=128`。
+  - 针对无显卡低配机器，通过极致的单线程与小批次初始化，排除指令集不兼容或多线程引起的非法指令错误。
+
 ## [2026-04-12] - 智能显卡探测与 GPU/CPU 自适应加载 (GPU Fallback)
 - [x] **实现 GPU 初始化自适应**:
   - 修改 `backend/services/local_ai.py`，引入 `try...except` 机制封装 `Llama` 实例初始化。

@@ -85,7 +85,9 @@ class LocalAIManager:
                         n_threads=os.cpu_count() or 4,
                         chat_format="gemma",
                         verbose=False,
-                        n_gpu_layers=-1
+                        n_gpu_layers=-1,
+                        use_mmap=False,
+                        use_mlock=False
                     )
                     print("[*] GPU acceleration enabled successfully.")
                 except (ValueError, OSError, RuntimeError, Exception) as e:
@@ -95,10 +97,13 @@ class LocalAIManager:
                     self.llm = Llama(
                         model_path=str(self.model_path),
                         n_ctx=4096,
-                        n_threads=os.cpu_count() or 4,
+                        n_threads=1,
+                        n_batch=128,
                         chat_format="gemma",
                         verbose=False,
-                        n_gpu_layers=0
+                        n_gpu_layers=0,
+                        use_mmap=False,
+                        use_mlock=False
                     )
             
             self.is_ready = True
