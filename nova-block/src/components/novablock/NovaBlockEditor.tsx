@@ -76,8 +76,8 @@ const NOVA_BLOCK_SLASH_ITEMS = [
               
               // 1. 处理 Action 之前的普通文本
               const textBefore = streamBuffer.slice(lastProcessedIndex, matchIndex);
-              if (textBefore.trim()) {
-                // 移除任何未闭合的标签残留，防止干扰
+              if (textBefore) {
+                // 移除任何未闭合的标签开头，防止它被当作普通文本插入
                 const cleanText = textBefore.replace(/<Action[^>]*$/g, '');
                 if (cleanText) {
                   editor.chain().focus().insertContent(cleanText).run();
@@ -95,10 +95,20 @@ const NOVA_BLOCK_SLASH_ITEMS = [
             // 3. 更新 buffer，保留未处理的部分（可能是半截标签）
             streamBuffer = streamBuffer.slice(lastProcessedIndex);
             
-            // 4. 如果 buffer 中不包含 '<'，说明是纯文本，可以直接插入并清空 buffer
-            if (streamBuffer.length > 0 && !streamBuffer.includes('<')) {
-              editor.chain().focus().insertContent(streamBuffer).run();
-              streamBuffer = '';
+            // 4. 只有当 buffer 中不包含 '<' 的开头迹象时，才把普通文本发送给编辑器
+            // 如果 buffer 以 '<Action' 开头但还没闭合，我们必须等待
+            if (streamBuffer.length > 0 && !streamBuffer.includes('<Action')) {
+              // 检查是否有半截标签
+              const openTagIndex = streamBuffer.lastIndexOf('<Action');
+              if (openTagIndex === -1) {
+                editor.chain().focus().insertContent(streamBuffer).run();
+                streamBuffer = '';
+              } else if (openTagIndex > 0) {
+                // 插入标签前的文本
+                const textBeforeTag = streamBuffer.slice(0, openTagIndex);
+                editor.chain().focus().insertContent(textBeforeTag).run();
+                streamBuffer = streamBuffer.slice(openTagIndex);
+              }
             }
           }
         );
@@ -302,6 +312,8 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
 
     const handleAIAction = (e: any) => {
       const { type, value, attrs } = e.detail;
+      console.log(`[NovaBlock] Handling AI Action: ${type}`, { value, attrs });
+      
       if (type === 'set_title') {
         const newTitle = value.trim();
         if (newTitle) {
@@ -324,6 +336,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
         }
       } else if (type === 'insert_code_block') {
         if (editor) {
+          // 确保在插入前聚焦，并清理多余空行
           editor.chain().focus().insertContent({
             type: 'codeBlock',
             attrs: { language: attrs?.language || 'plain' },

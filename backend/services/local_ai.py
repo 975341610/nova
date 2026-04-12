@@ -133,6 +133,7 @@ Return the text and any actions needed. Do not explain the actions to the user.
 5. <Action type="insert_text">文本内容</Action> - 插入普通文本
 
 请直接输出 XML 标签，不要有任何多余的解释。"""
+            print(f"[*] Detected Editor Command via 【】. Switching system content. Prompt starts with: {prompt[:50]}...")
 
         messages = [
             {"role": "system", "content": system_content},
