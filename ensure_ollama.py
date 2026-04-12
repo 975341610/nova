@@ -20,12 +20,21 @@ def install_ollama():
     os.makedirs(bin_dir, exist_ok=True)
     ollama_exe = os.path.join(bin_dir, "ollama.exe")
     
-    if os.path.exists(ollama_exe):
-        print("[*] Integrated Ollama engine is ready.")
-        return
+    version_file = os.path.join(bin_dir, "ollama_version.txt")
+    current_version = "v0.5.7"
 
-    print("[*] Setting up integrated Ollama engine (First time only)...")
-    url = "https://github.com/ollama/ollama/releases/download/v0.3.14/ollama-windows-amd64.zip"
+    if os.path.exists(ollama_exe):
+        # 检查是否为旧版本，如果是旧版本，我们需要重新下载
+        if os.path.exists(version_file):
+            with open(version_file, "r") as f:
+                if f.read().strip() == current_version:
+                    print("[*] Integrated Ollama engine is ready.")
+                    return
+        print("[*] Upgrading integrated Ollama engine...")
+    else:
+        print("[*] Setting up integrated Ollama engine (First time only)...")
+        
+    url = f"https://github.com/ollama/ollama/releases/download/{current_version}/ollama-windows-amd64.zip"
     zip_path = os.path.join(bin_dir, "ollama.zip")
     
     try:
@@ -44,6 +53,8 @@ def install_ollama():
                 with source, target:
                     shutil.copyfileobj(source, target)
         os.remove(zip_path)
+        with open(version_file, "w") as f:
+            f.write(current_version)
         print("[*] Ollama engine successfully integrated into Nova.")
     except Exception as e:
         print(f"[!] Failed to download or extract Ollama: {e}")

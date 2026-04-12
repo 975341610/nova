@@ -1026,3 +1026,13 @@ Fixed Flip Clock animation pure CSS
   - 这个改变意味着不仅引擎是内置的，连转换和缓存出来的模型数据也都被妥善收纳在项目自己的 `data/` 目录中，避免污染用户的 C 盘系统盘，实现真正的便携式（Portable）体验！
 - **无缝对接 fallback 机制**:
   - 优化了 `backend/services/local_ai.py` 中对 Ollama 的调用逻辑。现在代码会智能地优先寻找并使用我们内置的 `bin/ollama.exe` 去执行模型注册和响应工作，完美避开了各种环境配置错误。
+## [2026-04-12] - 修复内置 Ollama 不兼容新型模型架构问题 (Phase 3)
+
+### 核心修复
+- **升级 Ollama 内核版本**: 
+  - 老大运行模型时遇到 `unknown model architecture: 'gemma4'` 错误，原因是之前内置在项目里的 Ollama `v0.3.14` 版本过于陈旧，尚不支持最新的 Gemma 2 等模型架构格式。
+  - 修改 `ensure_ollama.py` 自动化脚本，将目标版本从 `v0.3.14` 升级为最新的 `v0.5.7`，该版本完美兼容各种最新的模型格式和量化指令集。
+- **平滑热更新机制**: 
+  - 在 `ensure_ollama.py` 中引入了 `ollama_version.txt` 版本锁机制。
+  - 现在当运行 `start_windows.bat` 时，脚本会自动检测内置引擎的版本号，如果发现是旧版本，会自动触发 `Upgrading integrated Ollama engine...` 进行更新替换，无需用户手动删文件。
+  - 彻底解决了因为底层引擎落后导致的报错“服务不响应”。
