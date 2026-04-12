@@ -46,9 +46,7 @@ if errorlevel 1 (
 )
 
 echo [*] Starting Integrated AI Engine in the background...
-set OLLAMA_HOST=127.0.0.1:11434
-set OLLAMA_MODELS=%cd%\data\ollama_models
-start "Nova Local AI (Integrated)" cmd /c "cd bin && ollama.exe serve"
+start "Nova Local AI (Integrated)" cmd /c "set OLLAMA_HOST=127.0.0.1:11434&& set OLLAMA_MODELS=%cd%\data\ollama_models&& cd bin && ollama.exe serve"
 
 :: 5. Start backend service in a new window
 echo [*] Starting backend service in a new window...
