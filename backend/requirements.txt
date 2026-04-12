@@ -15,3 +15,5 @@ Pillow==11.1.0
 llama-cpp-python==0.3.7
 huggingface_hub==0.29.1
 psutil
+
+llama-cpp-python
