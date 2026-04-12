@@ -77,11 +77,11 @@ class LocalAIManager:
                     raise ImportError("llama-cpp-python not installed")
                 self.llm = Llama(
                     model_path=str(self.model_path),
-                    n_ctx=8192,
+                    n_ctx=4096,
                     n_threads=os.cpu_count() or 4,
                     chat_format="gemma",
                     verbose=False,
-                    n_gpu_layers=-1 # 尝试使用 GPU（如果有）
+                    n_gpu_layers=0 # 纯 CPU 环境，避免显存/分配冲突
                 )
             
             self.is_ready = True

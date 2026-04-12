@@ -1,5 +1,13 @@
 # Development Log
 
+## [2026-04-12] - 深度修复 llama-cpp-python Windows 启动崩溃 (DLL Access Violation)
+- [x] **入口导入顺序强制优化**:
+  - 修改 `start_backend.py`（后端实际启动入口），在 `import uvicorn` 之前强制优先尝试导入 `llama_cpp`。
+  - 确保在 `uvicorn` 加载底层网络库和 Windows Socket 依赖之前，`llama-cpp-python` 的 C++ 绑定 DLL 已完成内存加载与符号初始化，彻底阻断 Windows 平台上的 DLL 加载顺序冲突。
+- [x] **模型初始化参数安全化**:
+  - 在 `backend/services/local_ai.py` 中将 `n_gpu_layers` 显式设为 `0`，明确纯 CPU 推理模式，防止底层库在尝试自动探测/分配显存时触发空指针引用。
+  - 将默认上下文长度 `n_ctx` 从 `8192` 降至 `4096`，减少 50% 的初始内存申请，避免在低配机器上因连续大块内存分配失败导致的底层崩塌。
+
 ## [2026-04-12] - 调整 import 顺序修复 llama-cpp-python Windows 访问违例 (Access Violation)
 - [x] **Import 顺序优化**:
   - 在 `backend/services/local_ai.py` 中将 `from llama_cpp import Llama` 移至文件最顶部，确保在加载 `pandas`、`numpy` 或 `asyncio` 等库之前先加载底层 C 库。

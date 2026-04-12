@@ -1,3 +1,7 @@
+try:
+    import llama_cpp
+except ImportError:
+    pass
 import uvicorn
 import os
 import sys
