@@ -61,55 +61,71 @@ const NOVA_BLOCK_SLASH_ITEMS = [
         await api.streamInlineAI(
           { prompt, context: editor.getText(), action: 'ask' },
           (chunk: string) => {
-            // 指令流拦截器逻辑 (Stream Command Parser) - 增强鲁棒性
             streamBuffer += chunk;
             
-            let lastProcessedIndex = 0;
-            
-            // 使用正则匹配完整的 <Action ...>...</Action>
-            // g 标志允许全局匹配，我们按顺序处理
-            const actionRegex = /<Action\s+type="([^"]+)"(?:\s+language="([^"]+)")?>([\s\S]*?)<\/Action>/g;
-            let match;
-            
-            while ((match = actionRegex.exec(streamBuffer)) !== null) {
-              const matchIndex = match.index;
+            // 扫描并处理完整的 <Action> 标签
+            // 我们需要处理可能在同一个 chunk 中的多个标签
+            const scanAndExecute = () => {
+              const startTag = '<Action';
+              const endTag = '</Action>';
               
-              // 1. 处理 Action 之前的普通文本
-              const textBefore = streamBuffer.slice(lastProcessedIndex, matchIndex);
-              if (textBefore) {
-                // 移除任何未闭合的标签开头，防止它被当作普通文本插入
-                const cleanText = textBefore.replace(/<Action[^>]*$/g, '');
-                if (cleanText) {
-                  editor.chain().focus().insertContent(cleanText).run();
+              const startIndex = streamBuffer.indexOf(startTag);
+              if (startIndex !== -1) {
+                const endIndex = streamBuffer.indexOf(endTag, startIndex);
+                
+                if (endIndex !== -1) {
+                  // 1. 提取 Action 之前的文本并插入编辑器
+                  const textBefore = streamBuffer.slice(0, startIndex);
+                  if (textBefore.trim()) {
+                    editor.chain().focus().insertContent(textBefore).run();
+                  }
+                  
+                  // 2. 解析 Action 标签
+                  const fullTag = streamBuffer.slice(startIndex, endIndex + endTag.length);
+                  const match = /<Action\s+type="([^"]+)"(?:\s+language="([^"]+)")?>([\s\S]*?)<\/Action>/.exec(fullTag);
+                  
+                  if (match) {
+                    const [, type, language, value] = match;
+                    console.log(`[AI Action parsed] ${type}: ${value}`);
+                    window.dispatchEvent(new CustomEvent('ai-action', { 
+                      detail: { type, value: value.trim(), attrs: { language } } 
+                    }));
+                  }
+                  
+                  // 3. 消费 Buffer
+                  streamBuffer = streamBuffer.slice(endIndex + endTag.length);
+                  
+                  // 递归扫描，处理紧随其后的标签
+                  scanAndExecute();
+                } else {
+                  // 找到了开头但没找到结尾，说明标签还在流中，暂不处理
+                  // 但如果 buffer 开头到 startIndex 之间有内容，可以先插入
+                  if (startIndex > 0) {
+                    const textBefore = streamBuffer.slice(0, startIndex);
+                    editor.chain().focus().insertContent(textBefore).run();
+                    streamBuffer = streamBuffer.slice(startIndex);
+                  }
+                }
+              } else {
+                // 没找到标签开头，如果 buffer 中没有半截标签前缀，直接插入文本
+                // 注意：要防止 '<Act' 这种分片被当作普通文本
+                const possibleStart = streamBuffer.lastIndexOf('<');
+                if (possibleStart !== -1 && startTag.startsWith(streamBuffer.slice(possibleStart))) {
+                  // 可能是半截标签，保留 buffer
+                  if (possibleStart > 0) {
+                    const textBefore = streamBuffer.slice(0, possibleStart);
+                    editor.chain().focus().insertContent(textBefore).run();
+                    streamBuffer = streamBuffer.slice(possibleStart);
+                  }
+                } else {
+                  // 确认不是标签，全部插入
+                  editor.chain().focus().insertContent(streamBuffer).run();
+                  streamBuffer = '';
                 }
               }
-              
-              // 2. 处理 Action
-              const [, type, language, value] = match;
-              console.log(`[AI Action] ${type} (lang=${language}): ${value}`);
-              window.dispatchEvent(new CustomEvent('ai-action', { detail: { type, value, attrs: { language } } }));
-              
-              lastProcessedIndex = actionRegex.lastIndex;
-            }
-            
-            // 3. 更新 buffer，保留未处理的部分（可能是半截标签）
-            streamBuffer = streamBuffer.slice(lastProcessedIndex);
-            
-            // 4. 只有当 buffer 中不包含 '<' 的开头迹象时，才把普通文本发送给编辑器
-            // 如果 buffer 以 '<Action' 开头但还没闭合，我们必须等待
-            if (streamBuffer.length > 0 && !streamBuffer.includes('<Action')) {
-              // 检查是否有半截标签
-              const openTagIndex = streamBuffer.lastIndexOf('<Action');
-              if (openTagIndex === -1) {
-                editor.chain().focus().insertContent(streamBuffer).run();
-                streamBuffer = '';
-              } else if (openTagIndex > 0) {
-                // 插入标签前的文本
-                const textBeforeTag = streamBuffer.slice(0, openTagIndex);
-                editor.chain().focus().insertContent(textBeforeTag).run();
-                streamBuffer = streamBuffer.slice(openTagIndex);
-              }
-            }
+            };
+
+            scanAndExecute();
           }
         );
       } catch (err: any) {
@@ -323,6 +339,25 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
             onSave(payload);
             latestNoteRef.current = payload;
           }
+          // 同步更新编辑器内容顶部的 H1
+          if (editor) {
+            const firstNode = editor.state.doc.firstChild;
+            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
+              // 更新已存在的 H1
+              editor.chain().setNodeSelection(0).insertContent({
+                type: 'heading',
+                attrs: { level: 1 },
+                content: [{ type: 'text', text: newTitle }]
+              }).run();
+            } else {
+              // 在顶部插入新的 H1
+              editor.chain().insertContentAt(0, {
+                type: 'heading',
+                attrs: { level: 1 },
+                content: [{ type: 'text', text: newTitle }]
+              }).run();
+            }
+          }
         }
       } else if (type === 'set_tags') {
         const tags = value.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '');
@@ -333,24 +368,40 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
             onSave(payload);
             latestNoteRef.current = payload;
           }
+          // 在编辑器中插入标签（通常在标题下方）
+          if (editor) {
+            const tagText = tags.map((t: string) => `#${t}`).join(' ');
+            // 查找是否有 H1，如果有，在 H1 后面插入
+            const firstNode = editor.state.doc.firstChild;
+            let insertPos = 0;
+            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
+              insertPos = firstNode.nodeSize;
+            }
+            editor.chain().insertContentAt(insertPos, {
+              type: 'paragraph',
+              content: [{ type: 'text', text: tagText }]
+            }).run();
+          }
         }
       } else if (type === 'insert_code_block') {
         if (editor) {
-          // 确保在插入前聚焦，并清理多余空行
+          // 内容清理：剥离可能存在的 ``` 包装
+          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
           editor.chain().focus().insertContent({
             type: 'codeBlock',
             attrs: { language: attrs?.language || 'plain' },
-            content: [{ type: 'text', text: value.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '') }]
+            content: [{ type: 'text', text: cleanValue }]
           }).run();
         }
       } else if (type === 'insert_todo') {
         if (editor) {
+          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
           editor.chain().focus().insertContent({
             type: 'taskList',
             content: [{
               type: 'taskItem',
               attrs: { checked: false },
-              content: [{ type: 'paragraph', content: [{ type: 'text', text: value.replace(/^\s*```\w*\n?/, '').replace(/\n?```\s*$/, '') }] }]
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: cleanValue }] }]
             }]
           }).run();
         }
