@@ -1,5 +1,10 @@
 # Development Log
 
+## [2026-04-12] - 修复 spellcheck 接口 500 错误 (Unescaped Curly Braces)
+- [x] **修复 Prompt 构造逻辑**:
+  - 修复了 `backend/api/routes.py` 中 `/api/ai/spellcheck` 接口因 f-string 中包含 JSON 示例的大括号 `{}` 且未转义导致的 500 Internal Server Error。
+  - 将 f-string 替换为显式字符串拼接与转义处理，确保 Prompt 模板正确解析。
+
 ## [2026-04-12] - Phase 4/5: AI Config, Smart Tags, and Context Spellcheck
 - [x] **AI Initialization & Memory**:
   - Added `data/ai_config.json` for persistent AI settings (`enabled`, `preferred_engine`).

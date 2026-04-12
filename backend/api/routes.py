@@ -715,12 +715,11 @@ async def ai_spellcheck(payload: dict):
         return {"errors": []}
     
     # 构造 Prompt
-    prompt = f"""Identify typos and context-aware errors in the following text. 
-Return the result as a JSON array of objects, each with 'word', 'suggestion', and 'reason'.
-Text: {text}
-
-JSON Format Example: [{"word": "wrong", "suggestion": "right", "reason": "context"}]
-ONLY return the JSON array, no other text."""
+    prompt = "Identify typos and context-aware errors in the following text.\n"
+    prompt += "Return the result as a JSON array of objects, each with 'word', 'suggestion', and 'reason'.\n"
+    prompt += f"Text: {text}\n\n"
+    prompt += "JSON Format Example: [{\"word\": \"wrong\", \"suggestion\": \"right\", \"reason\": \"context\"}]\n"
+    prompt += "ONLY return the JSON array, no other text."
     
     full_response = ""
     try:
