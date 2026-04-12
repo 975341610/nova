@@ -1,13 +1,14 @@
+try:
+    from llama_cpp import Llama
+except ImportError:
+    Llama = None
+
 import os
 import threading
 from pathlib import Path
 from typing import Optional, AsyncGenerator
 
 # from huggingface_hub import hf_hub_download
-try:
-    from llama_cpp import Llama
-except ImportError:
-    Llama = None
 
 from backend.config import get_settings
 

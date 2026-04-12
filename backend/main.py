@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+# 🚀 核心修复：在导入任何其他模块前先加载 llama_cpp，防止 Windows 上的 DLL 冲突导致的 Access Violation
+try:
+    import llama_cpp
+except ImportError:
+    pass
+
 import os
 import sys
 import json

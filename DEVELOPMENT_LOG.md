@@ -1,5 +1,10 @@
 # Development Log
 
+## [2026-04-12] - 调整 import 顺序修复 llama-cpp-python Windows 访问违例 (Access Violation)
+- [x] **Import 顺序优化**:
+  - 在 `backend/services/local_ai.py` 中将 `from llama_cpp import Llama` 移至文件最顶部，确保在加载 `pandas`、`numpy` 或 `asyncio` 等库之前先加载底层 C 库。
+  - 在 `backend/main.py` 和 `backend/api/routes.py` 的顶部提前导入 `local_ai_manager`，确保 `llama_cpp` 在整个应用生命周期的最早阶段被初始化，彻底解决 Windows 平台上预编译版本可能导致的 `0x0000000000000000` 访问违例错误。
+
 ## [2026-04-12] - 修复 routes.py 中的 f-string 语法错误
 - [x] **修复嵌套 f-string 引用冲突**:
   - 修复了 `backend/api/routes.py` 第 620 行附近的 `SyntaxError: f-string: unterminated string`。

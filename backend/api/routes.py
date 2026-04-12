@@ -1,4 +1,10 @@
 from __future__ import annotations
+# 🚀 核心修复：在导入任何其他模块前先加载 llama_cpp，防止 Windows 上的 DLL 冲突导致的 Access Violation
+try:
+    import llama_cpp
+except ImportError:
+    pass
+
 import os
 import uuid
 import shutil
@@ -55,7 +61,6 @@ import json
 from backend.config import get_settings, get_custom_config_path, PROJECT_DIR
 from backend.rag.pipeline import citations_from_results, cosine_similarity, search_knowledge
 from backend.services.ai_client import AIClient
-from backend.services.local_ai import local_ai_manager
 from backend.services.document_service import chunk_text, parse_document
 from backend.services.repositories import (
     add_exp,
