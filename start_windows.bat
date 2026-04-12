@@ -1,6 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: 防止 OpenMP 线程冲突导致的崩溃
+set OMP_NUM_THREADS=4
+set OPENBLAS_NUM_THREADS=4
+
 echo ==========================================
 echo    Nova Project - One-Click Startup Script
 echo ==========================================
