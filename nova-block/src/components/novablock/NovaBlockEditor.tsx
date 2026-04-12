@@ -47,96 +47,11 @@ import { EmoticonPanel } from '../editor/EmoticonPanel';
 
 const NOVA_BLOCK_SLASH_ITEMS = [
   // 0. AI 助理 (AI Assistant)
-  { label: 'AI 写作', description: '向本地大模型提问 (Gemma-4-E2B)', group: '🤖 AI 助理', icon: <Bot size={18} className="text-purple-500" />, keywords: ['ai', 'write', 'bot', 'gemma'], action: (chain: ChainedCommands, editor?: any) => {
+  { label: 'AI 写作', description: '向本地大模型提问 (Gemma-4-E2B)', group: '🤖 AI 助理', icon: <Bot size={18} className="text-purple-500" />, keywords: ['ai', 'write', 'bot', 'gemma'], action: (chain: ChainedCommands) => {
     const prompt = window.prompt('告诉 AI 你想写什么 (Gemma-4-E2B-it):');
     if (!prompt) return chain;
     
-    setTimeout(async () => {
-      if (!editor) return;
-      setIsAILoading(true);
-      try {
-        const { api } = await import('../../lib/api');
-        
-        let streamBuffer = '';
-        let isFirstToken = true;
-        
-        await api.streamInlineAI(
-          { prompt, context: editor.getText(), action: 'ask' },
-          (chunk: string) => {
-            if (isFirstToken) {
-              setIsAILoading(false);
-              isFirstToken = false;
-            }
-            streamBuffer += chunk;
-            
-            // 扫描并处理完整的 <Action> 标签
-            const scanAndExecute = () => {
-              const startTag = '<Action';
-              const endTag = '</Action>';
-              
-              const startIndex = streamBuffer.toLowerCase().indexOf(startTag.toLowerCase());
-              
-              if (startIndex === -1) {
-                // 如果没找到 <Action，我们需要确定 buffer 中是否有“潜在”的标签开始（如 "<" 或 "<A"）
-                const lastBracket = streamBuffer.lastIndexOf('<');
-                if (lastBracket !== -1) {
-                  // 如果有 <，只保留从 < 开始的部分，前面的全部插入
-                  const textBefore = streamBuffer.slice(0, lastBracket);
-                  if (textBefore) {
-                    editor.chain().focus().insertContent(textBefore).run();
-                  }
-                  streamBuffer = streamBuffer.slice(lastBracket);
-                  
-                  // 如果保留的部分已经明确不是 <Action 的前缀，也可以直接插入
-                  if (streamBuffer.length >= startTag.length || !startTag.toLowerCase().startsWith(streamBuffer.toLowerCase())) {
-                    editor.chain().focus().insertContent(streamBuffer).run();
-                    streamBuffer = '';
-                  }
-                } else {
-                  // 完全没有 <，直接全部插入
-                  editor.chain().focus().insertContent(streamBuffer).run();
-                  streamBuffer = '';
-                }
-              } else {
-                // 找到了 <Action，处理它之前的所有文本
-                if (startIndex > 0) {
-                  const textBefore = streamBuffer.slice(0, startIndex);
-                  editor.chain().focus().insertContent(textBefore).run();
-                  streamBuffer = streamBuffer.slice(startIndex);
-                }
-                
-                // 此时 streamBuffer 以 <Action 开头，寻找结束标签
-                const endIndex = streamBuffer.toLowerCase().indexOf(endTag.toLowerCase());
-                if (endIndex !== -1) {
-                  const fullTag = streamBuffer.slice(0, endIndex + endTag.length);
-                  const match = /<Action\s+type=(?:"|')([^"']+)(?:"|')(?:\s+language=(?:"|')([^"']+)(?:"|'))?\s*>([\s\S]*?)<\/Action>/i.exec(fullTag);
-                  
-                  if (match) {
-                    const [, type, language, value] = match;
-                    window.dispatchEvent(new CustomEvent('ai-action', { 
-                      detail: { type, value: value.trim(), attrs: { language } } 
-                    }));
-                  } else {
-                    // 匹配失败，作为普通文本
-                    editor.chain().focus().insertContent(fullTag).run();
-                  }
-                  
-                  streamBuffer = streamBuffer.slice(endIndex + endTag.length);
-                  scanAndExecute(); // 继续扫描
-                }
-              }
-            };
-
-            scanAndExecute();
-          }
-        );
-      } catch (err: any) {
-        console.error(err);
-        setIsAILoading(false);
-        editor.chain().focus().insertContent(`\n[AI 生成失败: ${err.message}]`).run();
-      }
-    }, 10);
-
+    window.dispatchEvent(new CustomEvent('ai-write', { detail: { prompt } }));
     return chain;
   } },
 
@@ -266,10 +181,14 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   const emoticonPanelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const slashItemsRef = useRef<any[]>(NOVA_BLOCK_SLASH_ITEMS);
+  slashItemsRef.current = NOVA_BLOCK_SLASH_ITEMS;
+  
+  // 保持对最新 note 的引用，防止在 useEditor 闭包中拿到旧的 state 导致属性被覆盖
+  const latestNoteRef = useRef(note);
   useEffect(() => {
-    setStickers(note?.stickers || []);
-    setStickyNotes(note?.sticky_notes || []);
-  }, [note?.id, note?.stickers, note?.sticky_notes]);
+    latestNoteRef.current = note;
+  }, [note]);
 
   const handleStickersChange = useCallback((newStickers: StickerData[]) => {
     setStickers(newStickers);
@@ -286,152 +205,6 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     }
     if (!isDirty) setIsDirty(true);
   }, [isDirty]);
-
-  useEffect(() => {
-    const handleAddSticker = (e?: Event) => {
-      const detail = (e as CustomEvent<{ content?: string; url?: string; type?: 'image' | 'text'; x?: number; y?: number }>)?.detail;
-      const type = detail?.type || (detail?.url ? 'image' : 'text');
-      
-      const defaultX = scrollContainerRef.current ? scrollContainerRef.current.clientWidth / 2 - 100 : 100;
-      const defaultY = scrollContainerRef.current ? scrollContainerRef.current.scrollTop + 100 : 100;
-
-      const x = detail?.x ?? defaultX;
-      const y = detail?.y ?? defaultY;
-
-      if (type === 'image' && detail?.url) {
-        const newSticker: StickerData = {
-          id: Math.random().toString(36).substring(7),
-          type: 'image',
-          url: detail.url,
-          x,
-          y,
-          scale: 1,
-          rotation: (Math.random() - 0.5) * 10,
-          opacity: 1,
-        };
-        handleStickersChange([...stickers, newSticker]);
-      } else {
-        const newSticky: StickyNoteData = {
-          id: Math.random().toString(36).substring(7),
-          x,
-          y,
-          color: 'rgba(254, 240, 138, 1)',
-          rotation: (Math.random() - 0.5) * 10,
-          content: detail?.content || '<p></p>',
-        };
-        handleStickyNotesChange([...stickyNotes, newSticky]);
-      }
-    };
-    window.addEventListener('add-sticky-note', handleAddSticker as EventListener);
-    
-    const handleOpenEmoticon = (e?: any) => {
-      if (e && e.stopPropagation) e.stopPropagation();
-      setIsEmoticonPanelOpen(true);
-    };
-    window.addEventListener('open-emoticon-panel', handleOpenEmoticon);
-
-    const handleAIAction = (e: any) => {
-      const { type, value, attrs } = e.detail;
-      console.log(`[NovaBlock] Handling AI Action: ${type}`, { value, attrs });
-      
-      if (type === 'set_title') {
-        const newTitle = value.trim();
-        if (newTitle) {
-          const currentNote = latestNoteRef.current;
-          if (currentNote) {
-            const payload = { ...currentNote, title: newTitle, is_title_manually_edited: true };
-            onSave(payload);
-            latestNoteRef.current = payload;
-          }
-          // 同步更新编辑器内容顶部的 H1
-          if (editor) {
-            const firstNode = editor.state.doc.firstChild;
-            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
-              // 更新已存在的 H1
-              editor.chain().setNodeSelection(0).insertContent({
-                type: 'heading',
-                attrs: { level: 1 },
-                content: [{ type: 'text', text: newTitle }]
-              }).run();
-            } else {
-              // 在顶部插入新的 H1
-              editor.chain().insertContentAt(0, {
-                type: 'heading',
-                attrs: { level: 1 },
-                content: [{ type: 'text', text: newTitle }]
-              }).run();
-            }
-          }
-        }
-      } else if (type === 'set_tags') {
-        const tags = value.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '');
-        if (tags.length > 0) {
-          const currentNote = latestNoteRef.current;
-          if (currentNote) {
-            const payload = { ...currentNote, tags };
-            onSave(payload);
-            latestNoteRef.current = payload;
-          }
-          // 在编辑器中插入标签（通常在标题下方）
-          if (editor) {
-            const tagText = tags.map((t: string) => `#${t}`).join(' ');
-            // 查找是否有 H1，如果有，在 H1 后面插入
-            const firstNode = editor.state.doc.firstChild;
-            let insertPos = 0;
-            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
-              insertPos = firstNode.nodeSize;
-            }
-            editor.chain().insertContentAt(insertPos, {
-              type: 'paragraph',
-              content: [{ type: 'text', text: tagText }]
-            }).run();
-          }
-        }
-      } else if (type === 'insert_code_block') {
-        if (editor) {
-          // 内容清理：剥离可能存在的 ``` 包装
-          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
-          editor.chain().focus().insertContent({
-            type: 'codeBlock',
-            attrs: { language: attrs?.language || 'plain' },
-            content: [{ type: 'text', text: cleanValue }]
-          }).run();
-        }
-      } else if (type === 'insert_todo') {
-        if (editor) {
-          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
-          editor.chain().focus().insertContent({
-            type: 'taskList',
-            content: [{
-              type: 'taskItem',
-              attrs: { checked: false },
-              content: [{ type: 'paragraph', content: [{ type: 'text', text: cleanValue }] }]
-            }]
-          }).run();
-        }
-      } else if (type === 'insert_text') {
-        if (editor) {
-          editor.chain().focus().insertContent(value).run();
-        }
-      }
-    };
-    window.addEventListener('ai-action', handleAIAction);
-
-    return () => {
-      window.removeEventListener('add-sticky-note', handleAddSticker as EventListener);
-      window.removeEventListener('open-emoticon-panel', handleOpenEmoticon);
-      window.removeEventListener('ai-action', handleAIAction);
-    };
-  }, [editor, stickers, stickyNotes, handleStickersChange, handleStickyNotesChange, onSave]);
-
-  const slashItemsRef = useRef<any[]>(NOVA_BLOCK_SLASH_ITEMS);
-  slashItemsRef.current = NOVA_BLOCK_SLASH_ITEMS;
-  
-  // 保持对最新 note 的引用，防止在 useEditor 闭包中拿到旧的 state 导致属性被覆盖
-  const latestNoteRef = useRef(note);
-  useEffect(() => {
-    latestNoteRef.current = note;
-  }, [note]);
 
   // 核心 Tiptap 扩展配置 (高性能 memo 模式)
   const extensions = useMemo(() => [
@@ -624,6 +397,238 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
       },
     }
   }, [extensions, updateOutline]);
+
+  useEffect(() => {
+    const handleAddSticker = (e?: Event) => {
+      const detail = (e as CustomEvent<{ content?: string; url?: string; type?: 'image' | 'text'; x?: number; y?: number }>)?.detail;
+      const type = detail?.type || (detail?.url ? 'image' : 'text');
+      
+      const defaultX = scrollContainerRef.current ? scrollContainerRef.current.clientWidth / 2 - 100 : 100;
+      const defaultY = scrollContainerRef.current ? scrollContainerRef.current.scrollTop + 100 : 100;
+
+      const x = detail?.x ?? defaultX;
+      const y = detail?.y ?? defaultY;
+
+      if (type === 'image' && detail?.url) {
+        const newSticker: StickerData = {
+          id: Math.random().toString(36).substring(7),
+          type: 'image',
+          url: detail.url,
+          x,
+          y,
+          scale: 1,
+          rotation: (Math.random() - 0.5) * 10,
+          opacity: 1,
+        };
+        handleStickersChange([...stickers, newSticker]);
+      } else {
+        const newSticky: StickyNoteData = {
+          id: Math.random().toString(36).substring(7),
+          x,
+          y,
+          color: 'rgba(254, 240, 138, 1)',
+          rotation: (Math.random() - 0.5) * 10,
+          content: detail?.content || '<p></p>',
+        };
+        handleStickyNotesChange([...stickyNotes, newSticky]);
+      }
+    };
+    window.addEventListener('add-sticky-note', handleAddSticker as EventListener);
+    
+    const handleOpenEmoticon = (e?: any) => {
+      if (e && e.stopPropagation) e.stopPropagation();
+      setIsEmoticonPanelOpen(true);
+    };
+    window.addEventListener('open-emoticon-panel', handleOpenEmoticon);
+
+    const handleAIWrite = async (e: any) => {
+      const { prompt } = e.detail;
+      if (!editor) return;
+
+      setIsAILoading(true);
+      try {
+        const { api } = await import('../../lib/api');
+        
+        let streamBuffer = '';
+        let isFirstToken = true;
+        
+        await api.streamInlineAI(
+          { prompt, context: editor.getText(), action: 'ask' },
+          (chunk: string) => {
+            if (isFirstToken) {
+              setIsAILoading(false);
+              isFirstToken = false;
+            }
+            streamBuffer += chunk;
+            
+            // 扫描并处理完整的 <Action> 标签
+            const scanAndExecute = () => {
+              const startTag = '<Action';
+              const endTag = '</Action>';
+              
+              const startIndex = streamBuffer.toLowerCase().indexOf(startTag.toLowerCase());
+              
+              if (startIndex === -1) {
+                // 如果没找到 <Action，我们需要确定 buffer 中是否有“潜在”的标签开始（如 "<" 或 "<A"）
+                const lastBracket = streamBuffer.lastIndexOf('<');
+                if (lastBracket !== -1) {
+                  // 如果有 <，只保留从 < 开始的部分，前面的全部插入
+                  const textBefore = streamBuffer.slice(0, lastBracket);
+                  if (textBefore) {
+                    editor.chain().focus().insertContent(textBefore).run();
+                  }
+                  streamBuffer = streamBuffer.slice(lastBracket);
+                  
+                  // 如果保留的部分已经明确不是 <Action 的前缀，也可以直接插入
+                  if (streamBuffer.length >= startTag.length || !startTag.toLowerCase().startsWith(streamBuffer.toLowerCase())) {
+                    editor.chain().focus().insertContent(streamBuffer).run();
+                    streamBuffer = '';
+                  }
+                } else {
+                  // 完全没有 <，直接全部插入
+                  editor.chain().focus().insertContent(streamBuffer).run();
+                  streamBuffer = '';
+                }
+              } else {
+                // 找到了 <Action，处理它之前的所有文本
+                if (startIndex > 0) {
+                  const textBefore = streamBuffer.slice(0, startIndex);
+                  editor.chain().focus().insertContent(textBefore).run();
+                  streamBuffer = streamBuffer.slice(startIndex);
+                }
+                
+                // 此时 streamBuffer 以 <Action 开头，寻找结束标签
+                const endIndex = streamBuffer.toLowerCase().indexOf(endTag.toLowerCase());
+                if (endIndex !== -1) {
+                  const fullTag = streamBuffer.slice(0, endIndex + endTag.length);
+                  const match = /<Action\s+type=(?:"|')([^"']+)(?:"|')(?:\s+language=(?:"|')([^"']+)(?:"|'))?\s*>([\s\S]*?)<\/Action>/i.exec(fullTag);
+                  
+                  if (match) {
+                    const [, type, language, value] = match;
+                    window.dispatchEvent(new CustomEvent('ai-action', { 
+                      detail: { type, value: value.trim(), attrs: { language } } 
+                    }));
+                  } else {
+                    // 匹配失败，作为普通文本
+                    editor.chain().focus().insertContent(fullTag).run();
+                  }
+                  
+                  streamBuffer = streamBuffer.slice(endIndex + endTag.length);
+                  scanAndExecute(); // 继续扫描
+                }
+              }
+            };
+
+            scanAndExecute();
+          }
+        );
+      } catch (err: any) {
+        console.error(err);
+        setIsAILoading(false);
+        editor.chain().focus().insertContent(`\n[AI 生成失败: ${err.message}]`).run();
+      }
+    };
+    window.addEventListener('ai-write', handleAIWrite as EventListener);
+
+    const handleAIAction = (e: any) => {
+      const { type, value, attrs } = e.detail;
+      console.log(`[NovaBlock] Handling AI Action: ${type}`, { value, attrs });
+      
+      if (type === 'set_title') {
+        const newTitle = value.trim();
+        if (newTitle) {
+          const currentNote = latestNoteRef.current;
+          if (currentNote) {
+            const payload = { ...currentNote, title: newTitle, is_title_manually_edited: true };
+            onSave(payload);
+            latestNoteRef.current = payload;
+          }
+          // 同步更新编辑器内容顶部的 H1
+          if (editor) {
+            const firstNode = editor.state.doc.firstChild;
+            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
+              // 更新已存在的 H1
+              editor.chain().setNodeSelection(0).insertContent({
+                type: 'heading',
+                attrs: { level: 1 },
+                content: [{ type: 'text', text: newTitle }]
+              }).run();
+            } else {
+              // 在顶部插入新的 H1
+              editor.chain().insertContentAt(0, {
+                type: 'heading',
+                attrs: { level: 1 },
+                content: [{ type: 'text', text: newTitle }]
+              }).run();
+            }
+          }
+        }
+      } else if (type === 'set_tags') {
+        const tags = value.split(',').map((t: string) => t.trim()).filter((t: string) => t !== '');
+        if (tags.length > 0) {
+          const currentNote = latestNoteRef.current;
+          if (currentNote) {
+            const payload = { ...currentNote, tags };
+            onSave(payload);
+            latestNoteRef.current = payload;
+          }
+          // 在编辑器中插入标签（通常在标题下方）
+          if (editor) {
+            const tagText = tags.map((t: string) => `#${t}`).join(' ');
+            // 查找是否有 H1，如果有，在 H1 后面插入
+            const firstNode = editor.state.doc.firstChild;
+            let insertPos = 0;
+            if (firstNode && firstNode.type.name === 'heading' && firstNode.attrs.level === 1) {
+              insertPos = firstNode.nodeSize;
+            }
+            editor.chain().insertContentAt(insertPos, {
+              type: 'paragraph',
+              content: [{ type: 'text', text: tagText }]
+            }).run();
+          }
+        }
+      } else if (type === 'insert_code_block') {
+        if (editor) {
+          // 内容清理：剥离可能存在的 ``` 包装
+          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
+          editor.chain().focus().insertContent({
+            type: 'codeBlock',
+            attrs: { language: attrs?.language || 'plain' },
+            content: [{ type: 'text', text: cleanValue }]
+          }).run();
+        }
+      } else if (type === 'insert_todo') {
+        if (editor) {
+          const cleanValue = value.replace(/```[a-z]*\n?/gi, '').replace(/\n?```$/gi, '').trim();
+          editor.chain().focus().insertContent({
+            type: 'taskList',
+            content: [{
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: cleanValue }] }]
+            }]
+          }).run();
+        }
+      } else if (type === 'insert_text') {
+        if (editor) {
+          editor.chain().focus().insertContent(value).run();
+        }
+      }
+    };
+    window.addEventListener('ai-action', handleAIAction);
+
+    return () => {
+      window.removeEventListener('add-sticky-note', handleAddSticker as EventListener);
+      window.removeEventListener('open-emoticon-panel', handleOpenEmoticon);
+      window.removeEventListener('ai-write', handleAIWrite as EventListener);
+      window.removeEventListener('ai-action', handleAIAction);
+    };
+  }, [editor, stickers, stickyNotes, handleStickersChange, handleStickyNotesChange, onSave]);
+
+  useEffect(() => {
+    setStickers(note?.stickers || []);
+    setStickyNotes(note?.sticky_notes || []);
+  }, [note?.id, note?.stickers, note?.sticky_notes]);
 
   // 保存逻辑
   const handleSave = async (content?: string, updates?: Partial<Note>) => {
