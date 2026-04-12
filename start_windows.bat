@@ -36,11 +36,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 4. Start backend service in a new window
+:: 4. 尝试启动集成的本地 AI 引擎 (Ollama)
+echo [*] Checking for Ollama local AI engine...
+ollama --version >nul 2>&1
+if not errorlevel 1 (
+    echo [*] Starting Ollama in the background...
+    start "Nova Local AI (Ollama)" cmd /c "ollama serve"
+) else (
+    echo [!] Ollama not found in PATH. If your CPU doesn't support the built-in AI, please install Ollama to use it.
+)
+
+:: 5. Start backend service in a new window
 echo [*] Starting backend service in a new window...
 start "Nova Backend" cmd /k "python start_backend.py"
 
-:: 5. Frontend startup
+:: 6. Frontend startup
 echo [*] Moving to frontend directory: nova-block/
 cd nova-block
 if errorlevel 1 (
@@ -57,7 +67,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 6. Prompt and start frontend
+:: 7. Prompt and start frontend
 echo.
 echo ==========================================
 echo    [SUCCESS] Frontend is starting...

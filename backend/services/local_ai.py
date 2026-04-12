@@ -243,6 +243,36 @@ Available Actions:
             return
 
         if self.llm == "MOCK_LLM_ERROR":
+            # Try to connect to local Ollama if available
+            try:
+                import httpx
+                import json
+                print("[*] MOCK_LLM_ERROR detected. Attempting to connect to local Ollama (127.0.0.1:11434)...")
+                
+                ollama_url = "http://127.0.0.1:11434/api/chat"
+                # Note: We use gemma:2b as a default fallback model in Ollama
+                payload = {
+                    "model": "gemma:2b",
+                    "messages": messages,
+                    "stream": True
+                }
+                
+                async with httpx.AsyncClient() as client:
+                    async with client.stream("POST", ollama_url, json=payload, timeout=None) as response:
+                        if response.status_code == 200:
+                            async for line in response.aiter_lines():
+                                if line:
+                                    try:
+                                        chunk_data = json.loads(line)
+                                        content = chunk_data.get("message", {}).get("content", "")
+                                        if content:
+                                            yield content
+                                    except json.JSONDecodeError:
+                                        continue
+                            return # Successfully proxied to Ollama
+            except Exception as e:
+                print(f"[!] Failed to connect to Ollama: {e}")
+
             mock_response = "【系统提示】检测到您当前的电脑 CPU 指令集不支持预编译的本地 AI 模型，底层 C++ 引擎（llama-cpp）触发了 Access Violation 崩溃。为了防止后端服务闪退，已为您自动切换到保护演示模式。若要在此电脑上运行，可能需要安装 Visual Studio C++ Build Tools 进行源码本地编译。"
             for word in mock_response:
                 yield word
