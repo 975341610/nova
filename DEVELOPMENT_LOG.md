@@ -1,5 +1,11 @@
 # Development Log
 
+## [2026-04-12] - 修复 routes.py 中的 f-string 语法错误
+- [x] **修复嵌套 f-string 引用冲突**:
+  - 修复了 `backend/api/routes.py` 第 620 行附近的 `SyntaxError: f-string: unterminated string`。
+  - 原因是 f-string 嵌套时的单引号和双引号冲突，Python 3.11 中 `status['error']` 的单引号提前闭合了最外层的 `f'...'`。
+  - 解决方法是将 `status['error']` 提取为变量 `error_msg` 后再进行 f-string 拼接。
+
 ## [2026-04-12] - 修复 llama-cpp-python Windows CPU 安装版本冲突 (0.3.19 Pinned)
 - [x] **锁定版本与直连安装**:
   - 由于 `llama-cpp-python` 官方 pre-built cpu wheel 目前仅更新至 `0.3.19`，而 PyPI 已有 `0.3.20+`，导致 pip 在默认安装时会尝试从源码编译最新版从而触发 CMake 缺失错误。

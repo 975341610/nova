@@ -617,7 +617,8 @@ async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
                 else:
                     if status.get("error"):
                         import json
-                        yield f'data: {json.dumps({"error": f"Local AI Error: {status['error']}. Please check your model file or disable Local AI."})}\n\n'
+                        error_msg = status.get('error', 'Unknown Error')
+                        yield f'data: {json.dumps({"error": f"Local AI Error: {error_msg}. Please check your model file or disable Local AI."})}\n\n'
                         return
                     pass
 
