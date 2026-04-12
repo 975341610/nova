@@ -1,5 +1,12 @@
 # Development Log
 
+## [2026-04-12] - 智能显卡探测与 GPU/CPU 自适应加载 (GPU Fallback)
+- [x] **实现 GPU 初始化自适应**:
+  - 修改 `backend/services/local_ai.py`，引入 `try...except` 机制封装 `Llama` 实例初始化。
+  - **首选加速模式**: 尝试以 `n_gpu_layers=-1` (全量 Offload) 和 `n_ctx=8192` 启动，充分发挥 Nvidia 独立显卡性能。
+  - **自动降级模式**: 若检测到 `ValueError`、`OSError` 或 `RuntimeError`（通常由于无 CUDA 环境或显存不足引起），系统将自动打印警告并降级到 `n_gpu_layers=0` (纯 CPU 模式)，并将 `n_ctx` 同步减半至 `4096` 以确保内存安全。
+  - 解决了同一份代码在高性能 GPU 机器和纯 CPU 办公本之间无法兼顾性能与稳定性的矛盾。
+
 ## [2026-04-12] - 深度修复 llama-cpp-python Windows 启动崩溃 (DLL Access Violation)
 - [x] **入口导入顺序强制优化**:
   - 修改 `start_backend.py`（后端实际启动入口），在 `import uvicorn` 之前强制优先尝试导入 `llama_cpp`。

@@ -75,14 +75,31 @@ class LocalAIManager:
                 print(f"[*] Loading real model from {self.model_path}...")
                 if Llama is None:
                     raise ImportError("llama-cpp-python not installed")
-                self.llm = Llama(
-                    model_path=str(self.model_path),
-                    n_ctx=4096,
-                    n_threads=os.cpu_count() or 4,
-                    chat_format="gemma",
-                    verbose=False,
-                    n_gpu_layers=0 # 纯 CPU 环境，避免显存/分配冲突
-                )
+                
+                try:
+                    # 第一阶段尝试：开启 GPU 全量加速
+                    print("[*] Attempting GPU acceleration (n_gpu_layers=-1, n_ctx=8192)...")
+                    self.llm = Llama(
+                        model_path=str(self.model_path),
+                        n_ctx=8192,
+                        n_threads=os.cpu_count() or 4,
+                        chat_format="gemma",
+                        verbose=False,
+                        n_gpu_layers=-1
+                    )
+                    print("[*] GPU acceleration enabled successfully.")
+                except (ValueError, OSError, RuntimeError, Exception) as e:
+                    # 降级尝试：退回到安全 CPU 模式
+                    print(f"[!] GPU initialization failed ({type(e).__name__}): {str(e)}")
+                    print("[*] Falling back to CPU mode (n_gpu_layers=0, n_ctx=4096)...")
+                    self.llm = Llama(
+                        model_path=str(self.model_path),
+                        n_ctx=4096,
+                        n_threads=os.cpu_count() or 4,
+                        chat_format="gemma",
+                        verbose=False,
+                        n_gpu_layers=0
+                    )
             
             self.is_ready = True
             print("[*] Local AI Model is ready (Instantly).")
