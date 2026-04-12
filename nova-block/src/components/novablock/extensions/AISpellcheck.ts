@@ -12,7 +12,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
 
   addOptions() {
     return {
-      debounceMs: 2500,
+      debounceMs: 800,
     };
   },
 

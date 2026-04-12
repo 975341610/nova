@@ -1,5 +1,20 @@
 # Development Log
 
+## [2026-04-12] - 拼写检查重构：从 LLM 转向高性能纯规则引擎 (TDD)
+- [x] **高性能规则引擎实现 (`spellcheck_engine.py`)**:
+  - 引入 `pyahocorasick` (Aho-Corasick 自动机) 实现毫秒级错词匹配。
+  - 内置高频中文易错词库（如：“地确”、“再所不惜”、“已经”错拼等）。
+  - 支持**精准白名单**与保护区机制，防止专有名词误报。
+  - 实现基于正则的上下文模板检查（如：动补关系下的“的地得”自动纠错）。
+- [x] **API 接口改造**:
+  - 重构 `backend/api/routes.py` 中的 `/api/ai/spellcheck` 接口，剔除低效且不可控的 LLM 调用，改为直连规则引擎。
+  - 保持原有返回格式 `{"errors": [...]}`，实现无缝替换。
+- [x] **前端 Tiptap 插件微调**:
+  - 将 `AISpellcheck` 插件的 `debounceMs` 从 2500ms 降低至 800ms，大幅提升反馈灵敏度。
+  - 优化触发机制，使其更好地配合中文输入法上屏。
+- [x] **严格 TDD 流程**:
+  - 编写并通过了 `spellcheck_test.py` 单元测试，覆盖基本匹配、白名单与正则模板。
+
 ## [2026-04-12] - 修复 spellcheck 接口 500 错误 (Unescaped Curly Braces)
 - [x] **修复 Prompt 构造逻辑**:
   - 修复了 `backend/api/routes.py` 中 `/api/ai/spellcheck` 接口因 f-string 中包含 JSON 示例的大括号 `{}` 且未转义导致的 500 Internal Server Error。

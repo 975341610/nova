@@ -707,47 +707,22 @@ async def suggest_tags(payload: TagSuggestRequest, db: Session = Depends(get_db)
     tags = await ai_client.tags(payload.content, llm_config)
     return TagSuggestResponse(tags=tags)
 
+from backend.services.spellcheck_engine import spellcheck_engine
+
 @router.post("/ai/spellcheck")
 async def ai_spellcheck(payload: dict):
-    """Context-Aware Spell Check"""
+    """Context-Aware Spell Check using Rule Engine"""
     text = payload.get("text", "")
     if not text:
         return {"errors": []}
     
-    # 构造 Prompt
-    prompt = "Identify typos and context-aware errors in the following text.\n"
-    prompt += "Return the result as a JSON array of objects, each with 'word', 'suggestion', and 'reason'.\n"
-    prompt += f"Text: {text}\n\n"
-    prompt += "JSON Format Example: [{\"word\": \"wrong\", \"suggestion\": \"right\", \"reason\": \"context\"}]\n"
-    prompt += "ONLY return the JSON array, no other text."
-    
-    full_response = ""
     try:
-        async for chunk in local_ai_manager.generate_chat_stream_messages([
-            {"role": "system", "content": "You are a professional editor. You only output valid JSON arrays."},
-            {"role": "user", "content": prompt}
-        ]):
-            full_response += chunk
-            
-        # 尝试解析 JSON
-        # 清洗可能存在的 markdown 代码块包裹
-        clean_json = full_response.strip()
-        if clean_json.startswith("```json"):
-            clean_json = clean_json[7:]
-        if clean_json.endswith("```"):
-            clean_json = clean_json[:-3]
-        clean_json = clean_json.strip()
-        
-        # 找到第一个 [ 和最后一个 ]
-        start = clean_json.find("[")
-        end = clean_json.rfind("]")
-        if start != -1 and end != -1:
-            clean_json = clean_json[start:end+1]
-            
-        errors = json.loads(clean_json)
+        # 使用纯规则引擎，性能极高
+        errors = spellcheck_engine.check(text)
         return {"errors": errors}
     except Exception as e:
-        print(f"[!] Error spellchecking: {e}, response: {full_response}")
+        import logging
+        logging.getLogger(__name__).error(f"Error in spellcheck_engine: {str(e)}")
         return {"errors": []}
 
 @router.post("/ai/suggest-tags")
