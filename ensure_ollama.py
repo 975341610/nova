@@ -3,6 +3,20 @@ import urllib.request
 import zipfile
 import sys
 import shutil
+import json
+
+def get_latest_ollama_version():
+    print("[*] Checking latest Ollama version from GitHub...")
+    try:
+        url = "https://api.github.com/repos/ollama/ollama/releases/latest"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            return data["tag_name"]
+    except Exception as e:
+        print(f"[!] Failed to fetch latest version: {e}. Falling back to v0.20.5")
+        return "v0.20.5"
 
 def download_with_progress(url, dest):
     print(f"[*] Downloading Ollama engine from {url}...")
@@ -21,7 +35,8 @@ def install_ollama():
     ollama_exe = os.path.join(bin_dir, "ollama.exe")
     
     version_file = os.path.join(bin_dir, "ollama_version.txt")
-    current_version = "v0.20.5"
+    current_version = get_latest_ollama_version()
+    print(f"[*] Target Ollama version: {current_version}")
 
     if os.path.exists(ollama_exe):
         # 检查是否为旧版本，如果是旧版本，我们需要重新下载

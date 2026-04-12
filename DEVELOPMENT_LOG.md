@@ -1036,6 +1036,15 @@ Fixed Flip Clock animation pure CSS
   - 在 `ensure_ollama.py` 中引入了 `ollama_version.txt` 版本锁机制。
   - 现在当运行 `start_windows.bat` 时，脚本会自动检测内置引擎的版本号，如果发现是旧版本，会自动触发 `Upgrading integrated Ollama engine...` 进行更新替换，无需用户手动删文件。
   - 彻底解决了因为底层引擎落后导致的报错“服务不响应”。
+## [2026-04-12] - 自动获取 GitHub 最新版 Ollama 引擎 (Phase 5)
+- [x] **动态版本抓取**:
+  - 修改 `ensure_ollama.py`，引入 `get_latest_ollama_version` 方法。
+  - 通过 `https://api.github.com/repos/ollama/ollama/releases/latest` 接口动态获取最新发布标签（tag_name）。
+  - 如果抓取失败（如网络受限或 API 速率限制），则自动回退至硬编码的 `v0.20.5` 稳定版，确保系统鲁棒性。
+- [x] **版本同步更新**:
+  - 移除了 `ensure_ollama.py` 中写死的 `current_version = "v0.20.5"`。
+  - 每次启动 `start_windows.bat` 时都会自动触发版本检查，确保内置 Ollama 引擎始终保持最新状态，无缝兼容后续新增的模型架构。
+
 ## [2026-04-12] - 修复 Ollama 引擎版本号笔误 (Phase 4)
 
 ### 核心修复
