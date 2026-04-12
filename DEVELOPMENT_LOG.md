@@ -1004,3 +1004,25 @@ Fixed Flip Clock animation pure CSS
 
 ### 3. 构建与产物同步
 - `npm run build` 通过，并同步 `nova-block/dist/*` 到 `frontend_dist/`。
+
+## [2026-04-12] - Ollama 保底引擎体验优化与前端引导提示
+
+### 核心功能
+- **完善 CPU 不兼容时的智能降级体验**:
+  - 当 `llama-cpp-python` 因硬件指令集缺失（如报 Access Violation 0x0000000000000000）导致崩溃时，系统现已自动拦截该异常，并尝试无缝切换至本地部署的 Ollama 引擎。
+  - **增强了 Ollama 连接探测与超时容错**: 将 `httpx.AsyncClient().get("http://127.0.0.1:11434/api/tags")` 的超时时间从 2.0 秒延长至 5.0 秒，避免 Ollama 服务启动较慢时被误判为不可用。
+  - **更友好的前端报错与引导提示**: 如果 Ollama 确实未安装或未启动，现在的 Mock Error 模式会明确向用户输出引导文案：“系统未能连接到本地的 Ollama 服务（请检查是否已安装并启动 Ollama）。解决方案：1. 前往 https://ollama.com/ 下载并安装 Ollama (无需配置)。 2. 安装后，重新运行 start_windows.bat。” 彻底消除了用户在面对 C++ 编译报错与 Ollama 连接失败双重困境时的迷茫。
+## [2026-04-12] - Ollama 保底引擎体验优化与前端引导提示 (Phase 2 - 零配置内置)
+
+### 核心改进
+- **实现“零配置”开箱即用**: 
+  - 老大提出了关键要求：“既然是集成到项目里，为什么还要用户自己去下载安装 Ollama？”
+  - 完美响应此需求：我们现在将官方的 Ollama 引擎（免安装的绿色独立版）**直接下沉打包进了 Nova 项目本身**！
+- **自动获取并部署**:
+  - 在项目根目录新增了 `ensure_ollama.py` 自动化脚本。
+  - 当 `start_windows.bat` 运行时，会自动检查 `bin/ollama.exe` 是否存在。如果不存在，会自动从 GitHub 官方 Release 极速拉取 `ollama-windows-amd64.zip` (v0.3.14)，并解压到 `nova_repo/bin` 目录中。
+- **环境隔离隔离与端口复用**:
+  - 为内置的 Ollama 配置了独立的数据目录环境变量：`OLLAMA_MODELS=%cd%\data\ollama_models`。
+  - 这个改变意味着不仅引擎是内置的，连转换和缓存出来的模型数据也都被妥善收纳在项目自己的 `data/` 目录中，避免污染用户的 C 盘系统盘，实现真正的便携式（Portable）体验！
+- **无缝对接 fallback 机制**:
+  - 优化了 `backend/services/local_ai.py` 中对 Ollama 的调用逻辑。现在代码会智能地优先寻找并使用我们内置的 `bin/ollama.exe` 去执行模型注册和响应工作，完美避开了各种环境配置错误。

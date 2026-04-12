@@ -36,15 +36,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 4. 尝试启动集成的本地 AI 引擎 (Ollama)
-echo [*] Checking for Ollama local AI engine...
-ollama --version >nul 2>&1
-if not errorlevel 1 (
-    echo [*] Starting Ollama in the background...
-    start "Nova Local AI (Ollama)" cmd /c "ollama serve"
-) else (
-    echo [!] Ollama not found in PATH. If your CPU doesn't support the built-in AI, please install Ollama to use it.
+:: 4. 确保集成的本地 AI 引擎就绪
+echo [*] Checking for integrated Ollama engine...
+call python ensure_ollama.py
+if errorlevel 1 (
+    echo [!] Failed to download or setup the integrated Ollama engine.
+    pause
+    exit /b 1
 )
+
+echo [*] Starting Integrated AI Engine in the background...
+set OLLAMA_HOST=127.0.0.1:11434
+set OLLAMA_MODELS=%cd%\data\ollama_models
+start "Nova Local AI (Integrated)" cmd /c "cd bin && ollama.exe serve"
 
 :: 5. Start backend service in a new window
 echo [*] Starting backend service in a new window...

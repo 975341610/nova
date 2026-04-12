@@ -64,7 +64,7 @@ class LocalAIManager:
             # 1. 检查 Ollama 服务是否可用
             async with httpx.AsyncClient() as client:
                 try:
-                    resp = await client.get("http://127.0.0.1:11434/api/tags", timeout=2.0)
+                    resp = await client.get("http://127.0.0.1:11434/api/tags", timeout=5.0)
                     if resp.status_code != 200:
                         return False
                     
@@ -87,11 +87,21 @@ class LocalAIManager:
                     abs_path = str(self.model_path.absolute()).replace("\\", "/")
                     f.write(f'FROM "{abs_path}"\n')
                 
-                # 执行 ollama create
+                # 寻找内置的 ollama.exe
+                base_dir = Path(__file__).resolve().parent.parent.parent
+                ollama_bin = base_dir / "bin" / "ollama.exe"
+                ollama_cmd = str(ollama_bin) if ollama_bin.exists() else "ollama"
+
+                # 执行 ollama create，传递环境变量
+                env = os.environ.copy()
+                env["OLLAMA_HOST"] = "127.0.0.1:11434"
+                env["OLLAMA_MODELS"] = str(base_dir / "data" / "ollama_models")
+
                 process = await asyncio.create_subprocess_exec(
-                    "ollama", "create", model_name, "-f", modelfile_path,
+                    ollama_cmd, "create", model_name, "-f", modelfile_path,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=env
                 )
                 stdout, stderr = await process.communicate()
                 
@@ -341,7 +351,7 @@ Available Actions:
             except Exception as e:
                 print(f"[!] Failed to connect to Ollama: {e}")
 
-            mock_response = "【系统提示】检测到您当前的电脑 CPU 指令集不支持预编译的本地 AI 模型，底层 C++ 引擎（llama-cpp）触发了 Access Violation 崩溃。为了防止后端服务闪退，已为您自动切换到保护演示模式。若要在此电脑上运行，可能需要安装 Visual Studio C++ Build Tools 进行源码本地编译。"
+            mock_response = "【系统提示】由于硬件指令集兼容性问题，系统已为您自动切换至内部集成的 AI 保底引擎。但是由于端口 11434 被占用或服务被防火墙拦截，系统无法连接到内置的引擎。请检查安全软件设置后重新运行 start_windows.bat。"
             for word in mock_response:
                 yield word
                 await asyncio.sleep(0.05)
