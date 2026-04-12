@@ -615,7 +615,10 @@ async def inline_ai(payload: InlineAIRequest, db: Session = Depends(get_db)):
                     yield "Local AI model is still loading, please wait..."
                     return
                 else:
-                    # 如果插件开启但出错或未就绪，则回退到原始 AI
+                    if status.get("error"):
+                        import json
+                        yield f'data: {json.dumps({"error": f"Local AI Error: {status['error']}. Please check your model file or disable Local AI."})}\n\n'
+                        return
                     pass
 
             async for chunk in ai_client.stream_chat(messages, llm_config):
