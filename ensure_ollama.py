@@ -21,7 +21,7 @@ def install_ollama():
     ollama_exe = os.path.join(bin_dir, "ollama.exe")
     
     version_file = os.path.join(bin_dir, "ollama_version.txt")
-    current_version = "v0.5.7"
+    current_version = "v0.20.5"
 
     if os.path.exists(ollama_exe):
         # 检查是否为旧版本，如果是旧版本，我们需要重新下载

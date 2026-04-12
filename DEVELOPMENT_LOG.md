@@ -1036,3 +1036,9 @@ Fixed Flip Clock animation pure CSS
   - 在 `ensure_ollama.py` 中引入了 `ollama_version.txt` 版本锁机制。
   - 现在当运行 `start_windows.bat` 时，脚本会自动检测内置引擎的版本号，如果发现是旧版本，会自动触发 `Upgrading integrated Ollama engine...` 进行更新替换，无需用户手动删文件。
   - 彻底解决了因为底层引擎落后导致的报错“服务不响应”。
+## [2026-04-12] - 修复 Ollama 引擎版本号笔误 (Phase 4)
+
+### 核心修复
+- **更正升级版本号**:
+  - 发现前一次热更新中将目标版本号误写为了 `v0.5.7`（2024年的老版本），导致升级后依然无法识别 `gemma4` 架构。
+  - 现已在 `ensure_ollama.py` 中将目标版本更正为最新的 `v0.20.5`（支持最新的 Gemma 4 及相关指令集）。用户再次运行 `start_windows.bat` 将自动拉取并应用真正的最新版引擎，彻底解决模型加载失败（`unknown model architecture: 'gemma4'`）的问题。
