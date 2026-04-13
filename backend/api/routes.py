@@ -1719,10 +1719,16 @@ async def toggle_ai_plugin(payload: dict, background_tasks: BackgroundTasks):
         # 3) 初始化本地 AI（如果 llama-cpp 不可用会自动走 Ollama fallback）
         await local_ai_manager.initialize_model()
     else:
-        # 如果关闭，则释放资源并停止 Ollama
-        local_ai_manager.shutdown()
+        # 物理级解耦：如果关闭，则彻底停止后端 AI 进程
+        print("[*] AI Plugin disabled. Killing AI processes for physical decoupling...")
+        await local_ai_manager.stop_ollama_server()
             
     return {"status": "success", "enabled": ai_enabled}
+
+@router.post("/ai/toggle")
+async def ai_toggle_api(payload: dict, background_tasks: BackgroundTasks):
+    """Alias for toggle-plugin to match Phase 2 requirements"""
+    return await toggle_ai_plugin(payload, background_tasks)
 
 @router.get("/ai/plugin-status")
 async def get_ai_plugin_status():

@@ -196,21 +196,73 @@ class LocalAIManager:
             print(f"[!] Error ensuring Ollama model: {e}")
             return False
 
+    async def stop_ollama_server(self):
+        """停止本地 Ollama 服务并释放资源"""
+        print("[*] Stopping Ollama server and releasing resources...")
+        self.is_ready = False
+        self.llm = None
+        
+        try:
+            import psutil
+            import os
+            import signal
+
+            found = False
+            # 1. 尝试终止所有相关的 ollama 进程
+            for proc in psutil.process_iter(['pid', 'name', 'exe']):
+                try:
+                    # 匹配进程名或可执行路径中包含 'ollama' 的进程
+                    name = proc.info.get('name', '').lower()
+                    exe = (proc.info.get('exe') or '').lower()
+                    
+                    if 'ollama' in name or 'ollama' in exe:
+                        print(f"[*] Found Ollama process: {proc.info['pid']} ({name})")
+                        found = True
+                        
+                        # 尝试优雅终止
+                        proc.terminate()
+                        
+                        # 等待一会看是否退出
+                        try:
+                            proc.wait(timeout=3)
+                        except psutil.TimeoutExpired:
+                            # 强制杀死
+                            print(f"[!] Process {proc.info['pid']} did not terminate, killing...")
+                            proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+
+            if not found:
+                print("[*] No active Ollama processes found to stop.")
+            else:
+                print("[*] All Ollama processes stopped successfully.")
+            
+            return True
+        except Exception as e:
+            print(f"[!] Failed to stop Ollama processes: {e}")
+            return False
+
     def shutdown(self):
-        """释放资源并尝试停止本地 Ollama 进程"""
+        """同步包装：释放资源并尝试停止本地 Ollama 进程"""
         print("[*] Local AI Manager shutting down...")
         self.is_ready = False
         self.llm = None
         
-        # 尝试停止本地 Ollama 进程 (针对 Windows 环境)
+        # 由于 shutdown 通常在同步上下文（如析构或主进程退出）调用，
+        # 我们这里使用同步方式执行清理
         try:
             import psutil
-            for proc in psutil.process_iter(['name']):
-                if proc.info['name'] and 'ollama' in proc.info['name'].lower():
-                    print(f"[*] Terminating background process: {proc.info['name']}")
-                    proc.terminate()
+            for proc in psutil.process_iter(['name', 'exe']):
+                try:
+                    name = proc.info.get('name', '').lower()
+                    exe = (proc.info.get('exe') or '').lower()
+                    if 'ollama' in name or 'ollama' in exe:
+                        print(f"[*] Terminating background process: {proc.info['pid']}")
+                        proc.kill() # 退出时直接强制杀死
+                except:
+                    continue
         except Exception as e:
-            print(f"[!] Failed to stop Ollama processes: {e}")
+            print(f"[!] Failed to stop Ollama processes during shutdown: {e}")
 
     async def initialize_model(self):
         """异步初始化模型：直接加载本地预置模型"""

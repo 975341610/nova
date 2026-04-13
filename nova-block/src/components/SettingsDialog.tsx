@@ -141,15 +141,27 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     <button
                       onClick={handleToggle}
                       disabled={toggling}
-                      className="p-1 hover:scale-110 transition-transform disabled:opacity-50"
+                      className="p-1 hover:scale-110 transition-transform disabled:opacity-50 relative"
                     >
-                      {isAiEnabled ? (
+                      {toggling ? (
+                        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                      ) : isAiEnabled ? (
                         <ToggleRight className="w-8 h-8 text-primary" />
                       ) : (
                         <ToggleLeft className="w-8 h-8 text-muted-foreground" />
                       )}
                     </button>
                   </div>
+
+                  {toggling && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-[10px] text-center text-primary/60 font-medium bg-primary/5 py-2 rounded-xl border border-primary/10"
+                    >
+                      {isAiEnabled ? "正在释放显存并停止 AI 服务进程..." : "正在拉起本地 AI 服务环境..."}
+                    </motion.div>
+                  )}
 
                   {/* Hardware Check */}
                   <div className="space-y-3">

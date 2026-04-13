@@ -240,6 +240,18 @@ def main():
             stats = repositories.update_user_wallpaper(db, params.get("wallpaper_url"))
             print(json.dumps({"exp": stats.exp, "level": stats.level, "wallpaper_url": stats.wallpaper_url}))
 
+        elif command == "text:dictionary:import":
+            # Direct use of spellcheck_engine to keep it consistent with routes.py
+            text = params.get("text", "")
+            if not text:
+                print(json.dumps({"error": "Empty text"}))
+            else:
+                try:
+                    count = spellcheck_engine.import_from_text(text)
+                    print(json.dumps({"status": "success", "count": count, "message": f"Successfully imported {count} rules"}))
+                except Exception as e:
+                    print(json.dumps({"error": str(e)}))
+
         elif command == "text:spellcheck":
             text = params.get("text", "")
             errors = spellcheck_engine.check(text) if text else []

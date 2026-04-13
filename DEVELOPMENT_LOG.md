@@ -1,6 +1,20 @@
 # Development Log
 
-## [2026-04-13] - 深度修复拼写检查偏移量与 AI 插件开关逻辑
+## [2026-04-13] - 真·插件系统 Phase 2: AI 服务进程动态启停与物理级解耦
+
+### 1. 后端进程精确管理
+- **跨平台进程终止**: 在 `local_ai.py` 中实现了 `stop_ollama_server` 方法，利用 `psutil` 跨平台精确识别并终止所有 `ollama` 相关的后台进程。
+- **优雅与强制混合终止策略**: 优先尝试 `proc.terminate()` 并在 3s 后超时则执行 `proc.kill()`，确保显存和内存得到物理级释放，解决进程残留问题。
+- **生命周期挂钩**: 更新了 `shutdown` 逻辑，确保主程序退出时能同步清理所有残留的 AI 服务子进程。
+
+### 2. API 路由增强
+- **新增 `/api/ai/toggle` 接口**: 支持 `{ enabled: boolean }` 载荷，作为 `toggle-plugin` 的标准别名。
+- **物理解耦链路逻辑**: 当 `enabled=false` 时，主动调用 `stop_ollama_server` 而非仅仅释放内存中的模型引用。
+
+### 3. 前端交互体验升级
+- **动态加载状态**: 在 `SettingsDialog.tsx` 中为 AI 插件开关增加了 `Loader2` 动画和明确的任务提示（如“正在释放显存并停止 AI 服务进程...”）。
+- **防抖保护**: 通过 React 状态锁定，防止用户在高耗时进程切换期间频繁点击开关导致进程树混乱。
+- **UI 状态同步**: 确保 AI 开关在切换时，前端视觉反馈与后端真实的进程状态达成强一致性。
 
 ### 0. 热修复：API 声明错误 (SyntaxError)
 - **修复 global 声明顺序**: 修复了 `backend/api/routes.py` 中 `inline_ai` 函数因 `global ai_enabled` 声明位于其首次使用之后导致的 `SyntaxError`。现已将声明移至函数开头。
