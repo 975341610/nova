@@ -292,7 +292,7 @@ export const api = {
     invoke<{ enabled: boolean }>('ai:toggle-plugin', '/ai/toggle-plugin', { method: 'POST', body: JSON.stringify({ enabled }) }),
   checkAIHardware: () => invoke<{ compatible: boolean; details: string }>('ai:hardware-check', '/ai/hardware-check'),
   spellcheck: (text: string) =>
-    invoke<{ errors: Array<{ word: string; suggestion: string; reason: string; offset: number }> }>('ai:spellcheck', '/ai/spellcheck', { method: 'POST', body: JSON.stringify({ text }) }),
+    invoke<{ errors: Array<{ word: string; suggestion: string; reason: string; offset: number }> }>('text:spellcheck', '/text/spellcheck', { method: 'POST', body: JSON.stringify({ text }) }),
   
   // Dummy implementations for PropertyPanel
   suggestTags: (content: string) => 

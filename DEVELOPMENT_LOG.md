@@ -13,13 +13,14 @@
 - **TDD 质量保证**: 新增了 `spellcheck_robust_test.py` 测试集，覆盖了中文字符偏移、重叠匹配、模板误报等边界场景，确保逻辑稳健。
 
 ### 2. AI 插件开关 (AI Switch) 彻底合规化
-- **后端 API 全量校验**: 为 `routes.py` 中的所有 AI 相关接口（`/ask`, `/search`, `/chat`, `/ai/inline`, `/ai/spellcheck`, `/ai/suggest-tags`, `/tags/suggest`）增加了 `ai_enabled` 全局开关校验。
+- **后端 API 全量校验**: 为 `routes.py` 中的所有 AI 相关接口（`/ask`, `/search`, `/chat`, `/ai/inline`, `/ai/suggest-tags`, `/tags/suggest`）增加了 `ai_enabled` 全局开关校验。（拼写检查已迁移为基础能力：`/text/spellcheck`，不受开关限制；`/ai/spellcheck` 仅作兼容转发）
 - **后台进程生命周期管理**: 
   - 在 `local_ai.py` 中实现了 `shutdown()` 方法。
   - 当用户在设置中关闭 AI 插件时，系统会自动终止后台运行的 `ollama.exe` 相关进程并释放 LLM 显存资源。
 - **状态持久化修复**: 确保后端启动时正确从 `data/ai_config.json` 加载 `enabled` 状态，而非硬编码为 `True`。
 - **异步任务拦截**: 在 `background_index_note_async` 中增加了开关检查，确保 AI 禁用时不会在后台消耗资源进行摘要生成或向量化。
-- **前端主动禁用**: `AISpellcheck` 扩展现在在每次检查前都会主动校验 AI 状态，若已禁用则立即停止请求并清除现有错误标记。
+- **前端拼写检查解绑**: `AISpellcheck` 扩展移除了运行前校验 AI 状态的逻辑，确保拼写检查始终作为核心规则能力运行。
+- **IPC 通道支持**: 适配了 `text:spellcheck` 通道，使得 Electron 本地模式下也能正常进行拼写检查。
 
 ---
 

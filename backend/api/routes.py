@@ -742,24 +742,26 @@ async def suggest_tags(payload: TagSuggestRequest, db: Session = Depends(get_db)
 
 from backend.services.spellcheck_engine import spellcheck_engine
 
-@router.post("/ai/spellcheck")
-async def ai_spellcheck(payload: dict):
-    """Context-Aware Spell Check using Rule Engine"""
-    if not ai_enabled:
-        return {"errors": []}
-        
+@router.post("/text/spellcheck")
+async def text_spellcheck(payload: dict):
+    """Text Spellcheck using pure rule engine (NOT gated by AI plugin toggle)"""
     text = payload.get("text", "")
     if not text:
         return {"errors": []}
-    
+
     try:
-        # 使用纯规则引擎，性能极高
+        # 纯规则引擎：高性能、可控、无模型依赖
         errors = spellcheck_engine.check(text)
         return {"errors": errors}
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Error in spellcheck_engine: {str(e)}")
         return {"errors": []}
+
+# Backward compatible route (historical naming). Keep it but DO NOT gate by ai_enabled.
+@router.post("/ai/spellcheck")
+async def ai_spellcheck(payload: dict):
+    return await text_spellcheck(payload)
 
 @router.post("/ai/suggest-tags")
 async def ai_suggest_tags(payload: dict):

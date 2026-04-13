@@ -8,6 +8,7 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
+from backend.services.spellcheck_engine import spellcheck_engine
 from backend.database import SessionLocal
 from backend.services import repositories
 from backend.models.schemas import NoteCreate, NoteUpdate, NotebookCreate, NotebookUpdate, TaskCreate, TaskUpdate
@@ -237,6 +238,11 @@ def main():
         elif command == "user:update-wallpaper":
             stats = repositories.update_user_wallpaper(db, params.get("wallpaper_url"))
             print(json.dumps({"exp": stats.exp, "level": stats.level, "wallpaper_url": stats.wallpaper_url}))
+
+        elif command == "text:spellcheck":
+            text = params.get("text", "")
+            errors = spellcheck_engine.check(text) if text else []
+            print(json.dumps({"errors": errors}))
 
         elif command == "system:version":
             print(json.dumps({

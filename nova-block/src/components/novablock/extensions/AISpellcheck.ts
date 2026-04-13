@@ -21,25 +21,6 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
       errors: [] as Array<{ word: string; suggestion: string; reason: string; from: number; to: number }>,
       isChecking: false,
       async runCheck(view: any, startPos: number, text: string) {
-        // Check if AI is enabled before running
-        try {
-          const status = await api.getAIPluginStatus();
-          if (!status.enabled) {
-            // Clear existing errors if disabled
-            if (this.errors.length > 0) {
-              this.errors = [];
-              const tr = view.state.tr;
-              const pluginKey = new PluginKey('ai-spellcheck-plugin');
-              tr.setMeta(pluginKey, { type: 'setDecorations', decorations: DecorationSet.empty });
-              view.dispatch(tr);
-            }
-            return;
-          }
-        } catch (e) {
-          console.error('Failed to check AI status:', e);
-          return;
-        }
-
         this.isChecking = true;
         try {
           const result = await api.spellcheck(text);
