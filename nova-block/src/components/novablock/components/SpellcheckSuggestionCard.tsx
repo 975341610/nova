@@ -1,5 +1,6 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, Sparkles, Lightbulb } from 'lucide-react';
 
 interface SpellcheckSuggestionCardProps {
@@ -27,47 +28,47 @@ export const SpellcheckSuggestionCard: React.FC<SpellcheckSuggestionCardProps> =
   onClose,
 }) => {
   const cardRef = React.useRef<HTMLDivElement>(null);
-  const [position, setPosition] = React.useState({ top: rect.top - 120, left: rect.left + rect.width / 2 });
+  const [position, setPosition] = React.useState({ top: -9999, left: -9999 });
 
   React.useLayoutEffect(() => {
     if (cardRef.current) {
       const cardRect = cardRef.current.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
       const viewportWidth = window.innerWidth;
-
-      let top = rect.top - cardRect.height - 12; // 12px gap
-      let left = rect.left + rect.width / 2;
+      // Start with the exact center of the red wavy text
+      let centerX = rect.left + rect.width / 2;
+      
+      // Calculate top: 12px above the text
+      let top = rect.top - cardRect.height - 12;
 
       // Flip to bottom if there's no space at top
       if (top < 10) {
         top = rect.top + rect.height + 12;
       }
 
-      // Keep within horizontal bounds
+      // Keep within horizontal bounds (account for the centered card)
       const halfWidth = cardRect.width / 2;
-      if (left - halfWidth < 10) {
-        left = halfWidth + 10;
-      } else if (left + halfWidth > viewportWidth - 10) {
-        left = viewportWidth - halfWidth - 10;
+      if (centerX - halfWidth < 10) {
+        centerX = halfWidth + 10;
+      } else if (centerX + halfWidth > viewportWidth - 10) {
+        centerX = viewportWidth - halfWidth - 10;
       }
 
-      setPosition({ top, left });
+      setPosition({ top, left: centerX });
     }
   }, [rect]);
 
-  return (
+  return createPortal(
     <motion.div
       ref={cardRef}
-      initial={{ opacity: 0, scale: 0.95, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      initial={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}
+      animate={{ opacity: 1, scale: 1, y: 0, x: "-50%" }}
+      exit={{ opacity: 0, scale: 0.95, y: 10, x: "-50%" }}
       transition={{ type: 'spring', damping: 20, stiffness: 300 }}
       style={{
         position: 'fixed',
         top: position.top,
         left: position.left,
-        translateX: '-50%',
-        zIndex: 1000,
+        zIndex: 99999,
       }}
       className="w-64 overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-800/50 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex flex-col p-3 gap-3"
     >
@@ -109,6 +110,7 @@ export const SpellcheckSuggestionCard: React.FC<SpellcheckSuggestionCardProps> =
         一键采纳
         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
       </button>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };

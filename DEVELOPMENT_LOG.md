@@ -35,6 +35,10 @@
   - 修复了 Tiptap Decoration 点击拦截问题，通过自定义事件 `open-spellcheck-suggestion` 传递错误详情。
   - 实现“一键替换”功能，点击建议词即可自动修正编辑器内的错字并触发保存逻辑。
 - **健壮性增强**: 确保卡片精确定位在错词上方，并处理了点击空白处自动关闭的逻辑。
+- **水平居中偏移修复 (Horizontal Centering Fix) [2026-04-13]**:
+  - 优化了 `SpellcheckSuggestionCard.tsx` 的定位算法，明确以错别字区域的绝对中心点 `centerX = left + width / 2` 为基准。
+  - 修正了 `framer-motion` 的样式应用，将 `translateX: '-50%'` 更改为显式的 `transform: 'translateX(-50%)'`，确保 CSS 属性正确生效。
+  - 改进了视口边界检测逻辑，配合 `translateX(-50%)` 确保卡片在左右边缘处能自动吸附且不偏移中心。
 - **异步任务拦截**: 在 `background_index_note_async` 中增加了开关检查，确保 AI 禁用时不会在后台消耗资源进行摘要生成或向量化。
 - **前端拼写检查解绑**: `AISpellcheck` 扩展移除了运行前校验 AI 状态的逻辑，确保拼写检查始终作为核心规则能力运行。
 - **IPC 通道支持**: 适配了 `text:spellcheck` 通道，使得 Electron 本地模式下也能正常进行拼写检查。
