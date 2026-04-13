@@ -45,6 +45,7 @@ import { getNoteLinkSuggestionConfig } from './extensions/NoteLinkConfig';
 import { useAI } from '../../contexts/AIContext';
 import { TableOfContents } from './components/TableOfContents';
 import { EmoticonPanel } from '../editor/EmoticonPanel';
+import { SpellcheckSuggestionCard } from './components/SpellcheckSuggestionCard';
 
 const NOVA_BLOCK_SLASH_ITEMS = [
   // 0. AI 助理 (AI Assistant)
@@ -179,6 +180,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   const [isStickerMode, setIsStickerMode] = useState(false);
   const [isStickerPanelOpen, setIsStickerPanelOpen] = useState(false);
   const [isEmoticonPanelOpen, setIsEmoticonPanelOpen] = useState(false);
+  const [spellcheckError, setSpellcheckError] = useState<{ error: any, rect: any } | null>(null);
   const blockMenuRef = useRef<HTMLDivElement>(null);
   const emoticonPanelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -714,11 +716,17 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     };
     window.addEventListener('ai-action', handleAIAction);
 
+    const handleSpellcheckOpen = (e: any) => {
+      setSpellcheckError(e.detail);
+    };
+    window.addEventListener('open-spellcheck-suggestion', handleSpellcheckOpen);
+
     return () => {
       window.removeEventListener('add-sticky-note', handleAddSticker as EventListener);
       window.removeEventListener('open-emoticon-panel', handleOpenEmoticon);
       window.removeEventListener('ai-write', handleAIWrite as EventListener);
       window.removeEventListener('ai-action', handleAIAction);
+      window.removeEventListener('open-spellcheck-suggestion', handleSpellcheckOpen);
     };
   }, [editor, stickers, stickyNotes, handleStickersChange, handleStickyNotesChange, onSave]);
 
@@ -1487,6 +1495,24 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
               window.dispatchEvent(new CustomEvent('add-sticky-note', { 
                 detail: { url: formatUrl(url), type: 'image' } 
               }));
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {spellcheckError && (
+          <SpellcheckSuggestionCard
+            error={spellcheckError.error}
+            rect={spellcheckError.rect}
+            onClose={() => setSpellcheckError(null)}
+            onReplace={(suggestion) => {
+              if (editor && spellcheckError) {
+                const { error } = spellcheckError;
+                editor.chain().focus().insertContentAt({ from: error.from, to: error.to }, suggestion).run();
+                setSpellcheckError(null);
+                onNotify?.('已修正错别字', 'success');
+              }
             }}
           />
         )}

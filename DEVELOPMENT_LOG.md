@@ -18,6 +18,15 @@
   - 在 `local_ai.py` 中实现了 `shutdown()` 方法。
   - 当用户在设置中关闭 AI 插件时，系统会自动终止后台运行的 `ollama.exe` 相关进程并释放 LLM 显存资源。
 - **状态持久化修复**: 确保后端启动时正确从 `data/ai_config.json` 加载 `enabled` 状态，而非硬编码为 `True`。
+
+### 3. [待确认] 错别字修改建议悬浮卡片 (Suggestion Card UI)
+- **UI/UX 进化 (Linear/Apple 风格)**: 
+  - 实现了 `SpellcheckSuggestionCard.tsx` 组件，采用 `backdrop-blur-xl`、`rounded-2xl` 和 `shadow-soft` 设计语言。
+  - 引入 `framer-motion` 弹性动画（Spring Animation），提升卡片弹出与消失的丝滑感。
+- **交互逻辑重构**: 
+  - 修复了 Tiptap Decoration 点击拦截问题，通过自定义事件 `open-spellcheck-suggestion` 传递错误详情。
+  - 实现“一键替换”功能，点击建议词即可自动修正编辑器内的错字并触发保存逻辑。
+- **健壮性增强**: 确保卡片精确定位在错词上方，并处理了点击空白处自动关闭的逻辑。
 - **异步任务拦截**: 在 `background_index_note_async` 中增加了开关检查，确保 AI 禁用时不会在后台消耗资源进行摘要生成或向量化。
 - **前端拼写检查解绑**: `AISpellcheck` 扩展移除了运行前校验 AI 状态的逻辑，确保拼写检查始终作为核心规则能力运行。
 - **IPC 通道支持**: 适配了 `text:spellcheck` 通道，使得 Electron 本地模式下也能正常进行拼写检查。

@@ -146,28 +146,21 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
               
               if (errorIdx !== -1) {
                 const error = errors[errorIdx];
-                if (window.confirm(`Correct "${error.word}" to "${error.suggestion}"?\nReason: ${error.reason}`)) {
-                  const { tr } = view.state;
-                  tr.insertText(error.suggestion, error.from, error.to);
-                  
-                  // Clear this specific error
-                  storage.errors.splice(errorIdx, 1);
-                  
-                  // Re-render decorations
-                  const newDecos = storage.errors.map(e => 
-                    Decoration.inline(e.from, e.to, {
-                      class: 'ai-spellcheck-error',
-                      style: 'text-decoration: underline wavy red; cursor: pointer;',
-                    })
-                  );
-                  tr.setMeta(spellcheckPluginKey, { 
-                    type: 'setDecorations', 
-                    decorations: DecorationSet.create(tr.doc, newDecos) 
-                  });
-                  
-                  view.dispatch(tr);
-                  return true;
-                }
+                const rect = (event.target as HTMLElement).getBoundingClientRect();
+                
+                // Dispatch event instead of window.confirm
+                window.dispatchEvent(new CustomEvent('open-spellcheck-suggestion', {
+                  detail: {
+                    error,
+                    rect: {
+                      top: rect.top,
+                      left: rect.left,
+                      width: rect.width,
+                      height: rect.height
+                    }
+                  }
+                }));
+                return true;
               }
               return false;
             }
