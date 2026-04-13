@@ -3,6 +3,8 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { api } from '../../../lib/api';
 
+const spellcheckPluginKey = new PluginKey('ai-spellcheck-plugin');
+
 export interface AISpellcheckOptions {
   debounceMs: number;
 }
@@ -51,8 +53,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
           
           // Dispatch transaction to update decorations
           const tr = view.state.tr;
-          const pluginKey = new PluginKey('ai-spellcheck-plugin');
-          tr.setMeta(pluginKey, { 
+          tr.setMeta(spellcheckPluginKey, { 
             type: 'setDecorations', 
             decorations: DecorationSet.create(tr.doc, decorations) 
           });
@@ -70,8 +71,6 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
   addProseMirrorPlugins() {
     const { editor, options, storage } = this;
     let debounceTimer: any = null;
-
-    const spellcheckPluginKey = new PluginKey('ai-spellcheck-plugin');
 
     return [
       new Plugin({

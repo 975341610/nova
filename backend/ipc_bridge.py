@@ -9,6 +9,7 @@ if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
 from backend.services.spellcheck_engine import spellcheck_engine
+from backend.services.local_ai import local_ai_manager
 from backend.database import SessionLocal
 from backend.services import repositories
 from backend.models.schemas import NoteCreate, NoteUpdate, NotebookCreate, NotebookUpdate, TaskCreate, TaskUpdate
@@ -243,6 +244,21 @@ def main():
             text = params.get("text", "")
             errors = spellcheck_engine.check(text) if text else []
             print(json.dumps({"errors": errors}))
+
+        elif command == "ai:plugin-status":
+            from backend.api import routes
+            print(json.dumps({"enabled": routes.ai_enabled}))
+
+        elif command == "ai:toggle-plugin":
+            from backend.api.routes import toggle_ai_plugin
+            from fastapi import BackgroundTasks
+            import asyncio
+            async def run():
+                bg = BackgroundTasks()
+                await toggle_ai_plugin(params, bg)
+                from backend.api import routes
+                return {"enabled": routes.ai_enabled}
+            print(json.dumps(asyncio.run(run())))
 
         elif command == "system:version":
             print(json.dumps({

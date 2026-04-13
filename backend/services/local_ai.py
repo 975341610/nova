@@ -52,8 +52,73 @@ class LocalAIManager:
             "model_path": str(self.model_path) if self.model_path else None
         }
 
+    async def _check_ollama_running(self) -> bool:
+        """检查 Ollama 服务是否正在运行"""
+        import httpx
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get("http://127.0.0.1:11434/api/tags", timeout=1.0)
+                return resp.status_code == 200
+            except:
+                return False
+
+    async def start_ollama_server(self):
+        """启动集成的 Ollama 服务"""
+        import subprocess
+        import os
+        from pathlib import Path
+        
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        ollama_bin = base_dir / "bin" / "ollama.exe"
+        if not ollama_bin.exists():
+            print(f"[!] Ollama binary not found at {ollama_bin}")
+            return False
+            
+        env = os.environ.copy()
+        env["OLLAMA_HOST"] = "127.0.0.1:11434"
+        env["OLLAMA_MODELS"] = str(base_dir / "data" / "ollama_models")
+        
+        print(f"[*] Starting Ollama server from {ollama_bin} in background...")
+        try:
+            if os.name == 'nt':
+                # Windows: hide console window
+                subprocess.Popen(
+                    [str(ollama_bin), "serve"],
+                    env=env,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            else:
+                subprocess.Popen(
+                    [str(ollama_bin), "serve"],
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+            return True
+        except Exception as e:
+            print(f"[!] Error starting Ollama server: {e}")
+            return False
+
     async def _ensure_ollama_model(self) -> bool:
         """确保本地 GGUF 模型已注册到 Ollama (nova-local)"""
+        # 1. 检查 Ollama 服务是否可用，如果不可用尝试启动它
+        is_running = await self._check_ollama_running()
+        if not is_running:
+            print("[*] Ollama not running, attempting to start it...")
+            await self.start_ollama_server()
+            # 等待几秒让服务启动
+            for _ in range(5):
+                await asyncio.sleep(1)
+                if await self._check_ollama_running():
+                    is_running = True
+                    break
+        
+        if not is_running:
+            print("[!] Failed to start or reach Ollama server.")
+            return False
+
         if not self.model_path or not self.model_path.exists():
             return False
             
@@ -61,7 +126,7 @@ class LocalAIManager:
         try:
             import httpx
             
-            # 1. 检查 Ollama 服务是否可用
+            # 2. 检查模型是否已存在
             async with httpx.AsyncClient() as client:
                 try:
                     resp = await client.get("http://127.0.0.1:11434/api/tags", timeout=5.0)

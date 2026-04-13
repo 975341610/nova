@@ -6,6 +6,7 @@ except ImportError:
     pass
 
 import os
+import sys
 import uuid
 import shutil
 import asyncio
@@ -1682,9 +1683,8 @@ async def toggle_ai_plugin(payload: dict, background_tasks: BackgroundTasks):
     
     if ai_enabled:
         logging.warning(f"[DEBUG] toggle_ai_plugin local_ai_manager id: {id(local_ai_manager)}")
-        
-        # 动态运行 ensure_ollama.py 如果需要 (只有在启用且 Ollama 服务没起来时才可能需要)
-        # 这里简单起见，每次开启都跑一次 ensure_ollama (它自带有版本检查)
+
+        # 1) 确保集成的 Ollama 引擎已下载（ensure_ollama.py）
         try:
             base_dir = Path(__file__).resolve().parent.parent.parent
             script_path = base_dir / "ensure_ollama.py"
@@ -1695,7 +1695,13 @@ async def toggle_ai_plugin(payload: dict, background_tasks: BackgroundTasks):
         except Exception as e:
             print(f"[!] Failed to run ensure_ollama dynamically: {e}")
 
-        # 直接执行初始化 (由于已预置模型且逻辑已简化，此处将瞬间完成)
+        # 2) 启动 Ollama（若未启动）
+        try:
+            await local_ai_manager.start_ollama_server()
+        except Exception as e:
+            print(f"[!] Failed to start Ollama server: {e}")
+
+        # 3) 初始化本地 AI（如果 llama-cpp 不可用会自动走 Ollama fallback）
         await local_ai_manager.initialize_model()
     else:
         # 如果关闭，则释放资源并停止 Ollama
