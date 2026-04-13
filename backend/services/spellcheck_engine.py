@@ -1,19 +1,26 @@
 import ahocorasick
 import re
+import json
+import os
+from pathlib import Path
 from typing import List, Dict, Any, Set, Tuple
 
 class SpellcheckEngine:
     """
     纯规则拼写检查引擎，基于 Aho-Corasick 算法与正则表达式。
+    支持自定义词库导入与热更新。
     """
-    def __init__(self):
+    def __init__(self, user_dict_path: str = None):
         self.automaton = ahocorasick.Automaton()
         self.mistakes: Dict[str, Tuple[str, str]] = {} # key: wrong, value: (suggestion, reason)
         self.whitelist: Set[str] = set()
         self._is_built = False
+        self.user_dict_path = user_dict_path or str(Path(os.environ.get("DATA_ROOT", ".")) / "user_dictionary.json")
         
         # 内置高频易错词库
         self._load_builtin_rules()
+        # 加载用户词库
+        self.load_user_rules()
 
     def _load_builtin_rules(self):
         # 常见别字与混淆词
@@ -177,6 +184,91 @@ class SpellcheckEngine:
         if not self._is_built:
             self.automaton.make_automaton()
             self._is_built = True
+
+    def load_user_rules(self):
+        """加载持久化的用户词库"""
+        if os.path.exists(self.user_dict_path):
+            try:
+                with open(self.user_dict_path, "r", encoding="utf-8") as f:
+                    user_rules = json.load(f)
+                    for rule in user_rules:
+                        # 格式: [wrong, correct, reason]
+                        if len(rule) >= 3:
+                            self.add_mistake(rule[0], rule[1], rule[2])
+            except Exception as e:
+                print(f"Error loading user rules: {e}")
+
+    def import_from_text(self, text: str) -> int:
+        """
+        解析文本并导入规则，实现热更新与持久化。
+        返回成功解析的规则数。
+        """
+        rules = self._parse_text_to_rules(text)
+        if not rules:
+            return 0
+            
+        # 1. 更新当前内存引擎
+        for wrong, correct, reason in rules:
+            self.add_mistake(wrong, correct, reason)
+        self.build()
+        
+        # 2. 持久化（由于是规则文件，通常不大，直接重写）
+        # 先读取已有的，合并新来的
+        existing_rules = []
+        if os.path.exists(self.user_dict_path):
+            try:
+                with open(self.user_dict_path, "r", encoding="utf-8") as f:
+                    existing_rules = json.load(f)
+            except:
+                pass
+        
+        # 合并去重（根据错误词）
+        seen = {r[0] for r in existing_rules}
+        for r in rules:
+            if r[0] not in seen:
+                existing_rules.append(list(r))
+                seen.add(r[0])
+        
+        try:
+            with open(self.user_dict_path, "w", encoding="utf-8") as f:
+                json.dump(existing_rules, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Error saving user rules: {e}")
+            
+        return len(rules)
+
+    def _parse_text_to_rules(self, text: str) -> List[Tuple[str, str, str]]:
+        """
+        解析多种格式的词库文本。
+        支持:
+        1. ("发贴", "发帖", "现代词汇"),
+        2. 错误词, 正确词, 理由
+        3. "引号词", "正确引号", "理由"
+        """
+        rules = []
+        lines = text.split("\n")
+        
+        # 匹配模式 1: ("a", "b", "c")
+        p1 = re.compile(r'\(\s*["\'\(\（]?\s*([^"\'\)\）,，]+)\s*["\'\)\）]?\s*[,，]\s*["\'\(\（]?\s*([^"\'\)\）,，]+)\s*["\'\)\）]?\s*[,，]\s*["\'\(\（]?\s*([^"\'\)\）,，]+)\s*["\'\)\）]?\s*\)')
+        # 匹配模式 2/3: a, b, c
+        p2 = re.compile(r'["\']?([^"\'\s,，]+)["\']?\s*[,，]\s*["\']?([^"\'\s,，]+)["\']?\s*[,，]\s*["\']?([^"\'\s,，]+)["\']?')
+
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            
+            # 模式 1 优先
+            m1 = p1.search(line)
+            if m1:
+                rules.append((m1.group(1).strip(), m1.group(2).strip(), m1.group(3).strip()))
+                continue
+                
+            # 模式 2/3
+            m2 = p2.search(line)
+            if m2:
+                rules.append((m2.group(1).strip(), m2.group(2).strip(), m2.group(3).strip()))
+        
+        return rules
 
     def _is_in_whitelist(self, text: str, start: int, end: int) -> bool:
         """

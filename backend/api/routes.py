@@ -759,6 +759,21 @@ async def text_spellcheck(payload: dict):
         logging.getLogger(__name__).error(f"Error in spellcheck_engine: {str(e)}")
         return {"errors": []}
 
+@router.post("/text/dictionary/import")
+async def import_dictionary(payload: dict):
+    """导入用户自定义词库文本并触发热更新"""
+    text = payload.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty text")
+    
+    try:
+        count = spellcheck_engine.import_from_text(text)
+        return {"status": "success", "count": count, "message": f"Successfully imported {count} rules"}
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error importing dictionary: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Backward compatible route (historical naming). Keep it but DO NOT gate by ai_enabled.
 @router.post("/ai/spellcheck")
 async def ai_spellcheck(payload: dict):
