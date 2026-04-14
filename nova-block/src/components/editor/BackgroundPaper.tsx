@@ -7,9 +7,10 @@ interface BackgroundPaperProps {
 }
 
 export const BackgroundPaper: React.FC<BackgroundPaperProps> = React.memo(({ type, opacity = 0.4 }) => {
-  if (!type || type === 'none') return null;
+  const isNone = !type || type === 'none';
 
   const getStyle = (): React.CSSProperties => {
+    if (isNone) return {};
     switch (type) {
       case 'dot':
         return {
@@ -36,7 +37,7 @@ export const BackgroundPaper: React.FC<BackgroundPaperProps> = React.memo(({ typ
       className="absolute inset-0 pointer-events-none z-0 transition-opacity duration-500"
       style={{
         ...getStyle(),
-        opacity: opacity,
+        opacity: isNone ? 0 : opacity,
         color: 'rgba(0, 0, 0, 0.1)', // Default light color for paper patterns
       }}
       aria-hidden="true"
