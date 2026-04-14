@@ -1716,13 +1716,14 @@ async def toggle_ai_plugin(payload: dict, background_tasks: BackgroundTasks):
 
         logging.warning(f"[DEBUG] toggle_ai_plugin local_ai_manager id: {id(local_ai_manager)}")
 
-        # 1) 确保集成的 Ollama 引擎已下载（ensure_ollama.py）
+        # 1) 确保集成的 Ollama 引擎已下载（ensure_ollama.py）仅限 Windows
         try:
             base_dir = Path(__file__).resolve().parent.parent.parent
             script_path = base_dir / "ensure_ollama.py"
-            if script_path.exists():
+            if script_path.exists() and sys.platform == "win32":
                 print(f"[*] Dynamically running {script_path}...")
-                subprocess.run([sys.executable, str(script_path)], cwd=str(base_dir))
+                process = await asyncio.create_subprocess_exec(sys.executable, str(script_path), cwd=str(base_dir))
+                await process.wait()
         except Exception as e:
             print(f"[!] Failed to run ensure_ollama dynamically: {e}")
 

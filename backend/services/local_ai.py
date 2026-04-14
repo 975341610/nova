@@ -67,7 +67,12 @@ class LocalAIManager:
         import subprocess
         import os
         from pathlib import Path
+        import sys
         
+        if sys.platform != "win32":
+            print("[!] Local Ollama engine integration is currently only supported on Windows.")
+            return False
+            
         base_dir = Path(__file__).resolve().parent.parent.parent
         ollama_bin = base_dir / "bin" / "ollama.exe"
         if not ollama_bin.exists():

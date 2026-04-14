@@ -1,5 +1,11 @@
 # Development Log
 
+## [2026-04-14] - AI 插件跨平台稳定性修复
+
+### 1. 修复 Linux/Cloud 环境下 AI 插件开关超时
+- **绕过 Windows 专属脚本**: 在 `backend/api/routes.py` 和 `backend/services/local_ai.py` 中增加了系统平台检查。
+- **异步化进程调用**: 将 `ensure_ollama.py` 的执行改为异步子进程调用 (`asyncio.create_subprocess_exec`)，并仅在 Windows (`win32`) 平台上触发，彻底解决了 Linux 环境下因同步执行该脚本导致的异步事件循环阻塞和接口响应超时问题。
+
 ## [2026-04-14] - 模板管理功能修复 (Hotfix)
 
 ### 1. 修复模板删除与更新 404 错误
