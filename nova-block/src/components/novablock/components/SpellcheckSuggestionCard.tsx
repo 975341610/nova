@@ -1,16 +1,11 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Check, X, Sparkles, Lightbulb } from 'lucide-react';
+import type { SpellcheckError } from '../extensions/AISpellcheck';
 
 interface SpellcheckSuggestionCardProps {
-  error: {
-    word: string;
-    suggestion: string;
-    reason: string;
-    from: number;
-    to: number;
-  };
+  error: SpellcheckError;
   rect: {
     top: number;
     left: number;

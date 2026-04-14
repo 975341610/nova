@@ -1,5 +1,22 @@
 # Development Log
 
+## [2026-04-14] - UI 交互与性能深度修复 (v0.17.1)
+
+### 1. 拖拽幽灵线条 (Drop Cursor Ghosting) 终极修复
+- **移除粗暴的 DOM 操作**: 废弃了之前通过 `requestAnimationFrame` 强制 `el.remove()` 物理删除 `.nova-drop-cursor` 的方案，该方案会导致 ProseMirror 内部插件（`DropCursorView`）在执行 `removeChild` 时报 `TypeError: Cannot read properties of null` 错误。
+- **引入安全的 CSS 隐藏方案**: 将所有强制清理操作替换为安全可控的 CSS 样式修改（`(el as HTMLElement).style.display = 'none'` 和 `opacity = '0'`），完美解决了快速拖拽过程中的“幽灵线条”残留问题，且彻底消除了控制台的报错。
+
+### 2. 拖拽手柄 (Drag Handle) 点击与拖拽事件冲突修复
+- **精准的意图识别**: 引入了 `dragInteractionRef` 引用来记录鼠标按下的起始坐标（X, Y）和时间戳。
+- **区分点击和拖拽**: 在触发拖拽前判断鼠标移动距离（>4px）和持续时间（>300ms）。如果是单纯的短促点击，则打开节点选项菜单；如果是真正的拖拽，则平滑进入拖拽状态。这解决了“Notion风格手柄一点击就误判为拖拽”的交互痛点。
+
+### 3. AI 拼写检查红线残留问题修复
+- **精准的状态拦截**: 在 `NovaBlockEditor.tsx` 中拦截了 `removeError` meta 事务（Transaction），一旦检测到该事务，强制返回 `DecorationSet.empty`，确保红线（Decoration）能立即消失，并同步清空了 `storage.errors`。
+
+### 4. 工程与环境修复
+- 解决了所有的 TypeScript 编译错误，确保 `npm run build` 无警告通过。
+- 修复了后端可能出现的 `405 Method Not Allowed` 和僵尸进程占用端口 (`8765`) 问题，完善了开发体验。
+
 ## [2026-04-13] - 真·插件系统 Phase 2: AI 服务进程动态启停与物理级解耦
 
 ### 1. 后端进程精确管理

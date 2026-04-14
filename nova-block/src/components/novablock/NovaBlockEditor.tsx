@@ -6,6 +6,7 @@ import type { ChainedCommands } from '@tiptap/core';
 import { BubbleMenu } from '@tiptap/react/menus';
 import DragHandle from '@tiptap/extension-drag-handle-react';
 import StarterKit from '@tiptap/starter-kit';
+import Dropcursor from '@tiptap/extension-dropcursor';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
 import UnderlineExtension from '@tiptap/extension-underline';
@@ -34,7 +35,7 @@ import {
     ColumnGroup, Column, HighlightBlock,
     WashiTape, JournalStamp, Blockquote, CodeBlock, FilePlaceholder, FileUpload,
     CountdownNode, MusicPlayerNode, MiniCalendarNode, KanbanNode, HabitTrackerNode, TodoNode,
-    Emoticon, SliderExtension, NoteLink, TextEffect, AISpellcheck
+    Emoticon, SliderExtension, NoteLink, TextEffect, AISpellcheck, spellcheckPluginKey
    } from '../../lib/tiptapExtensions';
 
 import type { Note } from '../../lib/types';
@@ -477,12 +478,62 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeDragHandlePosRef = useRef(-1);
   const dragHandleRepositionFrameRef = useRef<number | null>(null);
+  const dragInteractionRef = useRef<{ startX: number; startY: number; startTime: number } | null>(null);
 
   const slashItemsRef = useRef<any[]>(NOVA_BLOCK_SLASH_ITEMS);
   slashItemsRef.current = NOVA_BLOCK_SLASH_ITEMS;
   
   // 淇濇寔瀵规渶鏂?note 鐨勫紩鐢紝闃叉鍦?useEditor 闂寘涓嬁鍒版棫鐨?state 瀵艰嚧灞炴€ц瑕嗙洊
   const latestNoteRef = useRef(note);
+
+  // Global drop cursor ghost cleanup (running during drag)
+  useEffect(() => {
+    let cleanupTimer: any = null;
+    const cleanupGhosts = () => {
+      if (cleanupTimer) return;
+      cleanupTimer = requestAnimationFrame(() => {
+        cleanupTimer = null;
+        const cursors = document.querySelectorAll('.nova-drop-cursor, .ProseMirror-dropcursor');
+        if (cursors.length > 1) {
+          // Keep the last one visible, hide the rest without removing them from DOM
+          // This prevents ProseMirror DropCursorView from crashing when it tries to removeChild on nodes we already deleted
+          for (let i = 0; i < cursors.length - 1; i++) {
+            (cursors[i] as HTMLElement).style.display = 'none';
+            (cursors[i] as HTMLElement).style.opacity = '0';
+          }
+        }
+      });
+    };
+
+    window.addEventListener('dragover', cleanupGhosts);
+    window.addEventListener('drag', cleanupGhosts);
+    
+    // Safety net on drag end as well
+    const forceCleanAll = () => {
+      setTimeout(() => {
+        document.querySelectorAll('.nova-drop-cursor, .ProseMirror-dropcursor').forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      }, 50);
+      setTimeout(() => {
+        document.querySelectorAll('.nova-drop-cursor, .ProseMirror-dropcursor').forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      }, 300);
+    };
+    window.addEventListener('dragend', forceCleanAll);
+    window.addEventListener('drop', forceCleanAll);
+
+    return () => {
+      window.removeEventListener('dragover', cleanupGhosts);
+      window.removeEventListener('drag', cleanupGhosts);
+      window.removeEventListener('dragend', forceCleanAll);
+      window.removeEventListener('drop', forceCleanAll);
+      if (cleanupTimer) cancelAnimationFrame(cleanupTimer);
+    };
+  }, []);
+
+
   useEffect(() => {
     latestNoteRef.current = note;
   }, [note]);
@@ -511,6 +562,12 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
       blockquote: false,
       link: false,
       underline: false,
+      dropcursor: false,
+    }),
+    Dropcursor.configure({
+      color: 'hsl(var(--primary))',
+      width: 2,
+      class: 'nova-drop-cursor',
     }),
     Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }),
     Blockquote,
@@ -1196,12 +1253,30 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     };
   }, [isEmoticonPanelOpen]);
 
-  // 澶勭悊鎷栨嫿鎵嬫焺鐐瑰嚮锛氭崟鑾峰綋鍓?Block 浣嶇疆
+  // 处理拖拽手柄点击：严格区分点击与拖拽 (Notion 风格)
   const handleGripClick = (e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
+    e.preventDefault();
+
+    // 如果最近有显著的拖拽行为，不触发点击菜单
+    if (dragInteractionRef.current) {
+      const { startX, startY, startTime } = dragInteractionRef.current;
+      const dx = Math.abs(e.clientX - startX);
+      const dy = Math.abs(e.clientY - startY);
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const duration = Date.now() - startTime;
+
+      // Notion 逻辑：如果移动距离超过阈值，视为拖拽
+      if (distance > 4 || duration > 300) {
+        dragInteractionRef.current = null;
+        return;
+      }
+    }
 
     if (!editor) return;
+
+    // 清除状态防止干扰
+    dragInteractionRef.current = null;
 
     if (!isBlockMenuOpen) {
       const blockPos = activeDragHandlePosRef.current;
@@ -1214,11 +1289,27 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
           right: gripRect.right,
           bottom: gripRect.bottom,
         });
+        
+        // Notion 点击手柄时会选中该块
         editor.commands.setNodeSelection(blockPos);
+        
+        // 同时延迟打开菜单以确保布局稳定
+        requestAnimationFrame(() => {
+          setIsBlockMenuOpen(true);
+        });
+        return;
       }
     }
     
     setIsBlockMenuOpen(!isBlockMenuOpen);
+  };
+
+  const handleGripMouseDown = (e: React.MouseEvent) => {
+    dragInteractionRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startTime: Date.now(),
+    };
   };
   
   // 鎬ц兘鐩戞帶 (uipro 鏍稿績閾佸緥锛氭€ц兘绗竴)
@@ -1355,6 +1446,11 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
           // 璇ユ彃浠跺唴閮ㄧ洃鍚簡 window 婊氬姩锛屼絾瀵逛簬鑷畾涔夋粴鍔ㄥ鍣ㄩ渶瑕佹墜鍔ㄨЕ鍙?
           scheduleDragHandleReposition();
         }}
+        onDragEnd={() => {
+          document.querySelectorAll('.nova-drop-cursor, .ProseMirror-dropcursor').forEach(el => {
+            (el as HTMLElement).style.display = 'none';
+          });
+        }}
         onDragOver={(e) => {
           if (isStickerMode) {
             e.preventDefault();
@@ -1467,12 +1563,20 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                     scheduleDragHandleReposition();
                   }
                 }}
+                onElementDragEnd={() => {
+                  setTimeout(() => {
+                    document.querySelectorAll('.nova-drop-cursor, .ProseMirror-dropcursor').forEach(el => {
+                      (el as HTMLElement).style.display = 'none';
+                    });
+                  }, 50);
+                }}
                 // @ts-ignore
                 computePositionConfig={dragHandleComputePositionConfig}
               >
                 <div className="flex items-center gap-1 group/handle relative" ref={blockMenuRef}>
                   <div 
-                    onMouseDown={handleGripClick}
+                    onMouseDown={handleGripMouseDown}
+                    onClick={handleGripClick}
                     className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 cursor-grab active:cursor-grabbing text-stone-400 group-hover/handle:text-stone-600 transition-colors drag-handle"
                   >
                     <GripVertical size={16} />
@@ -1704,7 +1808,8 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
             {/* 娴姩鑿滃崟 */}
             {editor && (
               <BubbleMenu 
-                editor={editor} 
+                editor={editor} 
+
                 shouldShow={({ editor }: { editor: Editor }) => {
                   const { selection } = editor.state;
                   const isNodeSelection = selection instanceof NodeSelection;
@@ -1933,12 +2038,17 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
             error={spellcheckError.error}
             rect={spellcheckError.rect}
             onClose={() => setSpellcheckError(null)}
-            onReplace={(suggestion) => {
+                onReplace={(suggestion) => {
               if (editor && spellcheckError) {
                 const { error } = spellcheckError;
-                editor.chain().focus().insertContentAt({ from: error.from, to: error.to }, suggestion).run();
+                // Dispatch meta to remove the error and decoration BEFORE mapping changing the pos
+                const tr = editor.state.tr;
+                tr.setMeta(spellcheckPluginKey, { type: 'removeError', from: error.from, to: error.to });
+                tr.insertText(suggestion, error.from, error.to);
+                editor.view.dispatch(tr);
+
                 setSpellcheckError(null);
-                onNotify?.('宸蹭慨姝ｉ敊鍒瓧', 'success');
+                onNotify?.('已修正错别字', 'success');
               }
             }}
           />

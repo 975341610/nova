@@ -36,7 +36,7 @@ export { HabitTrackerNode } from './novablock/extensions/HabitTrackerNode';
 export { TodoNode } from './novablock/extensions/TodoNode';
 export { Emoticon } from '../components/novablock/extensions/Emoticon';
 export { NoteLink } from '../components/novablock/extensions/NoteLink';
-export { AISpellcheck } from '../components/novablock/extensions/AISpellcheck';
+export { AISpellcheck, spellcheckPluginKey } from '../components/novablock/extensions/AISpellcheck';
 
 // Keep WikiLink for backward compatibility if needed, or replace it. 
 // The user asked for a Tiptap Extension with capsule style and ID. 

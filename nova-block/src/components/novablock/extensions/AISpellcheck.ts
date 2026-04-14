@@ -1,12 +1,22 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { EditorView } from '@tiptap/pm/view';
+import { Node } from '@tiptap/pm/model';
 import { api } from '../../../lib/api';
 
-const spellcheckPluginKey = new PluginKey('ai-spellcheck-plugin');
+export const spellcheckPluginKey = new PluginKey('ai-spellcheck-plugin');
 
 export interface AISpellcheckOptions {
   debounceMs: number;
+}
+
+export interface SpellcheckError {
+  word: string;
+  suggestion: string;
+  reason: string;
+  from: number;
+  to: number;
 }
 
 export const AISpellcheck = Extension.create<AISpellcheckOptions>({
@@ -20,23 +30,22 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
 
   addStorage() {
     return {
-      errors: [] as Array<{ word: string; suggestion: string; reason: string; from: number; to: number }>,
+      errors: [] as SpellcheckError[],
       isChecking: false,
-      async runCheck(view: any, text: string) {
+      async runCheck(view: EditorView, text: string) {
         if (this.isChecking) return;
         this.isChecking = true;
         try {
           const result = await api.spellcheck(text);
           const errors = result.errors || [];
           
-          const mappedErrors: any[] = [];
+          const mappedErrors: SpellcheckError[] = [];
           const decorations: Decoration[] = [];
           
           // Re-find the node in current document state to get latest position
-          const { tr } = view.state;
           let latestStartPos = -1;
           
-          view.state.doc.descendants((node: any, pos: number) => {
+          view.state.doc.descendants((node: Node, pos: number) => {
             if (node.isBlock && node.textContent === text) {
               latestStartPos = pos;
               return false;
@@ -83,7 +92,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
   },
 
   addProseMirrorPlugins() {
-    const { editor, options, storage } = this;
+    const { options, storage } = this;
     let debounceTimer: any = null;
 
     return [
@@ -94,25 +103,29 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
             return DecorationSet.empty;
           },
           apply(tr, oldSet) {
-            // Map decorations through transactions (e.g. typing)
-            let set = oldSet.map(tr.mapping, tr.doc);
-            
             // Handle custom action to set new decorations
             const action = tr.getMeta(spellcheckPluginKey);
             if (action && action.type === 'setDecorations') {
               return action.decorations;
             }
             
-            return set;
+            if (action && action.type === 'removeError') {
+              // Completely clear the error state immediately when fixed
+              storage.errors = [];
+              return DecorationSet.empty;
+            }
+
+            // Map decorations through transactions (e.g. typing)
+            return oldSet.map(tr.mapping, tr.doc);
           },
         },
         props: {
           decorations(state) {
             return spellcheckPluginKey.getState(state);
           },
-          handleClick: (view, pos, event) => {
+          handleClick: (view, pos, _event) => {
             const errors = storage.errors;
-            const error = errors.find(e => pos >= e.from && pos <= e.to);
+            const error = errors.find((e: SpellcheckError) => pos >= e.from && pos <= e.to);
             
             if (error) {
               // Get precise coordinates from ProseMirror
@@ -135,7 +148,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
             return false;
           },
           handleDOMEvents: {
-            compositionend: (view, event) => {
+            compositionend: (view, _event) => {
               // Trigger spellcheck immediately when Chinese input method completion
               const { selection } = view.state;
               const node = selection.$from.parent;
@@ -153,7 +166,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
               if (!pos) return false;
               
               const errors = storage.errors;
-              const error = errors.find(e => pos.pos >= e.from && pos.pos <= e.to);
+              const error = errors.find((e: SpellcheckError) => pos.pos >= e.from && pos.pos <= e.to);
               
               if (error) {
                 // Simplified: use browser title for tooltip
@@ -163,7 +176,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
             }
           }
         },
-        view(editorView) {
+        view() {
           return {
             update: (view, prevState) => {
               const docChanged = !view.state.doc.eq(prevState.doc);
