@@ -1245,10 +1245,15 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
       }
     };
 
+    let timer: any;
     if (isEmoticonPanelOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Use setTimeout to avoid catching the current mousedown event that might be bubbling up
+      timer = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
     }
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isEmoticonPanelOpen]);
