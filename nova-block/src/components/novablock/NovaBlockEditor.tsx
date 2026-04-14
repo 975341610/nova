@@ -15,10 +15,11 @@ import { Table as TiptapTable } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
+import { BackgroundPaper } from '../editor/BackgroundPaper';
 import { StickerLayer } from '../editor/StickerLayer';
 import { StickyNotesLayer } from '../editor/StickyNotesLayer';
 import { StickerPanel } from '../editor/StickerPanel';
-import type { StickerData, StickyNoteData } from '../../lib/types';
+import type { StickerData, StickyNoteData, BackgroundPaperType } from '../../lib/types';
 import { 
     GripVertical, Bold, Italic, 
     Underline, Eraser, Cpu, Strikethrough, Timer,
@@ -487,6 +488,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   const [isStickerMode, setIsStickerMode] = useState(false);
   const [isStickerPanelOpen, setIsStickerPanelOpen] = useState(false);
   const [isEmoticonPanelOpen, setIsEmoticonPanelOpen] = useState(false);
+  const [backgroundPaper, setBackgroundPaper] = useState<BackgroundPaperType>(note?.background_paper || 'none');
   const [spellcheckError, setSpellcheckError] = useState<{ error: any, rect: any } | null>(null);
   const blockMenuRef = useRef<HTMLDivElement>(null);
   const emoticonPanelRef = useRef<HTMLDivElement>(null);
@@ -1156,7 +1158,8 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   useEffect(() => {
     setStickers(note?.stickers || []);
     setStickyNotes(note?.sticky_notes || []);
-  }, [note?.id, note?.stickers, note?.sticky_notes]);
+    setBackgroundPaper(note?.background_paper || 'none');
+  }, [note?.id, note?.stickers, note?.sticky_notes, note?.background_paper]);
 
   // 淇濆瓨閫昏緫
   const handleSave = async (content?: string, updates?: Partial<Note>) => {
@@ -1567,6 +1570,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
               showOutline={false}
               viewMode={viewMode}
               isStickerMode={isStickerMode}
+              backgroundPaper={backgroundPaper}
               onSave={() => handleSave()}
               onUpdateTitle={(newTitle, isManual) => {
                 const currentNote = latestNoteRef.current;
@@ -1589,6 +1593,16 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
               onOpenStickerPanel={() => setIsStickerPanelOpen(true)}
               onClearStickers={() => handleStickersChange([])}
               onSaveAsTemplate={onSaveAsTemplate}
+              onChangeBackgroundPaper={(type) => {
+                setBackgroundPaper(type);
+                if (latestNoteRef.current) {
+                  const payload = { ...latestNoteRef.current, background_paper: type };
+                  setTimeout(() => {
+                    onSave(payload);
+                  }, 0);
+                  latestNoteRef.current = payload;
+                }
+              }}
             />
 
             {note && (
@@ -1615,7 +1629,8 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
             )}
           </div>
 
-          <div className="relative group/editor mt-2 w-full">
+          <div className="relative group/editor mt-2 w-full min-h-[500px] rounded-xl overflow-hidden">
+            <BackgroundPaper type={backgroundPaper} />
             {/* Block 鎷栨嫿鎵嬫焺 */}
             {editor && (
               /* @ts-ignore */

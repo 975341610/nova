@@ -1,4 +1,6 @@
-import { BookMarked, Save, ChevronRight, Pen, Eye, Sticker, Library, Trash2, Copy } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { BookMarked, Save, ChevronRight, Pen, Eye, Sticker, Library, Trash2, Copy, Layers, Circle, Type as LineIcon, Grid3X3 } from 'lucide-react';
+import type { BackgroundPaperType } from '../../lib/types';
 
 type Breadcrumb = {
   id: number;
@@ -19,6 +21,7 @@ type EditorHeaderProps = {
   showOutline: boolean;
   viewMode: 'edit' | 'preview';
   isStickerMode: boolean;
+  backgroundPaper?: BackgroundPaperType;
   onSave: () => void;
   onUpdateTitle: (newTitle: string, isManual: boolean) => void;
   onToggleRelations: () => void;
@@ -29,17 +32,37 @@ type EditorHeaderProps = {
   onOpenStickerPanel?: () => void;
   onClearStickers?: () => void;
   onSaveAsTemplate?: () => void;
+  onChangeBackgroundPaper?: (type: BackgroundPaperType) => void;
 };
 
 export function EditorHeader(props: EditorHeaderProps) {
   const { 
     breadcrumbs, onSelectBreadcrumb, 
     savePhase, isDirty, lastSavedAt, showOutline, 
-    viewMode, isStickerMode, onSave,
+    viewMode, isStickerMode, backgroundPaper = 'none', onSave,
     onOutlineEnter, onOutlineLeave, onSetViewMode,
     onToggleStickerMode, onOpenStickerPanel, onClearStickers,
-    onSaveAsTemplate
+    onSaveAsTemplate, onChangeBackgroundPaper
   } = props;
+
+  const [isBackgroundMenuOpen, setIsBackgroundMenuOpen] = useState(false);
+  const backgroundMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭背景选择菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (backgroundMenuRef.current && !backgroundMenuRef.current.contains(event.target as Node)) {
+        setIsBackgroundMenuOpen(false);
+      }
+    };
+
+    if (isBackgroundMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBackgroundMenuOpen]);
 
   return (
     <div className="flex flex-col bg-transparent px-0 pt-0 pb-0 antialiased">
@@ -95,6 +118,47 @@ export function EditorHeader(props: EditorHeaderProps) {
             >
               <Eye size={15} strokeWidth={2.5} />
             </button>
+          </div>
+
+          {/* Background Paper Selector */}
+          <div className="relative flex items-center" ref={backgroundMenuRef}>
+            <button
+              onClick={() => setIsBackgroundMenuOpen(!isBackgroundMenuOpen)}
+              className={`flex items-center justify-center w-[30px] h-[30px] rounded-lg border bg-accent/30 border-border/40 text-muted-foreground hover:text-foreground hover:border-border/60 transition-all duration-300 ${
+                backgroundPaper !== 'none' || isBackgroundMenuOpen ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-500' : ''
+              }`}
+              title="更换背景纸"
+            >
+              <Layers size={16} />
+            </button>
+            
+            {/* Background Selection Menu (Click Triggered) */}
+            {isBackgroundMenuOpen && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-[100] animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="bg-background/95 backdrop-blur-md rounded-lg shadow-xl border border-border/50 p-1 flex items-center gap-1">
+                  {[
+                    { type: 'none', icon: <Pen size={12} />, title: '无背景' },
+                    { type: 'dot', icon: <Circle size={10} fill="currentColor" />, title: '点阵' },
+                    { type: 'line', icon: <LineIcon size={12} />, title: '线稿' },
+                    { type: 'grid', icon: <Grid3X3 size={12} />, title: '格子' }
+                  ].map((item) => (
+                    <button
+                      key={item.type}
+                      onClick={() => {
+                        onChangeBackgroundPaper?.(item.type as BackgroundPaperType);
+                        setIsBackgroundMenuOpen(false);
+                      }}
+                      className={`p-2 hover:bg-accent rounded-md transition-all ${
+                        backgroundPaper === item.type ? 'text-indigo-500 bg-indigo-500/10 scale-105 shadow-sm' : 'text-muted-foreground hover:scale-105'
+                      }`}
+                      title={item.title}
+                    >
+                      {item.icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sticker Mode Toggle */}

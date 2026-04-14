@@ -1228,3 +1228,4 @@ Fixed Flip Clock animation pure CSS
 - **修复 `Uncaught RangeError: Applying a mismatched transaction`**: 
   - 之前触发 Slash 菜单命令时会产生事务冲突崩溃。原因是 TipTap 的 Slash 插件内部在执行命令时是一个同步事务流（包含清空触发词等操作），而我们的 `handleAIWrite` 会立即插入图片，直接打断并污染了原来的命令事务。
   - **解决方案**: 将 `ai-write` 的事件派发包裹在一层 `setTimeout(..., 0)` 中，让 TipTap 的前置事务彻底执行完毕后再触发占位图插入，从根本上消除了事务错配报错。
+- [x] Fixed Background Paper white screen crash by adding React.memo and setTimeout to defer onSave
