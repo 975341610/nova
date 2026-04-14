@@ -18,18 +18,46 @@ export const getSuggestionConfig = (itemsRef: React.MutableRefObject<SlashItem[]
   render: () => {
     let component: any;
     let popup: any;
+    let cleanupFrame: number | null = null;
 
-    return {
-      onStart: (props: any) => {
-        component = new ReactRenderer(SlashMenu, {
-          props,
-          editor: props.editor,
-        });
+    const cancelScheduledCleanup = () => {
+      if (cleanupFrame !== null) {
+        cancelAnimationFrame(cleanupFrame);
+        cleanupFrame = null;
+      }
+    };
 
-        if (!props.clientRect) {
-          return;
-        }
+    const destroyPopup = () => {
+      const instance = popup?.[0];
 
+      if (instance && !instance.state?.isDestroyed) {
+        instance.destroy();
+      }
+
+      popup = null;
+
+      if (component) {
+        component.destroy();
+        component = null;
+      }
+    };
+
+    const hasActiveSlashDecoration = () => {
+      const decorations = Array.from(document.querySelectorAll('.suggestion'));
+
+      return decorations.some(node => (node.textContent || '').trim().startsWith('/'));
+    };
+
+    const ensurePopup = (props: any) => {
+      cancelScheduledCleanup();
+
+      if (!props.clientRect || !component?.element) {
+        return false;
+      }
+
+      const instance = popup?.[0];
+
+      if (!instance || instance.state?.isDestroyed) {
         popup = tippy('body', {
           getReferenceClientRect: props.clientRect,
           appendTo: () => document.body,
@@ -41,25 +69,47 @@ export const getSuggestionConfig = (itemsRef: React.MutableRefObject<SlashItem[]
           theme: 'slash-menu',
           arrow: false,
           sticky: true,
+          zIndex: 99999,
+          popperOptions: {
+            modifiers: [
+              {
+                name: 'offset',
+                options: {
+                  offset: [0, 8],
+                },
+              },
+            ],
+          },
           plugins: [sticky],
         });
+
+        return true;
+      }
+
+      instance.setProps({
+        getReferenceClientRect: props.clientRect,
+      });
+
+      return true;
+    };
+
+    return {
+      onStart: (props: any) => {
+        component = new ReactRenderer(SlashMenu, {
+          props,
+          editor: props.editor,
+        });
+        ensurePopup(props);
       },
 
       onUpdate(props: any) {
         component.updateProps(props);
-
-        if (!props.clientRect) {
-          return;
-        }
-
-        popup[0].setProps({
-          getReferenceClientRect: props.clientRect,
-        });
+        ensurePopup(props);
       },
 
       onKeyDown(props: any) {
         if (props.event.key === 'Escape') {
-          popup[0].hide();
+          popup?.[0]?.hide();
           return true;
         }
 
@@ -67,12 +117,16 @@ export const getSuggestionConfig = (itemsRef: React.MutableRefObject<SlashItem[]
       },
 
       onExit() {
-        if (popup && popup.length > 0) {
-          popup[0].destroy();
-        }
-        if (component) {
-          component.destroy();
-        }
+        cancelScheduledCleanup();
+        cleanupFrame = requestAnimationFrame(() => {
+          cleanupFrame = null;
+
+          if (hasActiveSlashDecoration()) {
+            return;
+          }
+
+          destroyPopup();
+        });
       },
     };
   },

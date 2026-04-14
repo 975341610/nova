@@ -334,7 +334,7 @@ textarea {
 
 /* Tiptap Drag Handle 间距调整 */
 .drag-handle {
-  margin-right: 22px;
+  margin-right: 0;
 }
 .tiptap-editor .tippy-box[data-animation='fade'] {
   transform: translateY(-10px) !important; /* 强制所有气泡菜单向上偏移，减少遮挡 */

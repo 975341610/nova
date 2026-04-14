@@ -1164,9 +1164,20 @@ Fixed Flip Clock animation pure CSS
 ### 核心修复
 - **配置 Modelfile 模板与停止词**: 在 `nova_repo/backend/services/local_ai.py` 中生成 Modelfile 时，针对 Gemma 4 模型显式追加了完整的 `TEMPLATE` 以及 `PARAMETER stop "<end_of_turn>"`。
 - **强制覆盖旧模型**: 暂时移除了启动时“如果模型存在就跳过”的逻辑，确保在下一次启动时强制使用带模板的 Modelfile 重新生成并覆盖旧的 `nova-local` 模型。
-### 4. "严重漂移" (Severe Drift) Drag Handle Bug 修复
-- **发现问题**: Tiptap 默认的 `@tiptap/extension-drag-handle-react` 组件默认使用了 Floating UI 的 `placement: 'left'` 配置。这导致拖拽手柄会始终在段落的“垂直居中”位置对齐。当用户输入多行文本（段落变高）时，手柄会随着高度增加不断向下“漂移”，导致偏离段落首行，产生严重的视觉错位感。
-- **解决方案**: 在 `NovaBlockEditor.tsx` 中，通过强制传入 `computePositionConfig={{ placement: 'left-start' }}`，覆盖了默认的居中对齐逻辑，使手柄严格吸附并对齐在 Block 渲染盒的左上角（首行位置），彻底消除了因内容高度变化导致的垂直漂移问题，对齐体验追平 Notion。
+### 4. Tiptap 拖拽手柄 (Drag Handle) 结构化修复与布局重构 [2026-04-13]
+- **彻底消除滚动 Y 轴漂移**: 
+  - 在 `NovaBlockEditor.tsx` 中为自定义滚动容器 `.custom-scrollbar` 增加了 `onScroll` 监听。
+  - 滚动时主动触发 `window.dispatchEvent(new Event('scroll'))`，强制同步底层 `Tippy.js` 的坐标计算逻辑，解决了长文档滚动下手柄“掉队”或“超前”的顽疾。
+- **解决手柄与标题折叠按钮重叠冲突**: 
+  - **横向间距重构**: 
+    - 将 `DragHandle` 的 `offset` 调整为 `[-4, 44]`（向左偏移 44px），确保其位于最外层边缘。
+    - 同步调整 `HeadingView.tsx` 的布局，将 `pl` 从 `1.8rem` 增加至 `2.2rem`，并将折叠按钮固定在 `left-2` (约 8px) 位置。
+    - 实现了“手柄 - 折叠按钮 - 文本内容”的三段式横向排布，物理空间完全解耦。
+- **优化点击与命中逻辑 (Hit Logic)**: 
+  - 通过 `tippyOptions.appendTo: 'parent'` 和显式的 `zIndex: 110` 提升，确保拖拽手柄在交互层级上高于普通文本，但低于全局弹出菜单。
+  - 为 `DragHandle` 增加了 `duration: [150, 0]` 配置，进入时平滑淡入，隐藏时即刻消失，消除了快速移动光标时的“残影”现象。
+- **增强组件稳定性**: 
+  - 在 `HeadingView.tsx` 中为 `NodeViewContent` 增加了 `inline-block w-full` 样式，确保点击标题行内任何空白区域都能正确触发选区，配合手柄进行整块拖拽。
 
 ### 5. TableOfContents React Key Duplicate Fix
 - **修复背景**: 当编辑器快速输入或 Tiptap 异步生成标题 ID 时，偶尔会出现 `h-pending-X` 临时 ID 重复的情况，导致 `TableOfContents` 组件在映射渲染时触发 React Key 重复报错。

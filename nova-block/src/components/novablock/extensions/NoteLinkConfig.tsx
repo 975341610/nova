@@ -24,18 +24,24 @@ export const getNoteLinkSuggestionConfig = () => ({
   render: () => {
     let component: any;
     let popup: any;
+    const getPopupInstance = () => {
+      const instance = popup?.[0];
 
-    return {
-      onStart: (props: any) => {
-        component = new ReactRenderer(NoteLinkSuggestion, {
-          props,
-          editor: props.editor,
-        });
+      if (!instance || instance.state?.isDestroyed) {
+        return null;
+      }
 
-        if (!props.clientRect) {
-          return;
-        }
+      return instance;
+    };
 
+    const ensurePopup = (props: any) => {
+      if (!props.clientRect) {
+        return null;
+      }
+
+      const existingInstance = getPopupInstance();
+
+      if (!existingInstance) {
         popup = tippy('body', {
           getReferenceClientRect: props.clientRect,
           appendTo: () => document.body,
@@ -50,23 +56,31 @@ export const getNoteLinkSuggestionConfig = () => ({
           zIndex: 99999, // Ensure it's above other elements
           plugins: [sticky],
         });
+      }
+
+      return getPopupInstance();
+    };
+
+    return {
+      onStart: (props: any) => {
+        component = new ReactRenderer(NoteLinkSuggestion, {
+          props,
+          editor: props.editor,
+        });
+        ensurePopup(props);
       },
 
       onUpdate(props: any) {
         component.updateProps(props);
-
-        if (!props.clientRect) {
-          return;
-        }
-
-        popup[0].setProps({
+        const instance = ensurePopup(props);
+        instance?.setProps({
           getReferenceClientRect: props.clientRect,
         });
       },
 
       onKeyDown(props: any) {
         if (props.event.key === 'Escape') {
-          popup[0].hide();
+          getPopupInstance()?.hide();
           return true;
         }
 
@@ -74,9 +88,14 @@ export const getNoteLinkSuggestionConfig = () => ({
       },
 
       onExit() {
-        if (popup && popup.length > 0) {
-          popup[0].destroy();
+        const instance = getPopupInstance();
+
+        if (instance) {
+          instance.destroy();
         }
+
+        popup = null;
+
         if (component) {
           component.destroy();
         }
