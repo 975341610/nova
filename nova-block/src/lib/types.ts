@@ -26,6 +26,8 @@ export type StickyNoteData = {
   content: string; // HTML string
 };
 
+export type BackgroundPaperType = 'none' | 'dot' | 'line' | 'grid';
+
 export type Note = {
   id: number;
   title: string;
@@ -47,6 +49,7 @@ export type Note = {
   created_at: string;
   deleted_at?: string | null;
   is_draft?: boolean;
+  background_paper?: BackgroundPaperType;
 };
 
 export type OutlineItem = {
