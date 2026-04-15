@@ -66,20 +66,26 @@ export const CodeBlock = CodeBlockLowlight.extend({
         const { selection } = this.editor.state;
         const { $from, empty } = selection;
 
-        if (!empty || $from.parentOffset !== 0) {
-          return false;
+        // 1. 如果选中了整个代码块 (NodeSelection)，直接删掉
+        if (selection instanceof (this.editor.state as any).constructor.NodeSelection || (!empty && selection.from === $from.before() && selection.to === $from.after())) {
+          return this.editor.chain().deleteNode(this.name).run();
         }
 
-        const node = $from.parent;
-        if (node.type.name !== this.name) return false;
+        // 2. 如果光标在代码块开头 (parentOffset === 0)
+        if (empty && $from.parentOffset === 0) {
+          const node = $from.parent;
+          if (node.type.name !== this.name) return false;
 
-        // If the code block is empty or the cursor is at the very beginning
-        // Change it to a paragraph instead of letting it merge with previous line
-        if (node.textContent.length === 0) {
-          return this.editor.chain().deleteSelection().run();
+          // 如果代码块完全没有内容，直接删掉这个节点
+          if (node.textContent.length === 0) {
+            return this.editor.chain().deleteNode(this.name).run();
+          }
+
+          // 如果有内容，直接拦截退格，不允许剥离或合并到上一行
+          return true;
         }
-        
-        return this.editor.chain().setNode('paragraph').run();
+
+        return false;
       },
     };
   },
