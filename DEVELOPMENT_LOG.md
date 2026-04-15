@@ -1,17 +1,20 @@
 # Development Log
 
-## [2026-04-15] - 编辑器核心 Bug 修复 (Spellcheck, NoteLink & CodeBlock)
+## [2026-04-15] - 编辑器核心 Bug 修复 (Spellcheck, NoteLink, Drag Handle & CodeBlock) [已解决]
 
-### 1. 拼写检查 (Spellcheck) 稳定性增强
+### 1. 拼写检查 (Spellcheck) 稳定性增强 [x]
 - **错误拦截**: 在 `AISpellcheck.ts` 中增加了对 `405 Method Not Allowed` 错误的捕获。一旦后端返回 405，插件将自动进入静默状态并停止重复请求，有效防止了由于接口未就绪或受限导致的疯狂重试。
 
-### 2. NoteLink 引用功能修复
+### 2. NoteLink 引用功能修复 [x]
 - **闪退修复**: 解决了 `NoteLink` 建议菜单在快速重新渲染或点击时由于 `Tippy.js` 实例意外销毁导致的闪退问题。
 - **生命周期保护**: 在 `NoteLinkConfig.tsx` 中增加了更严谨的 `props.clientRect` 存在性判断。
 - **事件冒泡拦截**: 在 `NoteLinkSuggestion.tsx` 的按钮点击与按下事件中加入了 `stopPropagation()`，防止事件冒泡干扰编辑器焦点。
 
-### 3. 代码块 (CodeBlock) 交互优化
+### 3. 代码块 (CodeBlock) 交互优化 [x]
 - **Backspace 行为修正**: 拦截了代码块最开头的 `Backspace` 按键。当光标位于代码块首行首位且按下退格时，现在会将代码块直接转换回普通段落，而不是将代码文本合并到上一行正文中，彻底解决了代码块删除导致的排版污染问题。
+
+### 4. 拖拽手柄 (Drag Handle) 异常修复 [x]
+- **异常静默**: 增加了更严谨的三层状态检测（`editor`, `editor.view`, `editor.view.dom`），彻底修复了在文档被销毁时触发定位计算导致的 `The editor view is not available` 报错问题。
 
 ### 4. 质量与稳定性
 - **构建验证**: 确保 `npm run build` 无错误通过。
