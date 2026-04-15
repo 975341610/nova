@@ -489,6 +489,30 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
   - **构建校验**: 跑通了 `npm run build`，修复了设置面板中颜色处理相关的 TypeScript 类型推断错误。
 
 
-## 2026-04-15 (紧急修复)
-### Fixed
-- **修复：解决文字气泡菜单（BubbleMenu）中 Tooltips 显示乱码（火星文）的问题 [已完成]**
+## 2026-04-15 (编辑器核心 Bug 彻底修复)
+
+### 1. 彻底根除 AISpellcheck 405 报错刷屏 [Task 1]
+- **拦截逻辑重构**: 在 `AISpellcheck.ts` 中引入了全局禁用标记 `isGlobalSpellcheckDisabled`。
+- **多点位拦截**: 
+  - 在 `runCheck` 异步函数开头增加拦截。
+  - 在 `handleDOMEvents.compositionend` (中文输入法完成) 的回调及其 `setTimeout` 内部增加拦截。
+  - 在 `view.update` 钩子及其 `debounce` 计时器内部增加拦截。
+- **效果**: 一旦捕获到 405 报错，插件将永久进入“死代码”状态，绝不再发起任何网络请求，彻底解决了报错刷屏导致的性能损耗。
+
+### 2. 修复 CodeBlock 退格删除污染上一行 [Task 2]
+- **按键拦截优化**: 覆写了 `CodeBlock` 的 `Backspace` 快捷键逻辑。
+- **边界处理**: 精准判断光标是否处于代码块的绝对开头 (`$from.parentOffset === 0`)。
+- **行为转换**: 
+  - 如果代码块为空，则直接删除该节点。
+  - 如果代码块不为空，则将其转换为普通段落 (`paragraph`)。
+- **阻止默认行为**: 通过返回 `true` 彻底阻止了 ProseMirror 默认的 `joinBackward` 行为，防止代码块外壳被剥离并合并到上一行。
+
+### 3. 彻底修复 [[ 双向链接菜单闪退 [Task 3]
+- **生命周期安全增强**: 在 `NoteLinkConfig.tsx` 中对 `ReactRenderer` 和 `Tippy` 实例进行了全生命周期的安全性检查。
+- **实例状态校验**: 在 `onUpdate` 和 `onKeyDown` 之前检查 `component` 和 `instance` 是否已被销毁 (`isDestroyed`)。
+- **销毁逻辑完善**: 
+  - 在 `onExit` 中加入了 `try-catch` 保护，确保组件卸载过程不抛出异常。
+  - 增加了对 `props.clientRect` 消失场景的兼容处理。
+- **效果**: 解决了因 Tippy.js 在卸载后仍被调用 `setProps` 或 React 组件异步更新导致的崩溃问题，提升了双向链接输入的稳定性。
+
+---

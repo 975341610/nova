@@ -63,14 +63,21 @@ export const getNoteLinkSuggestionConfig = () => ({
 
     return {
       onStart: (props: any) => {
+        if (!props.clientRect) {
+          return;
+        }
+
         component = new ReactRenderer(NoteLinkSuggestion, {
           props,
           editor: props.editor,
         });
+        
         ensurePopup(props);
       },
 
       onUpdate(props: any) {
+        if (!component || !component.element) return;
+        
         component.updateProps(props);
         const instance = ensurePopup(props);
         
@@ -79,9 +86,11 @@ export const getNoteLinkSuggestionConfig = () => ({
           return;
         }
 
-        instance?.setProps({
-          getReferenceClientRect: props.clientRect,
-        });
+        if (instance && !instance.state.isDestroyed) {
+          instance.setProps({
+            getReferenceClientRect: props.clientRect,
+          });
+        }
       },
 
       onKeyDown(props: any) {
@@ -90,20 +99,26 @@ export const getNoteLinkSuggestionConfig = () => ({
           return true;
         }
 
-        return component.ref?.onKeyDown(props);
+        if (!component || !component.ref) return false;
+        return component.ref.onKeyDown(props);
       },
 
       onExit() {
         const instance = getPopupInstance();
 
-        if (instance) {
+        if (instance && !instance.state.isDestroyed) {
           instance.destroy();
         }
 
         popup = null;
 
         if (component) {
-          component.destroy();
+          try {
+            component.destroy();
+          } catch (e) {
+            console.warn('NoteLinkSuggestion component destroy failed:', e);
+          }
+          component = null;
         }
       },
     };

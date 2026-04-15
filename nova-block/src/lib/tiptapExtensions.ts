@@ -70,11 +70,15 @@ export const CodeBlock = CodeBlockLowlight.extend({
           return false;
         }
 
-        const { node } = $from.parent.type.name === this.name ? { node: $from.parent } : { node: null };
-        if (!node) return false;
+        const node = $from.parent;
+        if (node.type.name !== this.name) return false;
 
         // If the code block is empty or the cursor is at the very beginning
         // Change it to a paragraph instead of letting it merge with previous line
+        if (node.textContent.length === 0) {
+          return this.editor.chain().deleteSelection().run();
+        }
+        
         return this.editor.chain().setNode('paragraph').run();
       },
     };

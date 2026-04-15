@@ -7,6 +7,8 @@ import { api } from '../../../lib/api';
 
 export const spellcheckPluginKey = new PluginKey('ai-spellcheck-plugin');
 
+let isGlobalSpellcheckDisabled = false;
+
 export interface AISpellcheckOptions {
   debounceMs: number;
 }
@@ -34,7 +36,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
       isChecking: false,
       isDisabled: false,
       async runCheck(view: EditorView, text: string) {
-        if (this.isChecking || this.isDisabled) return;
+        if (isGlobalSpellcheckDisabled || this.isChecking || this.isDisabled) return;
         this.isChecking = true;
         try {
           const result = await api.spellcheck(text);
@@ -89,6 +91,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
           if (e.status === 405 || (e.response && e.response.status === 405)) {
             console.warn('AISpellcheck: 405 received. Disabling spellcheck extension.');
             this.isDisabled = true;
+            isGlobalSpellcheckDisabled = true;
           }
         } finally {
           this.isChecking = false;
@@ -155,6 +158,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
           },
           handleDOMEvents: {
             compositionend: (view, _event) => {
+              if (isGlobalSpellcheckDisabled || storage.isDisabled) return false;
               // Trigger spellcheck immediately when Chinese input method completion
               const { selection } = view.state;
               const node = selection.$from.parent;
@@ -162,6 +166,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
               if (node.type.name === 'paragraph' && node.textContent.trim().length > 0) {
                 // We use a small delay to let the DOM update before reading content
                 setTimeout(() => {
+                  if (isGlobalSpellcheckDisabled || storage.isDisabled) return;
                   this.storage.runCheck(view, node.textContent);
                 }, 100);
               }
@@ -185,12 +190,14 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
         view() {
           return {
             update: (view, prevState) => {
+              if (isGlobalSpellcheckDisabled || storage.isDisabled) return;
               const docChanged = !view.state.doc.eq(prevState.doc);
               if (!docChanged) return;
 
               if (debounceTimer) clearTimeout(debounceTimer);
               
               debounceTimer = setTimeout(async () => {
+                if (isGlobalSpellcheckDisabled || storage.isDisabled) return;
                 const { state } = view;
                 const node = state.selection.$from.parent;
                 
