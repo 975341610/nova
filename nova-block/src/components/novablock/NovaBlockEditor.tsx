@@ -1742,8 +1742,17 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   data-block-menu="true"
                   initial={{ opacity: 0, scale: 0.9, x: -10 }}
                   animate={{ opacity: 1, scale: 1, x: 0 }}
-                  style={{ top: blockMenuPos.top, left: blockMenuPos.left, position: 'fixed' }}
-                  className="z-[110] w-64 overflow-hidden rounded-2xl border border-border/10 bg-popover/80 backdrop-blur-2xl shadow-soft flex flex-col"
+                  style={{ 
+                    top: blockMenuPos.top, 
+                    left: blockMenuPos.left, 
+                    position: 'fixed',
+                    opacity: 'var(--block-menu-opacity, 0.85)',
+                    backdropFilter: 'blur(var(--block-menu-blur, 15px))',
+                    backgroundColor: 'var(--block-menu-bg, rgba(var(--popover), 0.8))',
+                    color: 'var(--block-menu-fg, inherit)',
+                    borderColor: 'var(--block-menu-border, rgba(var(--border), 0.1))',
+                  }}
+                  className="z-[110] w-64 overflow-hidden rounded-2xl border shadow-soft flex flex-col"
                   onMouseDown={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
                 >
@@ -1903,7 +1912,14 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                     !editor.isActive('table')
                   );
                 }}
-                className="flex overflow-hidden rounded-2xl border border-border/20 bg-popover/80 backdrop-blur-2xl shadow-soft p-1.5"
+                className="flex overflow-hidden rounded-2xl border shadow-soft p-1.5"
+                style={{
+                  opacity: 'var(--text-menu-opacity, 0.9)',
+                  backdropFilter: 'blur(var(--text-menu-blur, 10px))',
+                  backgroundColor: 'var(--text-menu-bg, rgba(var(--popover), 0.9))',
+                  color: 'var(--text-menu-fg, inherit)',
+                  borderColor: 'var(--text-menu-border, rgba(var(--border), 0.2))',
+                }}
               >
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}

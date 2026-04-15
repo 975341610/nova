@@ -167,3 +167,28 @@ export type NoteTemplate = {
   created_at: string;
   updated_at: string;
 };
+
+export interface ThemeConfig {
+  version: string;
+  slashMenu: {
+    opacity: number;
+    blur: number;
+    backgroundColor: string;
+    foregroundColor: string;
+    borderColor: string;
+  };
+  textMenu: {
+    opacity: number;
+    blur: number;
+    backgroundColor: string;
+    foregroundColor: string;
+    borderColor: string;
+  };
+  blockMenu: {
+    opacity: number;
+    blur: number;
+    backgroundColor: string;
+    foregroundColor: string;
+    borderColor: string;
+  };
+}

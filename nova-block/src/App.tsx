@@ -6,6 +6,7 @@ import { MoodboardView } from './components/moodboard/MoodboardView'
 import CommandPalette from './components/search/CommandPalette'
 import { SettingsDialog } from './components/SettingsDialog'
 import { TemplatePicker } from './components/editor/TemplatePicker'
+import { applyThemeConfig, getThemeConfig } from './lib/themeUtils'
 import type { Note, NoteTemplate } from './lib/types'
 import { api } from './lib/api'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -184,6 +185,11 @@ function App() {
       root.classList.remove('dark')
     }
   }, [theme])
+
+  // 初始化主题配置
+  useEffect(() => {
+    applyThemeConfig(getThemeConfig());
+  }, []);
 
   const currentNote = useMemo(() => {
     return notes.find(n => n.id === currentNoteId) || null

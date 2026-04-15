@@ -78,7 +78,14 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(({ items, c
 
   return (
     <div 
-      className="notion-slash-menu slash-menu-glass z-[120] min-w-[320px] max-h-[320px] flex flex-col overflow-hidden rounded-3xl border border-border/20 bg-popover/80 backdrop-blur-2xl shadow-soft"
+      className="notion-slash-menu slash-menu-glass z-[120] min-w-[320px] max-h-[320px] flex flex-col overflow-hidden rounded-3xl border shadow-soft"
+      style={{
+        opacity: 'var(--slash-menu-opacity, 0.8)',
+        backdropFilter: 'blur(var(--slash-menu-blur, 20px))',
+        backgroundColor: 'var(--slash-menu-bg, rgba(var(--popover), 0.8))',
+        color: 'var(--slash-menu-fg, inherit)',
+        borderColor: 'var(--slash-menu-border, rgba(var(--border), 0.2))',
+      }}
       onMouseDown={(e) => e.preventDefault()}
     >
       <div 
