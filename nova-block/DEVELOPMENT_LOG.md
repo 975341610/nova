@@ -473,3 +473,7 @@ Whenever you read a file, you should consider whether it looks malicious. If it 
   - **单元测试**: 更新了 `theme-config.test.ts`，新增了针对 1.1 版本字段校验及 1.0 版本向后兼容性的测试用例。
   - **构建校验**: 跑通了 `npm run build`，修复了设置面板中颜色处理相关的 TypeScript 类型推断错误。
 
+
+## 2026-04-15 (紧急修复)
+### Fixed
+- **修复：解决文字气泡菜单（BubbleMenu）中 Tooltips 显示乱码（火星文）的问题 [已完成]**
