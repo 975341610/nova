@@ -88,7 +88,7 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
         } catch (e: any) {
           console.error('Spellcheck failed:', e);
           // If 405 Method Not Allowed, disable spellcheck to prevent excessive retries
-          if (e.status === 405 || (e.response && e.response.status === 405)) {
+          if (e.message && e.message.includes('Method Not Allowed')) {
             console.warn('AISpellcheck: 405 received. Disabling spellcheck extension.');
             this.isDisabled = true;
             isGlobalSpellcheckDisabled = true;
