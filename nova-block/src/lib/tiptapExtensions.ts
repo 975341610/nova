@@ -77,7 +77,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
         // Intercept to prevent merging into the previous line.
         // Delete if empty, do nothing otherwise.
         if (node.textContent.length === 0) {
-          return this.editor.chain().deleteSelection().run();
+          return this.editor.chain().deleteNode(this.name).run();
         }
         return true;
       },

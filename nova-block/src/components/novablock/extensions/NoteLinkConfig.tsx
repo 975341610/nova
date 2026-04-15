@@ -24,8 +24,10 @@ export const getNoteLinkSuggestionConfig = () => ({
   render: () => {
     let component: any;
     let popup: any;
+    let popupElement = document.createElement('div'); // Create a dedicated element
+
     const getPopupInstance = () => {
-      const instance = popup?.[0];
+      const instance = popup?.[0] || popup; // tippy returns array or instance depending on input
 
       if (!instance || instance.state?.isDestroyed) {
         return null;
@@ -42,7 +44,7 @@ export const getNoteLinkSuggestionConfig = () => ({
       const existingInstance = getPopupInstance();
 
       if (!existingInstance) {
-        popup = tippy('body', {
+        popup = tippy(popupElement, {
           getReferenceClientRect: props.clientRect,
           appendTo: () => document.body,
           content: component.element,
