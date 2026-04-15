@@ -5,13 +5,10 @@ import { NoteLinkSuggestion } from './NoteLinkSuggestion';
 export const getNoteLinkSuggestionConfig = () => ({
   items: ({ query }: { query: string }) => {
     try {
-      // 🚀 核心优化：改用 window.novaNotes 全局同步获取已加载的所有笔记。
-      // 彻底避开 api.listNotes() 的异步生命周期问题。
       const notes = (window as any).novaNotes || [];
-      
       return notes
         .filter((note: any) => 
-          !note.is_folder && // 链接时排除文件夹
+          !note.is_folder &&
           (note.title || '').toLowerCase().includes(query.toLowerCase())
         )
         .slice(0, 10);
@@ -24,28 +21,49 @@ export const getNoteLinkSuggestionConfig = () => ({
   render: () => {
     let component: any;
     let popup: any;
-    let popupElement = document.createElement('div'); // Create a dedicated element
+    let cleanupFrame: number | null = null;
 
-    const getPopupInstance = () => {
-      const instance = popup?.[0] || popup; // tippy returns array or instance depending on input
+    const cancelScheduledCleanup = () => {
+      if (cleanupFrame !== null) {
+        cancelAnimationFrame(cleanupFrame);
+        cleanupFrame = null;
+      }
+    };
 
-      if (!instance || instance.state?.isDestroyed) {
-        return null;
+    const destroyPopup = () => {
+      const instance = popup?.[0];
+
+      if (instance && !instance.state?.isDestroyed) {
+        instance.destroy();
       }
 
-      return instance;
+      popup = null;
+
+      if (component) {
+        component.destroy();
+        component = null;
+      }
+    };
+
+    const hasActiveNoteLinkDecoration = () => {
+      // 检查是否还有激活的 suggestion 装饰器
+      const decorations = Array.from(document.querySelectorAll('.suggestion'));
+      // NoteLink 的触发字符是 [[
+      return decorations.some(node => (node.textContent || '').trim().startsWith('[['));
     };
 
     const ensurePopup = (props: any) => {
-      if (!props.clientRect) {
-        return null;
+      cancelScheduledCleanup();
+
+      if (!props.clientRect || !component?.element) {
+        return false;
       }
 
-      const existingInstance = getPopupInstance();
+      const instance = popup?.[0];
 
-      if (!existingInstance) {
-        popup = tippy(popupElement, {
-          getReferenceClientRect: () => props.clientRect?.() || new DOMRect(0, 0, 0, 0),
+      if (!instance || instance.state?.isDestroyed) {
+        popup = tippy('body', {
+          getReferenceClientRect: props.clientRect,
           appendTo: () => document.body,
           content: component.element,
           showOnCreate: true,
@@ -55,74 +73,64 @@ export const getNoteLinkSuggestionConfig = () => ({
           theme: 'note-link-menu',
           arrow: false,
           sticky: true,
-          zIndex: 99999, // Ensure it's above other elements
+          zIndex: 99999,
+          popperOptions: {
+            modifiers: [
+              {
+                name: 'offset',
+                options: {
+                  offset: [0, 8],
+                },
+              },
+            ],
+          },
           plugins: [sticky],
         });
+
+        return true;
       }
 
-      return getPopupInstance();
+      instance.setProps({
+        getReferenceClientRect: props.clientRect,
+      });
+
+      return true;
     };
 
     return {
       onStart: (props: any) => {
-        if (!props.clientRect) {
-          return;
-        }
-
         component = new ReactRenderer(NoteLinkSuggestion, {
           props,
           editor: props.editor,
         });
-        
         ensurePopup(props);
       },
 
       onUpdate(props: any) {
-        if (!component || !component.element) return;
-        
         component.updateProps(props);
-        const instance = ensurePopup(props);
-        
-        if (!props.clientRect) {
-          instance?.hide();
-          return;
-        }
-
-        if (instance && !instance.state.isDestroyed) {
-          instance.setProps({
-            getReferenceClientRect: () => props.clientRect?.() || new DOMRect(0, 0, 0, 0),
-          });
-        }
+        ensurePopup(props);
       },
 
       onKeyDown(props: any) {
         if (props.event.key === 'Escape') {
-          getPopupInstance()?.hide();
+          popup?.[0]?.hide();
           return true;
         }
 
-        if (!component || !component.ref) return false;
-        return component.ref.onKeyDown(props);
+        return component.ref?.onKeyDown(props);
       },
 
       onExit() {
-        if (popup) {
-          const instance = popup?.[0] || popup;
-          if (instance && !instance.state.isDestroyed) {
-            instance.destroy();
-          }
-          popup = null;
-        }
+        cancelScheduledCleanup();
+        cleanupFrame = requestAnimationFrame(() => {
+          cleanupFrame = null;
 
-        if (component) {
-          const comp = component;
-          setTimeout(() => {
-            try {
-              comp.destroy();
-            } catch (e) {}
-          }, 0);
-          component = null;
-        }
+          if (hasActiveNoteLinkDecoration()) {
+            return;
+          }
+
+          destroyPopup();
+        });
       },
     };
   },
