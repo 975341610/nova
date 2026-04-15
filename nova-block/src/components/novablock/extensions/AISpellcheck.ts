@@ -32,8 +32,9 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
     return {
       errors: [] as SpellcheckError[],
       isChecking: false,
+      isDisabled: false,
       async runCheck(view: EditorView, text: string) {
-        if (this.isChecking) return;
+        if (this.isChecking || this.isDisabled) return;
         this.isChecking = true;
         try {
           const result = await api.spellcheck(text);
@@ -82,8 +83,13 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
           });
           view.dispatch(dispatchTr);
           
-        } catch (e) {
+        } catch (e: any) {
           console.error('Spellcheck failed:', e);
+          // If 405 Method Not Allowed, disable spellcheck to prevent excessive retries
+          if (e.status === 405 || (e.response && e.response.status === 405)) {
+            console.warn('AISpellcheck: 405 received. Disabling spellcheck extension.');
+            this.isDisabled = true;
+          }
         } finally {
           this.isChecking = false;
         }

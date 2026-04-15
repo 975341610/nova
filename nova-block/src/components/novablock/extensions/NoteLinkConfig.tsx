@@ -73,6 +73,12 @@ export const getNoteLinkSuggestionConfig = () => ({
       onUpdate(props: any) {
         component.updateProps(props);
         const instance = ensurePopup(props);
+        
+        if (!props.clientRect) {
+          instance?.hide();
+          return;
+        }
+
         instance?.setProps({
           getReferenceClientRect: props.clientRect,
         });
