@@ -1,11 +1,13 @@
 import { computePosition, offset, type ComputePositionConfig, type VirtualElement } from '@floating-ui/dom'
 
 type EditorViewLike = {
+  dom: HTMLElement
   nodeDOM: (pos: number) => Node | null
 }
 
 type EditorLike = {
   view: EditorViewLike
+  isDestroyed: boolean
 }
 
 export const dragHandleComputePositionConfig: ComputePositionConfig = {
@@ -20,7 +22,7 @@ export const dragHandleComputePositionConfig: ComputePositionConfig = {
 }
 
 export function getDragHandleReferenceRect(editor: EditorLike, pos: number): DOMRect | null {
-  if (pos < 0) {
+  if (!editor || editor.isDestroyed || !editor.view || !editor.view.dom || pos < 0) {
     return null
   }
 
@@ -71,7 +73,7 @@ export async function repositionDragHandleAtNode({
   pos: number
   computePositionConfig?: ComputePositionConfig
 }): Promise<boolean> {
-  if (!dragHandleElement || pos < 0) {
+  if (!editor || editor.isDestroyed || !editor.view || !editor.view.dom || !dragHandleElement || pos < 0) {
     return false
   }
 

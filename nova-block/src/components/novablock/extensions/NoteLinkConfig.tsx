@@ -45,7 +45,7 @@ export const getNoteLinkSuggestionConfig = () => ({
 
       if (!existingInstance) {
         popup = tippy(popupElement, {
-          getReferenceClientRect: props.clientRect,
+          getReferenceClientRect: () => props.clientRect?.() || new DOMRect(0, 0, 0, 0),
           appendTo: () => document.body,
           content: component.element,
           showOnCreate: true,
@@ -90,7 +90,7 @@ export const getNoteLinkSuggestionConfig = () => ({
 
         if (instance && !instance.state.isDestroyed) {
           instance.setProps({
-            getReferenceClientRect: props.clientRect,
+            getReferenceClientRect: () => props.clientRect?.() || new DOMRect(0, 0, 0, 0),
           });
         }
       },
@@ -106,20 +106,21 @@ export const getNoteLinkSuggestionConfig = () => ({
       },
 
       onExit() {
-        const instance = getPopupInstance();
-
-        if (instance && !instance.state.isDestroyed) {
-          instance.destroy();
+        if (popup) {
+          const instance = popup?.[0] || popup;
+          if (instance && !instance.state.isDestroyed) {
+            instance.destroy();
+          }
+          popup = null;
         }
 
-        popup = null;
-
         if (component) {
-          try {
-            component.destroy();
-          } catch (e) {
-            console.warn('NoteLinkSuggestion component destroy failed:', e);
-          }
+          const comp = component;
+          setTimeout(() => {
+            try {
+              comp.destroy();
+            } catch (e) {}
+          }, 0);
           component = null;
         }
       },

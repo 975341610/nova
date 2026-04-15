@@ -32,12 +32,14 @@ export const NoteLinkSuggestion = forwardRef((props: SuggestionProps, ref) => {
       }
 
       if (event.key === 'Enter') {
+        if (!props.items || props.items.length === 0) return false;
         event.preventDefault();
         selectItem(selectedIndex);
         return true;
       }
 
       if (event.key === 'Tab') {
+        if (!props.items || props.items.length === 0) return false;
         event.preventDefault();
         selectItem(selectedIndex);
         return true;

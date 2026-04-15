@@ -773,7 +773,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
   }, [extensions, updateOutline]);
 
   const scheduleDragHandleReposition = useCallback(() => {
-    if (!editor) {
+    if (!editor || editor.isDestroyed || !editor.view || !editor.view.dom) {
       return;
     }
 
