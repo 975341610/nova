@@ -69,10 +69,15 @@ export const NoteLinkSuggestion = forwardRef((props: SuggestionProps, ref) => {
         <button
           key={item.id}
           onMouseEnter={() => setSelectedIndex(index)}
-          onClick={() => selectItem(index)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            selectItem(index);
+          }}
           onMouseDown={(e) => {
             // 防止点击按钮时编辑器失去焦点，从而导致 Suggestion 菜单过早关闭
             e.preventDefault();
+            e.stopPropagation();
           }}
           className={`flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 text-left ${
             index === selectedIndex ? 'bg-accent text-foreground shadow-sm scale-[1.02]' : 'text-muted-foreground hover:bg-accent/50'

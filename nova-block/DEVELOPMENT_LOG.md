@@ -1,5 +1,20 @@
 # Second Brain AI - 开发进度与状态日志
 
+## [2026-04-15] - 编辑器核心 Bug 修复 (Spellcheck, NoteLink & CodeBlock)
+
+### 1. 拼写检查 (Spellcheck) 稳定性增强
+- **错误拦截**: 在 `AISpellcheck.ts` 中增加了对 `405 Method Not Allowed` 错误的捕获。一旦后端返回 405，插件将自动进入静默状态并停止重复请求。
+
+### 2. NoteLink 引用功能修复
+- **闪退修复**: 解决了 `NoteLink` 建议菜单在快速重新渲染或点击时由于 `Tippy.js` 实例意外销毁导致的闪退问题。
+- **生命周期保护**: 在 `NoteLinkConfig.tsx` 中增加了更严谨的 `props.clientRect` 存在性判断。
+- **事件冒泡拦截**: 在 `NoteLinkSuggestion.tsx` 的按钮点击与按下事件中加入了 `stopPropagation()`，防止事件冒泡干扰编辑器焦点。
+
+### 3. 代码块 (CodeBlock) 交互优化
+- **Backspace 行为修正**: 拦截了代码块最开头的 `Backspace` 按键。当光标位于代码块首行首位且按下退格时，现在会将代码块直接转换回普通段落，而不是将代码文本合并到上一行正文中，彻底解决了代码块删除导致的排版污染问题。
+
+---
+
 > 老大的最新训示：**一定要认准死理：高效、性能；不管应用再好用、再好看，要是配置门槛高、卡顿卡死，流畅度低，那么它就是垃圾就是没人用**。
 
 > **维护规则 (System Rule)**: 

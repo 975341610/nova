@@ -59,6 +59,26 @@ export const CodeBlock = CodeBlockLowlight.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockComponent);
   },
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.(),
+      Backspace: () => {
+        const { selection } = this.editor.state;
+        const { $from, empty } = selection;
+
+        if (!empty || $from.parentOffset !== 0) {
+          return false;
+        }
+
+        const { node } = $from.parent.type.name === this.name ? { node: $from.parent } : { node: null };
+        if (!node) return false;
+
+        // If the code block is empty or the cursor is at the very beginning
+        // Change it to a paragraph instead of letting it merge with previous line
+        return this.editor.chain().setNode('paragraph').run();
+      },
+    };
+  },
 }).configure({
   lowlight,
   defaultLanguage: 'plaintext',
