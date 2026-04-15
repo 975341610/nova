@@ -1728,7 +1728,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().deleteTable().run()}
                     className="p-2 rounded-xl hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-all duration-300"
-                    title="鍒犻櫎琛ㄦ牸"
+                    title="删除表格"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1931,14 +1931,14 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().toggleBold().run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('bold') ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="鍔犵矖"
+                    title="加粗"
                   >
                     <Bold size={16} />
                   </button>
                   <button 
                     onClick={() => editor.chain().focus().toggleItalic().run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('italic') ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="鏂滀綋"
+                    title="斜体"
                   >
                     <Italic size={16} />
                   </button>
@@ -1969,7 +1969,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                       }
                     }} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('link') ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="鎻掑叆閾炬帴"
+                    title="插入链接"
                   >
                     <LinkIcon size={16} />
                   </button>
@@ -1977,7 +1977,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().toggleHighlight({ color: '#ffec3d' }).run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('highlight') ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="楂樹寒"
+                    title="高亮"
                   >
                     <Highlighter size={16} />
                   </button>
@@ -1985,7 +1985,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().toggleCode().run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('code') ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="鍐呰仈浠ｇ爜"
+                    title="内联代码"
                   >
                     <Code size={16} />
                   </button>
@@ -2003,14 +2003,14 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().toggleTextEffect({ effect: 'bounce' }).run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('textEffect', { effect: 'bounce' }) ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="鍔ㄦ劅璺冲姩鐗规晥"
+                    title="动感跳动特效"
                   >
                     <Waves size={16} />
                   </button>
                   <button 
                     onClick={() => editor.chain().focus().toggleTextEffect({ effect: 'neon' }).run()} 
                     className={`p-2 rounded-xl hover:bg-accent transition-all duration-300 ${editor.isActive('textEffect', { effect: 'neon' }) ? 'text-primary bg-primary/10' : 'text-muted-foreground'}`}
-                    title="璧涘崥闇撹櫣鐗规晥"
+                    title="赛博霓虹特效"
                   >
                     <Zap size={16} />
                   </button>
@@ -2027,7 +2027,7 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
                   <button 
                     onClick={() => editor.chain().focus().unsetAllMarks().run()} 
                     className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-300"
-                    title="娓呴櫎鏍煎紡"
+                    title="清除格式"
                   >
                     <Eraser size={16} />
                   </button>
