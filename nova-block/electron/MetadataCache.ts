@@ -8,6 +8,8 @@ export interface NoteMetadata {
   title?: string;
   created_at?: string;
   updated_at?: string;
+  parent_id?: string | null;
+  is_folder?: boolean;
   tags: string[];
   links: string[];
   frontmatter: Record<string, any>;
@@ -117,6 +119,8 @@ export class MetadataCache {
       title: frontmatter.title || path.basename(noteId),
       created_at: frontmatter.created_at,
       updated_at: frontmatter.updated_at,
+      parent_id: frontmatter.parent_id || null,
+      is_folder: frontmatter.is_folder || false,
       tags: allTags,
       links: links,
       frontmatter

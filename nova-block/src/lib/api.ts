@@ -37,8 +37,13 @@ export const getApiBase = () => {
  */
 export const formatUrl = (url: string | undefined | null) => {
   if (!url) return '';
-  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  if (url.startsWith('http') || url.startsWith('data:') || url.startsWith('local-resource:')) return url;
   
+  // 📂 Phase 4: Electron 下本地路径支持
+  if (window.electronAPI && (url.startsWith('assets/') || url.startsWith('/assets/'))) {
+    return `local-resource://${url.startsWith('/') ? url.slice(1) : url}`;
+  }
+
   const base = getApiBase(); // e.g. http://127.0.0.1:8765/api
   
   // 如果路径以 /api 开头，我们需要处理掉重复的 /api
@@ -499,6 +504,38 @@ export const api = {
     }
   },
   upload: async (files: File[], noteId?: number | string) => {
+    // 📂 Electron 离线模式拦截
+    if (window.electronAPI) {
+      const results = await Promise.all(files.map(async (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              const base64 = (reader.result as string).split(',')[1];
+              const fileName = `${Date.now()}-${file.name}`;
+              const relativePath = await window.electronAPI!.saveMedia(fileName, base64);
+              if (relativePath) {
+                // 返回符合后端格式的对象
+                resolve({ 
+                  url: relativePath, 
+                  filename: fileName,
+                  size: file.size,
+                  content_type: file.type
+                });
+              } else {
+                reject(new Error('Failed to save media via IPC'));
+              }
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = () => reject(new Error('FileReader failed'));
+          reader.readAsDataURL(file);
+        });
+      }));
+      return results;
+    }
+
     const API_BASE = getApiBase();
     const CHUNK_SIZE = 1024 * 256; // 256KB chunks (Strato proxy is extremely strict)
 
@@ -605,6 +642,43 @@ export const api = {
     }
   },
   uploadMusic: async (file: File, cover?: File) => {
+    // 📂 Electron 离线模式拦截
+    if (window.electronAPI) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64 = (reader.result as string).split(',')[1];
+            const fileName = `${Date.now()}-${file.name}`;
+            const relativePath = await window.electronAPI!.saveMedia(fileName, base64);
+            
+            let coverUrl = '';
+            if (cover) {
+              const coverReader = new FileReader();
+              const coverPath = await new Promise<string>((res) => {
+                coverReader.onload = async () => {
+                  const cb64 = (coverReader.result as string).split(',')[1];
+                  res(await window.electronAPI!.saveMedia(`${Date.now()}-${cover.name}`, cb64));
+                };
+                coverReader.readAsDataURL(cover);
+              });
+              coverUrl = coverPath;
+            }
+
+            resolve({ 
+              url: relativePath, 
+              title: file.name.replace(/\.[^/.]+$/, ""),
+              cover: coverUrl,
+              filename: fileName
+            });
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
     try {
       const API_BASE = getApiBase();
       const formData = new FormData();

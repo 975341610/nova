@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MetadataCache } from './MetadataCache.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +11,11 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 let VAULT_PATH = path.join(app.getPath('userData'), 'test_vault');
 
 const metadataCache = MetadataCache.getInstance();
+
+// 📂 Phase 4: 注册本地资源协议，允许前端直接加载 Vault 里的 assets
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-resource', privileges: { bypassCSP: true, stream: true, secure: true, supportFetchAPI: true } }
+]);
 
 // 确保测试目录存在
 async function ensureVault() {
@@ -60,6 +65,12 @@ async function listFilesRecursive(dir: string, baseDir: string): Promise<string[
 app.whenReady().then(async () => {
   await ensureVault();
   
+  // 📂 注册 local-resource 协议处理器
+  protocol.handle('local-resource', (request) => {
+    const filePath = fileURLToPath(pathToFileURL(path.join(VAULT_PATH, decodeURIComponent(request.url.slice('local-resource://'.length)))));
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
+
   // 初始化全量扫描
   await metadataCache.scanVault(VAULT_PATH);
   // 启动文件监控
@@ -246,6 +257,20 @@ app.whenReady().then(async () => {
       return path.relative(VAULT_PATH, filePath);
     } catch (err) {
       console.error(`[IPC] createMarkdownFile failed in ${folderRelativePath}`, err);
+      return '';
+    }
+  });
+
+  ipcMain.handle('saveMedia', async (_, fileName: string, base64Data: string) => {
+    try {
+      const assetsDir = path.join(VAULT_PATH, 'assets');
+      await fs.mkdir(assetsDir, { recursive: true });
+      const filePath = path.join(assetsDir, fileName);
+      const buffer = Buffer.from(base64Data, 'base64');
+      await fs.writeFile(filePath, buffer);
+      return `assets/${fileName}`;
+    } catch (err) {
+      console.error(`[IPC] saveMedia failed: ${fileName}`, err);
       return '';
     }
   });

@@ -111,7 +111,7 @@ class HybridDataService implements DataService {
               id: idStr,
               title: meta.title || idStr.split('/').pop() || idStr,
               is_folder: true,
-              parent_id: null,
+              parent_id: meta?.parent_id || null,
               notebook_id: 'default',
               position: 0,
               tags: [],
@@ -141,7 +141,7 @@ class HybridDataService implements DataService {
           is_title_manually_edited: false,
           properties: [],
           notebook_id: null,
-          parent_id: null,
+          parent_id: meta?.parent_id || null,
           position: 0,
           links: meta?.links || []
         } as Note;

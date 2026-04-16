@@ -24,16 +24,17 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const refreshAiStatus = async () => {
     try {
       const status = await api.getAIPluginStatus() as any;
-      const enabled = status.enabled;
-      setIsAiEnabled(enabled);
-      localStorage.setItem(STORAGE_KEY, String(enabled));
-      if (status.num_ctx) {
+      if (status && typeof status.enabled === 'boolean') {
+        const enabled = status.enabled;
+        setIsAiEnabled(enabled);
+        localStorage.setItem(STORAGE_KEY, String(enabled));
+      }
+      if (status?.num_ctx) {
         setContextLength(status.num_ctx);
       }
     } catch (err) {
-      console.error('Failed to fetch AI status:', err);
-      // 📂 Phase 4 离线修复：
-      // 不再强制设为 true。如果无法连接后端，保持当前的本地状态。
+      console.warn('Backend AI status fetch failed, using local persistence.');
+      // 离线模式下，保持 localStorage 中的状态不被覆盖
     }
   };
 
