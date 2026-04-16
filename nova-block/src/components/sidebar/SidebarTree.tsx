@@ -457,7 +457,7 @@ export const SidebarTree = ({
                  </button>
                </div>
             )}
-            {!isCollapsed && mappedFolderTree.map((node) => (
+            {!isCollapsed && (window.electronAPI ? mappedFolderTree : tree).map((node) => (
               <TreeNodeItem
                 key={node.id}
                 node={node}
@@ -499,7 +499,7 @@ export const SidebarTree = ({
               />
             ))}
             
-            {!isCollapsed && mappedFolderTree.length === 0 && (
+            {!isCollapsed && (window.electronAPI ? mappedFolderTree : tree).length === 0 && (
               <div className="py-12 text-center space-y-3 opacity-40">
                 <div className="text-muted-foreground text-xs">暂无手账内容</div>
                 <button 

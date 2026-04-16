@@ -213,44 +213,88 @@ export const api = {
   restoreNotebook: (notebookId: number) => invoke<Notebook>('notebooks:restore', `/notebooks/${notebookId}/restore`, { params: { id: notebookId } }),
   purgeNotebook: (notebookId: number) => invoke('notebooks:purge', `/notebooks/${notebookId}/purge`, { params: { id: notebookId } }),
 
-  createNote: async (payload: { title: string; content: string; notebook_id?: number | null; icon?: string; parent_id?: number | null; is_title_manually_edited?: boolean; tags?: string[] }) => {
+  createNote: async (payload: { title: string; content: string; notebook_id?: number | null; icon?: string; parent_id?: number | null; is_folder?: boolean; is_title_manually_edited?: boolean; tags?: string[] }) => {
     if (window.electronAPI) {
-      const noteId = `${payload.title || 'Untitled'}.md`;
-      const fm: Record<string, any> = {
-        id: noteId,
-        title: payload.title,
-        tags: payload.tags || [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      const fmString = `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n\n`;
-      const fullMarkdown = fmString + (payload.content || '');
-      await window.electronAPI.writeMarkdownFile(noteId, fullMarkdown);
+      const isFolder = payload.is_folder || false;
+      const noteId = isFolder ? `${payload.title || 'UntitledFolder'}` : `${payload.title || 'Untitled'}.md`;
+      
+      if (isFolder) {
+        await window.electronAPI.createFolder(noteId);
+      } else {
+        const fm: Record<string, any> = {
+          id: noteId,
+          title: payload.title,
+          tags: payload.tags || [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          parent_id: payload.parent_id || null,
+          is_folder: false
+        };
+        const fmString = `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n\n`;
+        const fullMarkdown = fmString + (payload.content || '');
+        await window.electronAPI.writeMarkdownFile(noteId, fullMarkdown);
+      }
+
       return {
         id: noteId,
         ...payload,
-        created_at: fm.created_at,
-        frontmatter: fm,
+        created_at: new Date().toISOString(),
+        frontmatter: { title: payload.title, tags: payload.tags || [] },
         summary: '',
-        icon: '📄',
+        icon: isFolder ? '📂' : '📄',
         is_title_manually_edited: false,
         properties: [],
         links: [],
         notebook_id: null,
-        parent_id: null,
+        parent_id: payload.parent_id || null,
+        is_folder: isFolder,
         position: 0
       } as Note;
     }
 
-    // 这是一个特殊的 case，创建需要先拿到后端分配的真实 ID 才能进行后续操作（如双链）
-    // 但为了响应速度，我们可以先创建一个临时的本地 ID 并在同步后修正，
-    // 不过目前为了稳妥起见，创建操作保持同步等待，或后续实现乐观创建。
+    // 🌐 浏览器降级模式 (IndexedDB)
+    if (!window.electronAPI) {
+      const newId = `note_${Date.now()}`;
+      const newNote: Note = {
+        id: newId,
+        title: payload.title || 'Untitled',
+        content: payload.content || '',
+        is_folder: payload.is_folder || false,
+        parent_id: payload.parent_id || null,
+        tags: payload.tags || [],
+        properties: [],
+        links: [],
+        notebook_id: payload.notebook_id || null,
+        position: 0,
+        summary: '',
+        is_title_manually_edited: payload.is_title_manually_edited || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Note;
+      
+      await localDB.saveNote(newNote);
+
+      // 异步同步到后端 (可选，由调用方决定是否需要静默同步)
+      (async () => {
+        try {
+          const remoteNote = await invoke<Note>('notes:create', '/notes', { method: 'POST', body: JSON.stringify(payload) });
+          // 后端返回真实 ID 后，我们需要更新本地记录或合并。
+          // 这里的简化处理是：如果离线，就用本地 ID；如果在线，后续同步会处理。
+        } catch (e) {
+          console.warn('Silent sync failed for createNote:', e);
+        }
+      })();
+
+      return newNote;
+    }
+
+    // 默认回退 (如果有后端环境)
     const note = await invoke<Note>('notes:create', '/notes', { method: 'POST', body: JSON.stringify(payload) });
     await localDB.saveNote(note);
     return note;
   },
 
-  updateNote: async (noteId: number | string, payload: { title?: string; content?: string; icon?: string; parent_id?: number | null; is_title_manually_edited?: boolean; tags?: string[], file_path?: string }) => {
+  updateNote: async (noteId: number | string, payload: { title?: string; content?: string; icon?: string; parent_id?: number | null; is_folder?: boolean; is_title_manually_edited?: boolean; tags?: string[], file_path?: string }) => {
     // 📂 Electron 桌面端直接模式 (Phase 4)
     if (window.electronAPI && typeof noteId === 'string') {
       const current = await api.getNote(noteId);
@@ -268,43 +312,86 @@ export const api = {
       if (!fm.id) fm.id = noteId;
       if (!fm.created_at) fm.created_at = current.created_at;
 
-      // 序列化 (正文如果本身含有 frontmatter 需要剥离，但这里我们假设 content 只是正文)
       const fmString = `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n\n`;
-      // 注意：这里简单的序列化可能不够健壮，但在受控环境下可用。
-      // 如果要更健壮，需要在 main 进程或这里引用 js-yaml (但 js-yaml 主要是解析)
-      
       const fullMarkdown = fmString + newContent;
       await window.electronAPI.writeMarkdownFile(noteId.endsWith('.md') ? noteId : `${noteId}.md`, fullMarkdown);
       return { ...current, ...payload, tags: newTags, title: newTitle } as Note;
     }
 
-    // 离线优先：立即保存到本地
-    const currentNote = await localDB.getNote(noteId);
+    // 🌐 浏览器降级模式 (IndexedDB)
+    const currentNote = await localDB.getNote(noteId as number);
     if (currentNote) {
-      const optimisticNote = { ...currentNote, ...payload };
+      const optimisticNote = { 
+        ...currentNote, 
+        ...payload,
+        updated_at: new Date().toISOString()
+      };
       await localDB.saveNote(optimisticNote as any);
+      
+      // 异步同步到后端
+      (async () => {
+        try {
+          const updatedRemote = await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
+          const noteWithStatus = { ...updatedRemote, sync_status: 'synced' } as any;
+          await localDB.saveNote(noteWithStatus);
+        } catch (e) {
+          console.warn(`Background sync failed for note ${noteId}:`, e);
+        }
+      })();
+
+      return optimisticNote as Note;
     }
 
-    // 异步同步到后端
-    (async () => {
-      try {
-        const updatedRemote = await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
-        // 同步成功后，标记为已同步
-        const noteWithStatus = { ...updatedRemote, sync_status: 'synced' } as any;
-        await localDB.saveNote(noteWithStatus);
-      } catch (e) {
-        console.warn(`Background sync failed for note ${noteId}:`, e);
-      }
-    })();
-
-    // 立即返回（如果是更新操作且本地已有）
-    return currentNote ? ({ ...currentNote, ...payload } as Note) : await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
+    // 如果本地没有且没有 Electron，尝试直接请求后端
+    const updatedRemote = await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
+    await localDB.saveNote(updatedRemote);
+    return updatedRemote;
   },
 
   updateNoteTags: (noteId: number, tags: string[]) =>
     invoke<Note>('notes:update-tags', `/notes/${noteId}/tags`, { params: { id: noteId, tags } }),
-  moveNote: (noteId: number, payload: { notebook_id?: number | null; position: number; parent_id?: number | null }) =>
-    invoke<Note>('notes:move', `/notes/${noteId}/move`, { params: { id: noteId, ...payload } }),
+  
+  moveNote: async (noteId: number | string, payload: { notebook_id?: number | null; position: number; parent_id?: number | null }) => {
+    // 📂 Electron 桌面端模式
+    if (window.electronAPI) {
+      // 在 Electron 下，moveNote 可能涉及文件系统的移动，但目前数据结构以 ID 为主
+      // 我们暂且通过 updateNote 模拟，如果需要文件移动，主进程应处理
+      return await api.updateNote(noteId, { parent_id: payload.parent_id });
+    }
+
+    // 🌐 浏览器/离线模式
+    const note = await localDB.getNote(noteId as number);
+    if (note) {
+      const updatedNote = { ...note, parent_id: payload.parent_id, position: payload.position };
+      await localDB.saveNote(updatedNote);
+      
+      // 异步同步
+      (async () => {
+        try {
+          await invoke<Note>('notes:move', `/notes/${noteId}/move`, { params: { id: noteId, ...payload } });
+        } catch (e) {
+          console.warn(`Move sync failed for ${noteId}:`, e);
+        }
+      })();
+      return updatedNote as Note;
+    }
+
+    return invoke<Note>('notes:move', `/notes/${noteId}/move`, { params: { id: noteId, ...payload } });
+  },
+
+  createFolder: async (payload: { title: string; parent_id?: number | null }) => {
+    return await api.createNote({
+      title: payload.title,
+      content: '',
+      is_folder: true,
+      parent_id: payload.parent_id,
+      icon: '📂'
+    });
+  },
+
+  renameNote: async (noteId: number | string, newTitle: string) => {
+    return await api.updateNote(noteId, { title: newTitle });
+  },
   bulkMoveNotes: (payload: { note_ids: number[]; notebook_id?: number | null; position: number; parent_id?: number | null }) =>
     invoke<{ notes: Note[] }>('notes:bulk-move', '/notes/bulk-move', { method: 'POST', body: JSON.stringify(payload) }),
   bulkDeleteNotes: (payload: { note_ids: number[]; position?: number }) =>

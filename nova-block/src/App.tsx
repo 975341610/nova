@@ -82,6 +82,11 @@ function App() {
     parentId: string | null;
   }>({ isOpen: false, mode: 'select', parentId: null });
 
+  const refreshNotes = async () => {
+    const allNotes = await dataService.getAllNotes();
+    setNotes(allNotes);
+  };
+
   // 初始化加载
   useEffect(() => {
     const init = async () => {
@@ -206,36 +211,68 @@ function App() {
     const isFolder = type === 'folder'
     const isCanvas = type === 'canvas'
     
-    // 生成 ID：优先使用 randomUUID，Electron 下可用文件名，Browser 下也改用字符串 ID 确保一致性
-    const newId = window.electronAPI 
-      ? `note_${Date.now()}.md` 
-      : (crypto.randomUUID ? crypto.randomUUID() : `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+    let newId: string | number;
+    
+    if (window.electronAPI) {
+      if (isFolder) {
+        const folderName = `Folder_${Date.now()}`;
+        const folderPath = parentId ? `${parentId}/${folderName}` : folderName;
+        await dataService.createFolder(folderPath);
+        newId = folderPath;
+      } else {
+        const fileName = `${isCanvas ? 'Canvas' : 'Untitled'}_${Date.now()}.md`;
+        newId = await dataService.createMarkdownFile(parentId || '', fileName);
+        
+        // 关键修复：如果是 Canvas，写入初始 JSON 内容，并带上基本 metadata
+        if (isCanvas) {
+          await dataService.saveNote({
+            id: newId,
+            title: fileName.replace(/\.md$/, ''),
+            is_folder: false,
+            parent_id: parentId,
+            content: JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+          });
+        } else {
+          // 普通笔记也要触发一次 saveNote 以写入基础 metadata (含 parent_id)
+          await dataService.saveNote({
+            id: newId,
+            title: fileName.replace(/\.md$/, ''),
+            is_folder: false,
+            parent_id: parentId,
+            content: ''
+          });
+        }
+      }
+    } else {
+      // 🌐 浏览器模式
+      newId = crypto.randomUUID ? crypto.randomUUID() : `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newNote: Note = {
+        id: newId,
+        title: isFolder ? '无标题文件夹' : isCanvas ? '无标题画布' : '无标题笔记',
+        icon: isFolder ? '📂' : isCanvas ? '🧩' : '📝',
+        content: isFolder
+          ? ''
+          : isCanvas
+            ? JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+            : '<p></p>',
+        type: isCanvas ? 'canvas' : undefined,
+        tags: [],
+        properties: [],
+        links: [],
+        notebook_id: null,
+        parent_id: parentId ? (isNaN(parseInt(parentId)) ? parentId : parseInt(parentId)) : null,
+        position: 0,
+        sort_key: 'm',
+        summary: '',
+        is_title_manually_edited: false,
+        is_folder: isFolder,
+        created_at: new Date().toISOString(),
+      } as Note
 
-    const newNote: Note = {
-      id: newId,
-      title: isFolder ? '无标题文件夹' : isCanvas ? '无标题画布' : '无标题笔记',
-      icon: isFolder ? '📂' : isCanvas ? '🧩' : '📝',
-      content: isFolder
-        ? ''
-        : isCanvas
-          ? JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
-          : '<p></p>',
-      type: isCanvas ? 'canvas' : undefined,
-      tags: [],
-      properties: [],
-      links: [],
-      notebook_id: null,
-      parent_id: parentId ? (window.electronAPI ? parentId : (isNaN(parseInt(parentId)) ? parentId : parseInt(parentId))) : null,
-      position: 0,
-      sort_key: 'm',
-      summary: '',
-      is_title_manually_edited: false,
-      is_folder: isFolder,
-      created_at: new Date().toISOString(),
-    } as Note
+      await dataService.saveNote(newNote as any);
+    }
 
-    await dataService.saveNote(newNote as any);
-    setNotes([...notes, newNote])
+    await refreshNotes();
 
     if (!isFolder) {
       setCurrentNoteId(newId)
@@ -243,24 +280,24 @@ function App() {
     }
   }
 
-  const handleNodeMove = (nodeId: string, parentId: string | null, sortKey: string) => {
-    const finalParentId = parentId ? (window.electronAPI ? parentId : parseInt(parentId)) : null;
-    setNotes(prev => prev.map(n => 
-      n.id.toString() === nodeId 
-        ? { ...n, parent_id: finalParentId, sort_key: sortKey } as Note
-        : n
-    ))
-  }
+  const handleNodeMove = async (nodeId: string, parentId: string | null, sortKey: string) => {
+    await dataService.moveItem(nodeId, parentId || 'root');
+    await refreshNotes();
+  };
 
-  const handleNodeRename = (nodeId: string, newTitle: string) => {
-    setNotes(prev => prev.map(n => n.id.toString() === nodeId ? { ...n, title: newTitle } : n))
-  }
+  const handleNodeRename = async (nodeId: string, newTitle: string) => {
+    await dataService.renameItem(nodeId, newTitle);
+    await refreshNotes();
+  };
 
-  const handleNodeDelete = (nodeId: string, deleteChildren: boolean) => {
-    // 简化的删除逻辑
-    setNotes(prev => prev.filter(n => n.id.toString() !== nodeId));
-    dataService.deleteNote(window.electronAPI ? nodeId : parseInt(nodeId));
-  }
+  const handleNodeDelete = async (nodeId: string, deleteChildren: boolean) => {
+    await dataService.deleteItem(nodeId);
+    await refreshNotes();
+    
+    if (currentNoteId.toString() === nodeId) {
+      setCurrentNoteId('');
+    }
+  };
 
   const handleNodeDuplicate = (nodeId: string) => {
     // 简化的克隆逻辑
@@ -278,7 +315,7 @@ function App() {
     setTemplateModal({ isOpen: true, mode: 'save', parentId: null });
   };
 
-  const handleSelectTemplate = (template: NoteTemplate) => {
+  const handleSelectTemplate = async (template: NoteTemplate) => {
     const newId = window.electronAPI 
       ? `note_${Date.now()}.md` 
       : (crypto.randomUUID ? crypto.randomUUID() : `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
@@ -292,16 +329,17 @@ function App() {
       properties: [],
       links: [],
       notebook_id: null,
-      parent_id: templateModal.parentId ? (isNaN(parseInt(templateModal.parentId)) ? templateModal.parentId : parseInt(templateModal.parentId)) : null,
+      parent_id: templateModal.parentId ? (isNaN(parseInt(templateModal.parentId)) ? templateModal.parentId : templateModal.parentId) : null,
       position: 0,
       sort_key: 'm',
       summary: '',
       is_title_manually_edited: false,
       is_folder: false,
       created_at: new Date().toISOString(),
-    };
+    } as Note;
 
-    setNotes([...notes, newNote]);
+    await dataService.saveNote(newNote as any);
+    await refreshNotes();
     setCurrentNoteId(newId);
     setActiveView('notes');
     setTemplateModal({ ...templateModal, isOpen: false });
