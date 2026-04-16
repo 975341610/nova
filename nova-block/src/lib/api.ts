@@ -517,9 +517,22 @@ export const api = {
       return { enabled: false };
     }
   },
-  updateAIPluginConfig: (payload: { enabled?: boolean; num_ctx?: number }) => 
-    invoke<{ enabled: boolean; num_ctx: number }>('ai:toggle-plugin', '/ai/toggle-plugin', { method: 'POST', body: JSON.stringify(payload) }),
-  updateOllama: () => invoke<{ status: string; output?: string; message?: string }>('ai:update-ollama', '/ai/update-ollama', { method: 'POST' }),
+  updateAIPluginConfig: async (payload: { enabled?: boolean; num_ctx?: number }) => {
+    try {
+      return await invoke<{ enabled: boolean; num_ctx: number }>('ai:toggle-plugin', '/ai/toggle-plugin', { method: 'POST', body: JSON.stringify(payload) });
+    } catch (e) {
+      console.warn('Failed to update AI plugin config, backend might be offline:', e);
+      // 返回一个默认值，防止前端抛错崩溃
+      return { enabled: payload.enabled ?? false, num_ctx: payload.num_ctx ?? 2048 };
+    }
+  },
+  updateOllama: async () => {
+    try {
+      return await invoke<{ status: string; output?: string; message?: string }>('ai:update-ollama', '/ai/update-ollama', { method: 'POST' });
+    } catch (e) {
+      return { status: 'failed', message: 'Backend unavailable' };
+    }
+  },
   checkAIHardware: async () => {
     try {
       return await invoke<{ compatible: boolean; details: string }>('ai:hardware-check', '/ai/hardware-check');
@@ -564,9 +577,28 @@ export const api = {
       return [];
     }
   },
-  createTemplate: (payload: { name: string; content: string; icon?: string; category?: string }) =>
-    invoke<NoteTemplate>('templates:create', '/templates', { method: 'POST', body: JSON.stringify(payload) }),
-  updateTemplate: (templateId: number, payload: { name?: string; content?: string; icon?: string; category?: string }) =>
-    invoke<NoteTemplate>('templates:update', `/templates/${templateId}`, { method: 'PATCH', params: { id: templateId, ...payload } }),
-  deleteTemplate: (templateId: number) => invoke('templates:delete', `/templates/${templateId}`, { method: 'DELETE', params: { id: templateId } }),
+  createTemplate: async (payload: { name: string; content: string; icon?: string; category?: string }) => {
+    try {
+      return await invoke<NoteTemplate>('templates:create', '/templates', { method: 'POST', body: JSON.stringify(payload) });
+    } catch (e) {
+      console.warn('Failed to create template:', e);
+      throw e; // 这里抛出可能是为了让 UI 层处理，但我们加个日志
+    }
+  },
+  updateTemplate: async (templateId: number, payload: { name?: string; content?: string; icon?: string; category?: string }) => {
+    try {
+      return await invoke<NoteTemplate>('templates:update', `/templates/${templateId}`, { method: 'PATCH', params: { id: templateId, ...payload } });
+    } catch (e) {
+      console.warn('Failed to update template:', e);
+      return null; // 静默失败
+    }
+  },
+  deleteTemplate: async (templateId: number) => {
+    try {
+      return await invoke('templates:delete', `/templates/${templateId}`, { method: 'DELETE', params: { id: templateId } });
+    } catch (e) {
+      console.warn('Failed to delete template:', e);
+      return null;
+    }
+  },
 };

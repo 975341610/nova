@@ -1204,7 +1204,21 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     
     // 合并最新的编辑器内容和传入的增量更新 (如天气、心情)
     const html = content || editor?.getHTML() || '';
-    const payloadToSave = { ...currentNote, ...updates, content: html };
+    
+    // 防御：确保 ID 存在
+    const effectiveId = updates?.id || currentNote.id || note?.id;
+    if (!effectiveId) {
+        console.error('[NovaBlockEditor] Cannot save: missing note ID', { currentNote, updates, note });
+        onNotify?.('保存失败：ID 丢失', 'error');
+        return;
+    }
+
+    const payloadToSave = { 
+        ...currentNote, 
+        ...updates, 
+        id: effectiveId,
+        content: html 
+    };
 
     // 如果已经在保存中，避免并发冲突，但记录下脏标记，下次自动保存会补上
     if (isSavingRef.current) {

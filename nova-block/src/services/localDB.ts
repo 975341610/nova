@@ -55,6 +55,10 @@ export class LocalDB {
   }
 
   async saveNote(note: Partial<Note> & { id: number | string }): Promise<void> {
+    if (!note.id) {
+      console.error('[LocalDB] Cannot save note: missing ID', note);
+      return;
+    }
     const db = await this.dbPromise;
     const existing = await db.get('notes', note.id);
     
