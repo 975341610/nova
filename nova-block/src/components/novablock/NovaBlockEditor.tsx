@@ -1206,14 +1206,12 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     const html = content || editor?.getHTML() || '';
     
     // 防御：确保 ID 存在，缺失则自动生成
-    const effectiveId = updates?.id || currentNote.id || note?.id || `local-${Date.now()}`;
+    let effectiveId = updates?.id || currentNote.id || note?.id;
     if (!effectiveId) {
-        // 虽然上面已经兜底，但为了 TS 类型检查仍然保留
-        console.error('[NovaBlockEditor] Cannot save: missing note ID', { currentNote, updates, note });
-        onNotify?.('保存失败：ID 丢失', 'error');
-        return;
+        effectiveId = `local-${Date.now()}`;
+        console.warn('[NovaBlockEditor] Note ID missing during save, generated fallback:', effectiveId);
     }
-
+    
     const payloadToSave = { 
         ...currentNote, 
         ...updates, 

@@ -206,10 +206,10 @@ function App() {
     const isFolder = type === 'folder'
     const isCanvas = type === 'canvas'
     
-    // 生成 ID：Electron 下用文件名（时间戳），Browser 下用数字
+    // 生成 ID：优先使用 randomUUID，Electron 下可用文件名，Browser 下也改用字符串 ID 确保一致性
     const newId = window.electronAPI 
       ? `note_${Date.now()}.md` 
-      : (Math.max(...notes.map(n => typeof n.id === 'number' ? n.id : 0), 0) + 1);
+      : (crypto.randomUUID ? crypto.randomUUID() : `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
 
     const newNote: Note = {
       id: newId,
@@ -225,7 +225,7 @@ function App() {
       properties: [],
       links: [],
       notebook_id: null,
-      parent_id: parentId ? (window.electronAPI ? parentId : parseInt(parentId)) : null,
+      parent_id: parentId ? (window.electronAPI ? parentId : (isNaN(parseInt(parentId)) ? parentId : parseInt(parentId))) : null,
       position: 0,
       sort_key: 'm',
       summary: '',
@@ -279,7 +279,10 @@ function App() {
   };
 
   const handleSelectTemplate = (template: NoteTemplate) => {
-    const newId = Math.max(...notes.map(n => n.id), 0) + 1;
+    const newId = window.electronAPI 
+      ? `note_${Date.now()}.md` 
+      : (crypto.randomUUID ? crypto.randomUUID() : `note_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+      
     const newNote: Note = {
       id: newId,
       title: template.name,
@@ -289,7 +292,7 @@ function App() {
       properties: [],
       links: [],
       notebook_id: null,
-      parent_id: templateModal.parentId ? parseInt(templateModal.parentId) : null,
+      parent_id: templateModal.parentId ? (isNaN(parseInt(templateModal.parentId)) ? templateModal.parentId : parseInt(templateModal.parentId)) : null,
       position: 0,
       sort_key: 'm',
       summary: '',
@@ -321,9 +324,16 @@ function App() {
   };
 
   const handleSave = async (payload: Partial<Note>) => {
-    const updatedNote = { ...currentNote, ...payload } as any;
+    // 关键修复：确保 payload 中包含当前笔记的 ID
+    const effectiveId = payload.id || currentNoteId;
+    if (!effectiveId) {
+      console.error('[App] Cannot save note: currentNoteId is missing');
+      return;
+    }
+
+    const updatedNote = { ...currentNote, ...payload, id: effectiveId } as Note;
     await dataService.saveNote(updatedNote);
-    setNotes(prev => prev.map(n => n.id === currentNoteId ? updatedNote : n))
+    setNotes(prev => prev.map(n => n.id === effectiveId ? updatedNote : n))
   }
 
   return (
