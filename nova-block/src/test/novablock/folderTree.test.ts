@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { FileTreeNode, Note } from '../../lib/types';
+import type { FileTreeNode } from '../../lib/types';
 
 describe('Folder Tree Adapter Logic', () => {
   const mockFileTree: FileTreeNode[] = [

@@ -9,8 +9,7 @@ import type {
   Task, 
   TrashState, 
   UserStats,
-  UserAchievement,
-  ElectronAPI
+  UserAchievement
 } from './types';
 export const getApiBase = () => {
   if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
@@ -277,7 +276,7 @@ export const api = {
       // 异步同步到后端 (可选，由调用方决定是否需要静默同步)
       (async () => {
         try {
-          const remoteNote = await invoke<Note>('notes:create', '/notes', { method: 'POST', body: JSON.stringify(payload) });
+          await invoke<Note>('notes:create', '/notes', { method: 'POST', body: JSON.stringify(payload) });
           // 后端返回真实 ID 后，我们需要更新本地记录或合并。
           // 这里的简化处理是：如果离线，就用本地 ID；如果在线，后续同步会处理。
         } catch (e) {

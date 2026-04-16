@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { LocalDB } from '../localDB';
-import type { Note } from '../../lib/types';
 import { deleteDB } from 'idb';
 
 describe('LocalDB', () => {

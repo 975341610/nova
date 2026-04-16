@@ -1305,9 +1305,9 @@ t.whenReady().then(async () => {
 	}), n.handle("createFolder", async (e, t) => {
 		try {
 			let e = r.join(Q, t);
-			return await i.mkdir(e, { recursive: !0 }), !0;
+			return await i.mkdir(e, { recursive: !0 }), t;
 		} catch (e) {
-			return console.error(`[IPC] createFolder failed: ${t}`, e), !1;
+			return console.error(`[IPC] createFolder failed: ${t}`, e), "";
 		}
 	}), n.handle("createMarkdownFile", async (e, t, n) => {
 		try {

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints, LayoutGrid, Layout, RefreshCw } from 'lucide-react';
+import { Search, Layers, Settings, ChevronLeft, ChevronRight, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints, LayoutGrid, Layout, RefreshCw } from 'lucide-react';
 import { buildTree, moveNode, isDescendant } from '../../lib/novablock/treeUtils';
 import type { TreeNode } from '../../lib/novablock/treeUtils';
 import { TreeNodeItem } from './TreeNodeItem';

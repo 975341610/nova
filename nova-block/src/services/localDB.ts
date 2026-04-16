@@ -1,4 +1,4 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
 import type { Note, Notebook } from '../lib/types';
 
 interface NovaDB {

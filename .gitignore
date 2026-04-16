@@ -5,3 +5,11 @@ dist/
 .env
 data/
 backend/backend.log
+
+# Aime Agent Runtime Files
+.aime/
+.index/
+memory/
+aime_user_guides/
+aime_user_guides_meta/
+inner_skills/

@@ -54,6 +54,8 @@ class HybridDataService implements DataService {
               title: node.name,
               is_folder: true,
               parent_id: parentId,
+              notebook_id: 'default',
+              position: 0,
               tags: [],
               properties: [],
               links: [],
@@ -109,6 +111,9 @@ class HybridDataService implements DataService {
               id: idStr,
               title: meta.title || idStr.split('/').pop() || idStr,
               is_folder: true,
+              parent_id: null,
+              notebook_id: 'default',
+              position: 0,
               tags: [],
               properties: [],
               links: [],
@@ -287,7 +292,7 @@ class HybridDataService implements DataService {
 
   async createFolder(folderPath: string): Promise<string> {
     if (window.electronAPI) {
-      return await window.electronAPI.createFolder(folderPath);
+      return (await window.electronAPI.createFolder(folderPath)).toString();
     }
 
     try {

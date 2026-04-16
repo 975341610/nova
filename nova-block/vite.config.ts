@@ -4,7 +4,6 @@ import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
-import { defineConfig as defineVitestConfig, mergeConfig } from 'vitest/config'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
