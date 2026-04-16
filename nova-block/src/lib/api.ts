@@ -472,8 +472,20 @@ export const api = {
   },
   getSystemVersion: () => invoke<{ version: string; git_commit?: string; build_time?: string; executable?: string }>('system:version', '/system/version'),
   openFile: (path: string) => invoke('system:open-file', '/system/open-file', { method: 'POST', body: JSON.stringify({ path }) }),
-  // 音乐库列表必须走后端扫描（HTTP），避免 Electron IPC 缺失导致库永远为空
+  // 音乐库列表：在 Electron 模式下尝试本地兜底
   listMusicLibrary: async () => {
+    if (window.electronAPI) {
+      // Phase 4: 在 Electron 模式下，如果没有后端，返回空列表而不是报错
+      try {
+        const API_BASE = getApiBase();
+        const response = await fetch(`${API_BASE}/media/music-library`);
+        if (!response.ok) return [];
+        return response.json();
+      } catch (e) {
+        console.warn('Music library backend unavailable, falling back to empty list');
+        return [];
+      }
+    }
     const API_BASE = getApiBase();
     const response = await fetch(`${API_BASE}/media/music-library`);
     if (!response.ok) throw new Error(await response.text());
@@ -491,20 +503,38 @@ export const api = {
     return response.json();
   },
   
-  // AI Plugin status and hardware check
-  getAIPluginStatus: () => invoke<{ enabled: boolean }>('ai:plugin-status', '/ai/plugin-status'),
+  // AI Plugin status and hardware check: 增加降级处理
+  getAIPluginStatus: async () => {
+    try {
+      return await invoke<{ enabled: boolean }>('ai:plugin-status', '/ai/plugin-status');
+    } catch (e) {
+      console.warn('AI Plugin status unavailable, returning default (disabled)');
+      return { enabled: false };
+    }
+  },
   updateAIPluginConfig: (payload: { enabled?: boolean; num_ctx?: number }) => 
     invoke<{ enabled: boolean; num_ctx: number }>('ai:toggle-plugin', '/ai/toggle-plugin', { method: 'POST', body: JSON.stringify(payload) }),
   updateOllama: () => invoke<{ status: string; output?: string; message?: string }>('ai:update-ollama', '/ai/update-ollama', { method: 'POST' }),
-  checkAIHardware: () => invoke<{ compatible: boolean; details: string }>('ai:hardware-check', '/ai/hardware-check'),
+  checkAIHardware: async () => {
+    try {
+      return await invoke<{ compatible: boolean; details: string }>('ai:hardware-check', '/ai/hardware-check');
+    } catch (e) {
+      return { compatible: false, details: 'Hardware check failed or backend unavailable' };
+    }
+  },
   spellcheck: (text: string) =>
     invoke<{ errors: Array<{ word: string; suggestion: string; reason: string; offset: number }> }>('text:spellcheck', '/text/spellcheck', { method: 'POST', body: JSON.stringify({ text }) }),
   importDictionary: (text: string) =>
     invoke<{ status: string; count: number; message: string }>('text:dictionary:import', '/text/dictionary/import', { method: 'POST', body: JSON.stringify({ text }) }),
   
   // Dummy implementations for PropertyPanel
-  suggestTags: (content: string) => 
-    invoke<{ tags: string[] }>('ai:suggest-tags', '/ai/suggest-tags', { method: 'POST', body: JSON.stringify({ content }) }),
+  suggestTags: async (content: string) => {
+    try {
+      return await invoke<{ tags: string[] }>('ai:suggest-tags', '/ai/suggest-tags', { method: 'POST', body: JSON.stringify({ content }) });
+    } catch (e) {
+      return { tags: [] };
+    }
+  },
   updateNoteProperty: async (noteId: number, propertyId: number, payload: any) => {
     console.log('Dummy updateNoteProperty called for note:', noteId, 'propertyId:', propertyId, 'payload:', payload);
     return { id: propertyId, ...payload } as NoteProperty;
@@ -514,8 +544,15 @@ export const api = {
     return { ...property, id: Math.random() } as NoteProperty;
   },
 
-  // Template APIs
-  listTemplates: () => invoke<NoteTemplate[]>('templates:list', '/templates'),
+  // Template APIs: 增加降级处理
+  listTemplates: async () => {
+    try {
+      return await invoke<NoteTemplate[]>('templates:list', '/templates');
+    } catch (e) {
+      console.warn('Templates backend unavailable, returning empty list');
+      return [];
+    }
+  },
   createTemplate: (payload: { name: string; content: string; icon?: string; category?: string }) =>
     invoke<NoteTemplate>('templates:create', '/templates', { method: 'POST', body: JSON.stringify(payload) }),
   updateTemplate: (templateId: number, payload: { name?: string; content?: string; icon?: string; category?: string }) =>
