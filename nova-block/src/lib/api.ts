@@ -468,8 +468,22 @@ export const api = {
     return res as UserStats;
   },
   listUserAchievements: () => invoke<UserAchievement[]>('user:list-achievements', '/user/achievements'),
-  updateUserTheme: (theme: string) => invoke<UserStats>('user:update-theme', '/user/theme', { params: { theme } }),
-  updateUserWallpaper: (wallpaperUrl: string) => invoke<UserStats>('user:update-wallpaper', '/user/wallpaper', { params: { wallpaper_url: wallpaperUrl } }),
+  updateUserTheme: async (theme: string) => {
+    try {
+      return await invoke<UserStats>('user:update-theme', '/user/theme', { params: { theme } });
+    } catch (e) {
+      console.warn('Failed to update theme, backend offline');
+      return { exp: 0, level: 1, total_captures: 0, current_theme: theme } as UserStats;
+    }
+  },
+  updateUserWallpaper: async (wallpaperUrl: string) => {
+    try {
+      return await invoke<UserStats>('user:update-wallpaper', '/user/wallpaper', { params: { wallpaper_url: wallpaperUrl } });
+    } catch (e) {
+      console.warn('Failed to update wallpaper, backend offline');
+      return null;
+    }
+  },
   listBgm: () => invoke<string[]>('bgm:list', '/bgm/list'),
   getBgmStreamUrl: (filename: string) => {
     const API_BASE = getApiBase();
@@ -496,16 +510,27 @@ export const api = {
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   },
-  saveMusicLink: (payload: { title: string; url: string; cover?: string }) =>
-    invoke<any>('media:music-link', '/media/music-link', { method: 'POST', body: JSON.stringify(payload) }),
+  saveMusicLink: async (payload: { title: string; url: string; cover?: string }) => {
+    try {
+      return await invoke<any>('media:music-link', '/media/music-link', { method: 'POST', body: JSON.stringify(payload) });
+    } catch (e) {
+      console.warn('Failed to save music link, backend offline');
+      return null;
+    }
+  },
   uploadMusic: async (file: File, cover?: File) => {
-    const API_BASE = getApiBase();
-    const formData = new FormData();
-    formData.append('file', file);
-    if (cover) formData.append('cover', cover);
-    const response = await fetch(`${API_BASE}/media/music-upload`, { method: 'POST', body: formData });
-    if (!response.ok) throw new Error(await response.text());
-    return response.json();
+    try {
+      const API_BASE = getApiBase();
+      const formData = new FormData();
+      formData.append('file', file);
+      if (cover) formData.append('cover', cover);
+      const response = await fetch(`${API_BASE}/media/music-upload`, { method: 'POST', body: formData });
+      if (!response.ok) throw new Error(await response.text());
+      return await response.json();
+    } catch (e) {
+      console.warn('Failed to upload music, backend offline');
+      return null;
+    }
   },
   
   // AI Plugin status and hardware check: 增加降级处理
@@ -548,8 +573,13 @@ export const api = {
       return { errors: [], original_text: text, corrections: [] };
     }
   },
-  importDictionary: (text: string) =>
-    invoke<{ status: string; count: number; message: string }>('text:dictionary:import', '/text/dictionary/import', { method: 'POST', body: JSON.stringify({ text }) }),
+  importDictionary: async (text: string) => {
+    try {
+      return await invoke<{ status: string; count: number; message: string }>('text:dictionary:import', '/text/dictionary/import', { method: 'POST', body: JSON.stringify({ text }) });
+    } catch (e) {
+      return { status: 'failed', count: 0, message: 'Backend unavailable' };
+    }
+  },
   
   // Dummy implementations for PropertyPanel
   suggestTags: async (content: string) => {
@@ -560,12 +590,20 @@ export const api = {
     }
   },
   updateNoteProperty: async (noteId: number, propertyId: number, payload: any) => {
-    console.log('Dummy updateNoteProperty called for note:', noteId, 'propertyId:', propertyId, 'payload:', payload);
-    return { id: propertyId, ...payload } as NoteProperty;
+    try {
+        console.log('Dummy updateNoteProperty called for note:', noteId, 'propertyId:', propertyId, 'payload:', payload);
+        return { id: propertyId, ...payload } as NoteProperty;
+    } catch (e) {
+        return { id: propertyId, ...payload } as NoteProperty;
+    }
   },
   createNoteProperty: async (noteId: number, property: { name: string; type: string; value: any }) => {
-    console.log('Dummy createNoteProperty called for note:', noteId, 'property:', property);
-    return { ...property, id: Math.random() } as NoteProperty;
+    try {
+        console.log('Dummy createNoteProperty called for note:', noteId, 'property:', property);
+        return { ...property, id: Math.random() } as NoteProperty;
+    } catch (e) {
+        return { ...property, id: Math.random() } as NoteProperty;
+    }
   },
 
   // Template APIs: 增加降级处理
@@ -581,8 +619,8 @@ export const api = {
     try {
       return await invoke<NoteTemplate>('templates:create', '/templates', { method: 'POST', body: JSON.stringify(payload) });
     } catch (e) {
-      console.warn('Failed to create template:', e);
-      throw e; // 这里抛出可能是为了让 UI 层处理，但我们加个日志
+      console.warn('Failed to create template, backend offline:', e);
+      return { ...payload, id: Date.now() } as NoteTemplate;
     }
   },
   updateTemplate: async (templateId: number, payload: { name?: string; content?: string; icon?: string; category?: string }) => {

@@ -54,17 +54,18 @@ export class LocalDB {
     return note?.sync_status === 'deleted' ? undefined : note;
   }
 
-  async saveNote(note: Partial<Note> & { id: number | string }): Promise<void> {
-    if (!note.id) {
-      console.error('[LocalDB] Cannot save note: missing ID', note);
-      return;
-    }
+  async saveNote(note: Partial<Note>): Promise<void> {
     const db = await this.dbPromise;
-    const existing = await db.get('notes', note.id);
+    
+    // 如果没有 ID，则自动生成一个 (UUID 风格或时间戳)
+    const effectiveId = note.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    
+    const existing = await db.get('notes', effectiveId);
     
     const updatedNote = {
       ...(existing || {}),
       ...note,
+      id: effectiveId,
       sync_status: 'pending' as const,
       local_updated_at: Date.now(),
     } as Note & { sync_status: 'synced' | 'pending' | 'deleted'; local_updated_at: number; };

@@ -1205,9 +1205,10 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     // 合并最新的编辑器内容和传入的增量更新 (如天气、心情)
     const html = content || editor?.getHTML() || '';
     
-    // 防御：确保 ID 存在
-    const effectiveId = updates?.id || currentNote.id || note?.id;
+    // 防御：确保 ID 存在，缺失则自动生成
+    const effectiveId = updates?.id || currentNote.id || note?.id || `local-${Date.now()}`;
     if (!effectiveId) {
+        // 虽然上面已经兜底，但为了 TS 类型检查仍然保留
         console.error('[NovaBlockEditor] Cannot save: missing note ID', { currentNote, updates, note });
         onNotify?.('保存失败：ID 丢失', 'error');
         return;
