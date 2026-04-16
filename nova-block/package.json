@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.17.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "dev:electron": "vite",
