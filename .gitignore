@@ -1,7 +1,36 @@
-__pycache__/
-*.pyc
-node_modules/
-dist/
-.env
-data/
-backend/backend.log
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime files
+node_modules
+dist
+dist-ssr
+out
+.index/
+memory/
+inner_skills/
+aime_user_guides/
+aime_user_guides_meta/
+.aime/
+.env*
+! .env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

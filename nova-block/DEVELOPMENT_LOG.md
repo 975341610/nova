@@ -1,19 +1,40 @@
-# Second Brain AI - 开发进度与状态日志
+---
 
-## [2026-04-15] - 编辑器核心 Bug 修复 (Spellcheck, NoteLink & CodeBlock)
+## [2026-04-15] - 修复文字气泡菜单 (BubbleMenu) Tooltips 中文乱码
 
-### 1. 拼写检查 (Spellcheck) 稳定性增强
-- **错误拦截**: 在 `AISpellcheck.ts` 中增加了对 `405 Method Not Allowed` 错误的捕获。一旦后端返回 405，插件将自动进入静默状态并停止重复请求。
+### 1. 修复详情
+- **编码重建**: 针对 `NovaBlockEditor.tsx` 中 `BubbleMenu` 关联的所有简体中文 Tooltips 进行手动重写覆盖，解决了由于非 UTF-8 编码读取导致的字符损坏（Mojibake）问题。
+- **Tooltips 覆盖范围**: 包含表格操作（插入列/行、删除列/行/表格）及文本操作（加粗、斜体、下划线、删除线、链接、高亮、代码、特效、清除格式、表情包）。
+- **属性注入**: 为 `BubbleMenu` 容器增加了 `data-fixed-mojibake="true"` 属性，以强制触发布局重绘并验证修复。
 
-### 2. NoteLink 引用功能修复
-- **闪退修复**: 解决了 `NoteLink` 建议菜单在快速重新渲染或点击时由于 `Tippy.js` 实例意外销毁导致的闪退问题。
-- **生命周期保护**: 在 `NoteLinkConfig.tsx` 中增加了更严谨的 `props.clientRect` 存在性判断。
-- **事件冒泡拦截**: 在 `NoteLinkSuggestion.tsx` 的按钮点击与按下事件中加入了 `stopPropagation()`，防止事件冒泡干扰编辑器焦点。
-
-### 3. 代码块 (CodeBlock) 交互优化
-- **Backspace 行为修正**: 拦截了代码块最开头的 `Backspace` 按键。当光标位于代码块首行首位且按下退格时，现在会将代码块直接转换回普通段落，而不是将代码文本合并到上一行正文中，彻底解决了代码块删除导致的排版污染问题。
+### 2. 构建与交付
+- **构建状态**: 执行 `npm run build` 顺利通过，未引发任何类型冲突。
+- **本地提交**: `fix: resolve Chinese mojibake in BubbleMenu tooltips`。
 
 ---
+
+## [2026-04-13] - 修复块手柄与标题折叠箭头重叠及命中逻辑错乱 (v0.16.5)
+
+### 1. 前端 UI 与交互优化 (NovaBlockEditor & HeadingView)
+- **HeadingView 布局重构**:
+  - 移除了标题组件上的负边距（`-ml-[1.8rem]`）与补偿内边距（`pl-[1.8rem]`），回归标准文档流。
+  - 将折叠箭头按钮从相对定位改为绝对定位 (`absolute -left-8`)，确保其在左侧 Gutter 区域独立显示，不再物理挤压正文。
+- **DragHandle 坐标对齐**:
+  - 调整 `DragHandle` 配置，将 `placement` 从 `left-start` 改为 `left` 中心对齐。
+  - 增加 `offset: [-2, 40]`，使拖拽手柄向左侧偏移 40px，完美避开位于 `-left-8` (32px) 的折叠箭头，彻底解决两者重叠导致的点击冲突。
+  - 强制启用 `strategy: 'fixed'`，确保在长文档滚动时手柄位置不产生漂移。
+- **Block 命中逻辑重构 (handleGripClick)**:
+  - 废弃了基于编辑器左边距的硬编码 X 轴偏移算法。
+  - 改用 `editor.view.posAtCoords` 直接结合鼠标点击的精确坐标 (`e.clientX / e.clientY`) 来寻找目标节点。
+  - 使用 `resolve(pos).before(1)` 强制锁定顶层块级节点，解决了在复杂嵌套结构（如列表、分栏）中点击手柄时菜单定位到内部子节点的逻辑错乱问题。
+
+### 2. 样式与工程化
+- **CSS 精简**: 移除了 `novablock-core.css` 中 `.drag-handle` 的 `margin-right: 22px`，防止该样式干扰 Tippy.js 的自动偏移计算。
+- **版本发布**: 将 `nova-block/package.json` 升级至 `v0.16.5`，同步记录本次关键交互修复。
+
+---
+
+# Second Brain AI - 开发进度与状态日志
 
 > 老大的最新训示：**一定要认准死理：高效、性能；不管应用再好用、再好看，要是配置门槛高、卡顿卡死，流畅度低，那么它就是垃圾就是没人用**。
 
@@ -22,55 +43,6 @@
 > 2. 只有在**用户（老大）明确确认**问题/需求解决后，才能标记为 `[x]` 或 `已解决`。
 > 3. 每次提交 GitHub (Commit/Push) 必须在此记录更新详情。
 > 4. 保持言简意赅，方便 AI 快速读取上下文。
-
-- [2026-04-09] (18:05) **Bug Fix - Tiptap Key Conflict**
-  - Fixed `Uncaught RangeError: Adding different instances of a keyed plugin` caused by overlapping Tiptap Suggestion plugin keys.
-  - Explicitly injected `pluginKey: new PluginKey('noteLinkSuggestion')` into `NoteLink` extension's `addProseMirrorPlugins()`.
-
-- [2026-04-09] (18:15) **Bug Fix - NoteLink Suggestion Interaction & Search**
-  - **交互修复**: 解决了 `[[` 笔记搜索菜单无法点击、无法通过键盘选中的问题。修复了 `onKeyDown` 拦截导致编辑器失去焦点或光标跳动的 Bug。
-  - **搜索优化**: 修复了 `items` 过滤逻辑，将直接 `fetch` 替换为统一的 `api.listNotes()`，支持 Electron IPC 高性能检索。
-  - **热更新逻辑**: 补全了 `ReactRenderer` 的 `onUpdate` 属性传递，确保输入搜索词时候选列表实时刷新。
-  - **UI 增强**: 为 `NoteLinkSuggestion` 增加了 Z-Index 保证置顶，增加了搜索词显示及选中的视觉缩放反馈。
-  - **自动转换**: 优化了 Suggestion 匹配逻辑，确保用户输入后能够通过回车或 Tab 瞬间完成笔记引用胶囊的转换。
-
-- [2026-04-09] (18:50) **Critical Bug Fix - NoteLink Search Reliability**
-  - **核心优化**: 彻底解决了输入 `[[` 后显示“未找到相关笔记”的问题。
-  - **数据源重构**: 将 `NoteLink` 的 `suggestion.items` 钩子从异步的 `api.listNotes()` 替换为同步的全局状态 `window.novaNotes`。
-  - **同步机制**: 在 `App.tsx` 中增加 `useEffect` 实时同步 `notes` 状态到 `window.novaNotes`，确保 Tiptap 菜单弹窗能 100% 立即获取当前已存在的笔记列表。
-  - **过滤逻辑优化**: 增加了针对 `is_folder` 的排除过滤，确保链接建议中只出现可链接的笔记页面而非文件夹。
-  - **代码清理**: 移除了 `NoteLinkConfig.tsx` 中未使用的 `api` 导入，并通过了 `npm run build` 验证。
-
-- [2026-04-09] (18:36) **Bug Fix - NoteLink Search Source Reliability**
-  - Fixed issue where the `[[` NoteLink suggestion menu would always show "未找到相关笔记" (No notes found).
-  - Transitioned the data source for `suggestion.items` from an asynchronous fetch to a synchronous, real-time lookup directly from the global Zustand state (`useNoteStore.getState().notes`). This entirely bypasses IPC/Network async race conditions and ensures instantaneous matching based on the user's typed query.
-
-- [2026-04-09] (18:45) **Bug Fix - NoteLink Insertion Crash**
-  - Fixed `Uncaught TypeError: editor.chain(...).focus(...).replaceRangeWith is not a function` crash when inserting a linked note from the suggestion menu.
-  - Replaced the invalid ProseMirror-style `.replaceRangeWith()` call with the correct Tiptap `.insertContentAt()` chainable command.
-
-- [2026-04-09] (18:55) **Bug Fix - NoteLink UI, Backend APIs & Navigation**
-  - **Backend API**: Fixed `GET /api/notes/{note_id}/backlinks` returning 404/500 errors by adding the missing `select` import and properly implementing the bidirectional queries.
-  - **Frontend UI**: Refactored the `NoteLink` Tiptap Node to use `ReactNodeViewRenderer`. The link is now rendered via a dedicated `NoteLinkNode.tsx` component as a beautiful, Morandi-colored interactive capsule (`📝 Note Title`) with hover effects and selection states.
-  - **Navigation**: Clicking a NoteLink capsule now dispatches a decoupled `nova-select-note` custom event, seamlessly instructing the app shell to switch notes without hardcoding the global Zustand state inside the editor extension.
-
----
-
-## 2026-04-10 (体验优化与 Bug 修复)
-### Fixed
-- **Group 拖拽体验优化**:
-  - 在 GroupNode 标题栏增加了显式的拖拽把手（使用 `LayoutGrid` 图标），并明确指定了 `.canvas-group-drag-handle`。
-  - 为标题栏内的按钮和输入框添加了 `nodrag` 类，确保点击这些交互元素时不会误触发拖拽。
-- **已经在 Group 内的卡片无法移出修复**:
-  - 重构了 `getAbsPos` 逻辑，优先使用 xyflow 提供的 `positionAbsolute` 属性，确保坐标计算的准确性。
-  - 在 `onNodeDragStop` 中，即使节点在 Group 内拖动，也会实时判断其中心点是否还在 Group 范围内；若移出，则自动解除父子关系并将其转换为绝对坐标，支持 CTRL+拖拽移出逻辑。
-- **右键菜单遮挡修复**:
-  - 在 `handleCanvasContextMenu` 中增加了 `event.stopPropagation()`，防止事件冒泡触发其他菜单。
-  - 显式绑定了 `onNodeContextMenu` 到 ReactFlow，并在 `onEdgeContextMenu` 中调用 `preventDefault`，确保全画布范围内禁用原生右键菜单。
-- **Group 收纳后虚线框尺寸同步修复**:
-  - 点击 Collapse 时，不仅隐藏子节点，还同步更新 Group 节点的 `height` 属性及 `style.height`，确保 xyflow 的虚线选择框能真实收缩到 40px 高度。
-- **代码健壮性**:
-  - 修复了 `CanvasEditor` 中 `useEffect` 初始化逻辑，补全了丢失的 `dragHandle` 注入，确保刷新后节点交互依然可用。
 
 ---
 
@@ -84,6 +56,7 @@
 
 ### 阶段二：手账专属 Tiptap Blocks (Pending)
 - [ ] **手写体支持**: 引入手写风格字体。
+- [x] **高级图片轮播 (Slider)**: 实现带设置面板、自动播放与多图滑动功能的自定义 Tiptap 扩展。
 - [ ] **装饰性组件**: 胶带 (Washi Tape)、贴纸 (Stickers)、图章 (Stamps) Block 实现。
 - [ ] **心情追踪器**: 集成情感分析的心情记录块。
 
@@ -305,12 +278,12 @@
 ### 1. 离线/断网表现 (Offline-First Ready)
 - [ ] **秒开验证**：断开网络启动应用，编辑器应立即显示上一次的内容（由 IndexedDB 渲染），不应出现长时间 Loading 或白屏。
 - [ ] **数据持久化**：在断网状态下修改内容并关闭应用，重新打开后修改应依然存在。
-- [ ] **存储位置检查**：验证本地配置文件和笔记是否正确存储在 Windows 的 `%APPDATA%\NovaBlock` 目录下。
+- [ ] **存储位置检查**：验证本地配置文件和笔记是否正确存储在 Windows 的 `%APPDATA%\SecondBrainAI` 目录下。
 
 ### 2. 多编辑器协同 (External Watcher / SSOT)
 - [ ] **双向同步逻辑**：
-  - 使用外部编辑器（Obsidian/VSCode）修改 `.md` 文件并保存，NovaBlock 编辑器应在 1s 内自动刷新。
-  - 在 NovaBlock 修改并失去焦点后，检查本地 `.md` 文件内容是否同步更新。
+  - 使用外部编辑器（Obsidian/VSCode）修改 `.md` 文件并保存，SecondBrainAI 编辑器应在 1s 内自动刷新。
+  - 在 SecondBrainAI 修改并失去焦点后，检查本地 `.md` 文件内容是否同步更新。
 - [ ] **覆盖与冲突**：模拟同时修改同一行，验证 Yjs 的 CRDT 合并逻辑是否生效（不应导致文件内容乱码或丢失）。
 - [ ] **文件删除处理**：外部物理删除文件后，应用应能正确处理 UI 状态（如提示文件已丢失或从列表移除）。
 
@@ -339,180 +312,19 @@
 ## 2026-04-03
 ### Fixed
 - Critical bug in local-first auto-save fast-path: The Python backend does not return `file_path` in the note schema because it stores notes primarily in SQLite. Thus, the frontend's `currentNote.file_path` was always undefined, causing `index.ts` to silently skip the Node.js fast-path and fall back to the slow Python backend on every keystroke. Added a default fallback `note_${id}.md` directly in the IPC handler so the Node.js native save executes unconditionally.
-## 2026-04-03
-### Fixed
-- Addressed React crash (`TypeError: Cannot read properties of undefined (reading 'length')` in `Sidebar.tsx`) occurring when the application boots locally and the Python IPC backend fails to return a valid `TrashState` or `UserStats` object. Now gracefully handles missing objects by providing default empty arrays/objects.
+## 2026-04-09
+### Added
+- **Slider Extension (Tiptap)**:
+  - 实现 `SliderExtension` 自定义节点，支持 `images` (string[]), `autoPlay`, `showDots`, `showArrows` 属性。
+  - 实现 `SliderNodeView` 交互组件，支持左右滑动切换图片及浮动设置面板。
+  - MVP 阶段支持通过 URL 粘贴快速添加图片。
+  - 在 `NovaBlockEditor` 中注册并集成至 Slash Menu (`/slider`)。
 ## 2026-04-03
 ### Fixed
 - Tiptap Callout Block Escape Logic: Removed complex transaction hooks and isolating properties. Refactored Callout HTML structure to use `flex-direction: column` and a dedicated `callout-content` wrapper. This correctly aligns with Tiptap's default behavior, allowing soft breaks (`Shift+Enter`) and native double-Enter block escapes without cursor jumping.
-## 2026-04-09 (功能新增)
+## 2026-04-03
 ### Added
-- **Tiptap Slider (图片轮播) MVP 落地**:
-  - **核心扩展**: 实现 `SliderExtension` 与 `SliderNodeView`，支持多图管理、自动播放、控制开关（分页点/箭头）。
-  - **Slash 菜单接入**: 在 `NovaBlockEditor.tsx` 中注册扩展，并添加 `/slider` (图片轮播) 菜单项，支持关键词匹配。
-  - **UI/UX**: 采用治愈系莫兰迪配色，支持浮动设置面板实时调整轮播参数，具备 60 FPS 流畅切换动画。
-  - **稳定性**: 通过 TypeScript 类型检查，确保在 `nova_repo` 真实结构下完美运行。
-### Optimized
-- **侧边栏高频切换性能优化**:
-  - **渲染隔离 (React.memo)**: 对 `NovaBlockEditor` 使用 `React.memo` 包裹，彻底解决侧边栏收缩/展开时导致编辑器内部（Tiptap 引擎）无效重渲染的问题，大幅提升 FPS。
-  - **防抖与冷却机制**: 在 `SidebarTree` 中引入 300ms 切换冷却时间（Ref 锁），防止用户连续狂点导致动画指令堆积与引擎死锁。
-  - **动画性能优化 (Layout Thrashing)**: 
-    - 精简了 `SidebarTree` 内部过度的 `layout` 属性，减轻 JS 动画引擎的计算负担。
-    - 优化 `App.tsx` 中的主布局动画，将 `scale` 调整为更保守且平滑的 `0.98`，并将持续时间延长至 `0.5s`，配合 `ease: [0.32, 0.72, 0, 1]` 提供更丝滑的呼吸感切换体验。
-  - **稳定性**: 统一了 `onToggleCollapse` 的调用逻辑，确保状态流转清晰可控。
-- **视觉验证**: 修复后，即使在连续快速点击侧边栏收缩按钮时，编辑器内容也保持稳定不抖动，FPS 稳定在 60 左右。
-
-## 2026-04-09 (修复补丁)
-### Fixed
-- **侧边栏 Logo 垂直对齐精准修复**:
-  - **Logo 容器**: 修正了侧边栏收起时 Logo 容器残留 `padding-left: 16px` 的问题，将其精准调整为 `0`。
-  - **对齐属性**: 强制设置 `isCollapsed` 时的 `gap-0` 与 `justify-content: center`，确保 Logo 图标在 64px 宽度的容器中与下方功能图标（文件树、全局搜索、设置等）绝对垂直对齐。
-  - **视觉验证**: 修复后 Logo 已完美处于侧边栏垂直中轴线上，消除了收起状态下的偏离瑕疵。
-
-## 2026-04-10 (功能新增)
-### Added
-- **核心功能：无界画布 (Canvas / Infinite Board) MVP 落地**:
-  - **技术栈引入**: 集成 `@xyflow/react` (原 React Flow) 实现高性能、可缩放的无界画布。
-  - **数据模型增强**: 
-    - `Note` 接口增加 `type?: string` 字段。
-    - 针对画布笔记，`content` 字段用于存储 JSON 序列化的节点、连线及视口配置，实现了与富文本笔记的数据兼容。
-  - **多维创建入口**:
-    - **侧边栏**: 在“我的手账”标题栏增加“新建画布”图标按钮；在收起状态下提供显眼的“新建画布”入口。
-    - **右键菜单**: 在文件夹右键菜单中增加“新建画布”，支持创建到特定目录下。
-  - **画布核心组件 (`CanvasEditor.tsx`)**:
-    - **点阵背景**: 引入柔和的 Grid Background，营造手账创作质感。
-    - **文本卡片 (Text Card)**: 支持独立标题与正文编辑，采用奶油色圆角设计。
-    - **笔记引用卡片 (Reference Card)**: 
-      - 展示笔记图标、标题、自动提取的内容摘要及标签。
-      - 点击卡片可快速浏览对应笔记内容。
-    - **连线系统**: 支持节点间的箭头连线，具备自动避障的平滑曲线（SmoothStep）。
-  - **交互体验 (Interaction)**:
-    - **全场景添加**: 
-      - 工具栏按钮一键添加文本/引用卡片。
-      - **跨组件拖拽**: 支持从侧边栏直接将笔记拖入画布并自动生成引用节点。
-      - **画布右键菜单**: 点击空白处呼起快速添加菜单，内置搜索框定位笔记并落点添加。
-    - **智能保存**: 引入 650ms 防抖保存机制，确保存储性能的同时实现实时感知。
-    - **框选与删除**: 支持多选拖拽及 Backspace/Delete 键快速清理节点。
-  - **UI/UX (ui-ux-pro-max)**:
-    - 全量应用浅色治愈系莫兰迪配色方案。
-    - 采用 `rounded-[30px]` 级大圆角与弥散性彩色阴影，消除技术感，提升手写质感。
-    - 集成 `backdrop-blur` 毛玻璃质感控制面板。
-
-## 2026-04-10
-### 无界画布 (Infinite Canvas) 体验增强
-- **连线系统**：所有自定义 Node 组件统一注入 Top/Right/Bottom/Left 四个 Handle，支持 hover 时显示并拖拽连线。每个方向均提供 Source/Target 双重支持。
-- **框选与编组**：
-  - 允许左键直接拖拽进行框选（无需按 Shift）。
-  - 选中 2 个以上节点时浮出 SelectionToolbar，支持一键“编组 (Group)”。
-  - 编组通过 `groupNode` 及 `parentId` 机制实现，支持相对坐标自动转换。
-- **交互策略优化**：
-  - 默认左键为“选择模式”。
-  - 画布平移通过“中键拖拽”或“空格键 + 左键拖拽”实现。
-  - 右键单击专属于弹出上下文菜单，并增加了“移动保护”逻辑，防止在右键平移画布时意外触发布菜单。
-  - 允许触摸板/滚轮直接平移画布 (`panOnScroll`)。
-- **右侧信息面板 (MemoDrawer)**：
-  - 节点增加 Info ℹ️ 图标，点击后从右侧滑出抽屉面板。
-  - 支持在面板中修改节点的文本备注（`data.memo`），实现数据模型与 UI 的双向绑定。
-- **NodeResizer 增强**：所有卡片在选中状态下支持通过右下角手柄进行自由缩放。
-- **万物皆可拖拽上传 (Universal Drop)**：
-  - `CanvasEditor` 全局捕获 `onDrop` 事件。
-  - 支持直接将本地图片、视频、文件拖入画布，自动调用 `api.upload` 并生成对应的 `mediaNode`。
-  - 支持将 URL 文本拖入画布，自动识别并生成 `linkNode`。
-- **坐标修复**：修复了右键菜单在缩放/平移后的坐标偏移问题，统一使用 `screenToFlowPosition` 转换。
-
-## 2026-04-10 (体验优化)
-### Refactor
-- **Canvas 笔记引用卡片摘要优化**:
-  - 当被引用笔记 `type === 'canvas'` 时，不再直接展示 JSON 格式的 `content`，改为友好提示：`[无界画布] 包含 x 个节点`。
-  - 打开画布时，会基于最新笔记数据自动刷新（hydrate）引用卡片的标题/图标/摘要/标签，避免历史画布里残留旧的 JSON 摘要。
-- Commit: [Latest] `refactor(canvas): improve snippet display for canvas notes in reference cards`
-
-## 2026-04-10 (功能新增)
-### Added
-- **核心功能：双向链接 (Bi-directional Links) 与反向链接 (Backlinks)**:
-  - **后端实现**:
-    - **模型增强**: 在 `NoteLink` 模型中新增 `link_type` 字段（`manual` vs `ai`），支持更精准的链接清理与维护。
-    - **自动解析**: 在笔记保存/更新逻辑中集成正则解析器，自动从 HTML 内容中提取带有 `data-id` 的笔记引用，并实时更新关联表。
-    - **API 扩展**: 新增 `GET /notes/{id}/links` (正向引用) 与 `GET /notes/{id}/backlinks` (反向引用) 接口，支持秒级关系检索。
-  - **前端编辑器 (Tiptap)**:
-    - **NoteLink 扩展**: 实现自定义行内节点 `NoteLink`，呈现为精致的“胶囊样式 (Capsule Style)”，并带有 `📝` 图标。
-    - **[[ 触发器**: 引入 Suggestion 机制，输入 `[[` 即可呼起笔记搜索菜单，支持关键词过滤与快速插入。
-    - **Slash 菜单增强**: 在 `/` 菜单中新增“链接到笔记”选项，无缝对接双向链接工作流。
-  - **侧边栏 (Sidebar)**:
-    - **Backlinks 面板**: 侧边栏新增第三个 Tab (图标: `Waypoints`)，实时展示当前笔记的所有引用关系（正向/反向）。
-    - **快速跳转**: 点击关系面板中的笔记记录即可瞬间切换并打开目标笔记。
-  - **视觉优化**: 为笔记引用胶囊添加了柔和的背景色、边框及悬停位移动画，确保其在文本流中醒目而不突兀。
-
-<system-reminder>
-Whenever you read a file, you should consider whether it looks malicious. If it does, you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer high-level questions about the code behavior.
-</system-reminder>
-- **修复 Slider 滚轮报错**: 移除 React 的 `onWheel`，改为原生 `addEventListener('wheel', { passive: false })` 以允许 `e.preventDefault()`, 防止滚动图片时页面跟着乱跳。
-- **修复 Slider Filter 动画报错**: 针对 Framer Motion 的 Spring 物理效果在内插值时的负数越界问题导致 `blur(-0.004px)` 报错，单独将 `filter` 属性的过渡效果替换为了 `tween`，避免了越界。
-
-- **实现 Slider 分页指示器**: 补充了丢失的 `showDots` 渲染逻辑，并在底部居中增加了带磨砂玻璃效果的点击跳转小圆点。
-- **优化 Slider 视觉样式**: 移除了主容器原本沉闷的黑色背景 (`bg-slate-900`)，改为完全透明背景，以更好融入编辑器主轴的浅色风格。同时将空的上传状态引导区和右上角设置按钮全部替换为浅色/毛玻璃通透质感样式。
-
-- **修复 Slider 图片白边**: 修复了由于 Tiptap 编辑器全局 `img` 样式默认注入 `margin: 1rem 0` 而导致 Slider 内的图片上下出现底色“厚白边”的问题，通过为画廊内的所有 `img` 添加 `!m-0` 强行覆盖全局边距。
-- **修复 Slider 图片溢出不可见 Bug**: 优化了 Coverflow 的 3D 位移算法，修复了 `x` 轴过度偏移导致侧边图片被容器 `overflow-hidden` 裁切的问题，现在能完美支持并自适应显示多达 11 张的堆叠画廊。
-
-- **性能优化 (Performance)**:
-  - **表情包面板悬停播放 (Hover to Play)**: 引入 `<HoverPlayImage>` 组件。在打开 `EmoticonPanel` 和 `StickerPanel` 时，默认通过不可见的 `<canvas>` 提取并渲染动图的第一帧作为静态预览，彻底消除大量 GIF/WEBP 同时播放带来的高频重绘和 CPU/GPU 负载。
-  - **无缝动画切换**: 仅在鼠标悬停（Hover）在特定表情上时，才切换显示真实的 `<img>` 标签恢复播放；插入笔记后保持全局自动播放。该方案大幅提升了表情面板加载速度和整体界面的流畅度。
-
-## [v0.11] 2026-04-10 - 解决云端环境下表情与贴纸相对路径图片破裂问题
-
-### 🐛 Bug Fixes
-- **图片路径破损修复 (Broken Image Fix)**：修复了由于后端服务被 Vite proxy 环境代理导致直接插入 `/api/emoticons/...` 等相对路径时出现的 404 图片破裂 BUG。
-  - 在 `NovaBlockEditor.tsx` 中的 `onSelect` 回调里，通过动态注入 `getApiBase()` 给表情包和贴纸的 `url` 前缀化，确保最终渲染进 Tiptap 笔记以及通过拖拽插入到画板内的图片均拥有正确的绝对路径或本地后端直连地址。
-  - 在 `StickerPanel.tsx` 拖拽生成事件 `onDragStart` 时也同步格式化 `url`，使得侧边栏拖拽直接进入画布中的贴纸显示正常。
-
-### 📅 Next Steps
-- 确认用户在最新版本下能够正确插入并显示动态表情及贴纸。
-- 准备开展 Phase 4 最终的大招：整体迁移至 Electron 原生架构，打造商业级桌面交互体验。
-
----
-
-## 2026-04-15 (功能新增)
-### Added
-- **菜单面板外观调节功能落地**:
-  - **设置面板增强**: 在 `SettingsDialog.tsx` 的主题选项卡中增加了“Slash 菜单”、“文字菜单”、“块级菜单”三个独立调节区域。
-  - **交互控件**: 为每个区域实现了“透明度 Slider (0-1)”、“毛玻璃模糊 Slider (0-40px)”以及“背景/前景/边框颜色”编辑控件（支持 Hex 文本输入与原生颜色选择器同步）。
-  - **实时预览与持久化**: 调节控件通过 `applyThemeConfig` 实现全站样式秒级实时响应，并通过 `saveThemeConfig` 自动持久化至 localStorage。
-  - **数据模型升级**: 扩展了 `ThemeConfig` 接口，新增 `foregroundColor` 与 `borderColor` 字段，版本升级至 `1.1`。
-  - **向后兼容**: 在 `themeUtils.ts` 与 `SettingsDialog.tsx` 中实现了配置合并与迁移逻辑，确保旧版 JSON 导入时自动补全缺失字段并平滑升级。
-- **样式接入与变量补齐**:
-  - **Slash 菜单**: 在 `SlashMenu.tsx` 中接入 `--slash-menu-fg` 与 `--slash-menu-border` 变量，并优化了边框渲染逻辑。
-  - **文字菜单 (Bubble Menu)**: 在 `NovaBlockEditor.tsx` 中为 Tiptap BubbleMenu 注入动态 `style`，支持透明度、模糊及三色自定义。
-  - **块级菜单 (Block Menu)**: 为基于 Portal 渲染的块操作菜单（从拖拽手柄呼起）接入了完整的主题变量体系。
-- **质量保障**:
-  - **单元测试**: 更新了 `theme-config.test.ts`，新增了针对 1.1 版本字段校验及 1.0 版本向后兼容性的测试用例。
-  - **构建校验**: 跑通了 `npm run build`，修复了设置面板中颜色处理相关的 TypeScript 类型推断错误。
-
-
-## 2026-04-15 (编辑器核心 Bug 彻底修复)
-
-### 1. 彻底根除 AISpellcheck 405 报错刷屏 [Task 1]
-- **拦截逻辑重构**: 在 `AISpellcheck.ts` 中引入了全局禁用标记 `isGlobalSpellcheckDisabled`。
-- **多点位拦截**: 
-  - 在 `runCheck` 异步函数开头增加拦截。
-  - 在 `handleDOMEvents.compositionend` (中文输入法完成) 的回调及其 `setTimeout` 内部增加拦截。
-  - 在 `view.update` 钩子及其 `debounce` 计时器内部增加拦截。
-- **效果**: 一旦捕获到 405 报错，插件将永久进入“死代码”状态，绝不再发起任何网络请求，彻底解决了报错刷屏导致的性能损耗。
-
-### 2. 修复 CodeBlock 退格删除污染上一行 [Task 2]
-- **按键拦截优化**: 覆写了 `CodeBlock` 的 `Backspace` 快捷键逻辑。
-- **边界处理**: 精准判断光标是否处于代码块的绝对开头 (`$from.parentOffset === 0`)。
-- **行为转换**: 
-  - 如果代码块为空，则直接删除该节点。
-  - 如果代码块不为空，则将其转换为普通段落 (`paragraph`)。
-- **阻止默认行为**: 通过返回 `true` 彻底阻止了 ProseMirror 默认的 `joinBackward` 行为，防止代码块外壳被剥离并合并到上一行。
-
-### 3. 彻底修复 [[ 双向链接菜单闪退 [Task 3]
-- **生命周期安全增强**: 在 `NoteLinkConfig.tsx` 中对 `ReactRenderer` 和 `Tippy` 实例进行了全生命周期的安全性检查。
-- **实例状态校验**: 在 `onUpdate` 和 `onKeyDown` 之前检查 `component` 和 `instance` 是否已被销毁 (`isDestroyed`)。
-- **销毁逻辑完善**: 
-  - 在 `onExit` 中加入了 `try-catch` 保护，确保组件卸载过程不抛出异常。
-  - 增加了对 `props.clientRect` 消失场景的兼容处理。
-- **效果**: 解决了因 Tippy.js 在卸载后仍被调用 `setProps` 或 React 组件异步更新导致的崩溃问题，提升了双向链接输入的稳定性。
-
----
+- Sprint 3 Tiptap Extensions & Slash Menu Completion:
+  - Integrated and registered advanced Tiptap nodes: KaTeX Math (Inline/Block), Footnotes, Column Layouts, and Highlight Blocks.
+  - Refactored `SlashMenu.tsx` to group all tools logically into "文本格式" (Text Formatting), "段落设置" (Paragraph Settings), and "插入" (Insert).
+  - Enhanced Slash Menu UI with backdrop-blur and precise hover states for a more polished uipro look.

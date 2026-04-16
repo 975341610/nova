@@ -14,7 +14,7 @@ interface TreeNodeItemProps {
   onRenameSubmit?: (nodeId: string, newTitle: string) => void;
 }
 
-export const TreeNodeItem = ({
+export const TreeNodeItem = React.memo(({
   node,
   level,
   onMove,
@@ -213,4 +213,4 @@ export const TreeNodeItem = ({
       </AnimatePresence>
     </div>
   );
-};
+});

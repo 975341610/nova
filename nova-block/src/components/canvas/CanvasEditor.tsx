@@ -59,7 +59,7 @@ type CanvasTextNodeData = {
 };
 
 type CanvasReferenceNodeData = {
-  noteId: number;
+  noteId: number | string;
   title: string;
   icon: string;
   summary: string;
@@ -1171,7 +1171,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
               x: draggedAbs.x - targetAbs.x,
               y: draggedAbs.y - targetAbs.y,
             },
-          };
+          } as any;
         });
       }
 
@@ -1184,7 +1184,7 @@ function CanvasBoard({ note, notes, onSave, onNotify }: CanvasEditorProps) {
             extent: undefined,
             hidden: false,
             position: draggedAbs,
-          };
+          } as any;
         });
       }
 

@@ -36,7 +36,7 @@ export { HabitTrackerNode } from './novablock/extensions/HabitTrackerNode';
 export { TodoNode } from './novablock/extensions/TodoNode';
 export { Emoticon } from '../components/novablock/extensions/Emoticon';
 export { NoteLink } from '../components/novablock/extensions/NoteLink';
-export { AISpellcheck, spellcheckPluginKey } from '../components/novablock/extensions/AISpellcheck';
+export { AISpellcheck } from '../components/novablock/extensions/AISpellcheck';
 
 // Keep WikiLink for backward compatibility if needed, or replace it. 
 // The user asked for a Tiptap Extension with capsule style and ID. 
@@ -58,30 +58,6 @@ const lowlight = createLowlight(common);
 export const CodeBlock = CodeBlockLowlight.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockComponent);
-  },
-  addKeyboardShortcuts() {
-    return {
-      ...this.parent?.(),
-      Backspace: () => {
-        const { selection } = this.editor.state;
-        const { $from, empty } = selection;
-
-        if (!empty || $from.parentOffset !== 0) {
-          return false;
-        }
-
-        const node = $from.parent;
-        if (node.type.name !== this.name) return false;
-
-        // If the code block is empty or the cursor is at the very beginning
-        // Intercept to prevent merging into the previous line.
-        // Delete if empty, do nothing otherwise.
-        if (node.textContent.length === 0) {
-          return this.editor.chain().deleteNode(this.name).run();
-        }
-        return true;
-      },
-    };
   },
 }).configure({
   lowlight,
@@ -409,23 +385,18 @@ export const SlashCommands = Extension.create({
       suggestion: {
         char: '/',
         command: ({ editor, range, props }: any) => {
-          // 1. First, delete the slash and its trigger text
-          // Using a single transaction is key here.
-          // We must ensure the selection is updated AFTER deletion.
-          const { tr } = editor.state;
-          tr.deleteRange(range.from, range.to);
-          editor.view.dispatch(tr);
-
-          // 2. Now run the command with focus
-          editor.chain().focus();
+          // 统一使用 chain 确保事务完整性，解决闪退和光标丢失问题
+          const chain = editor.chain()
+            .focus()
+            .deleteRange(range);
           
-          // props.action expects a chain, so we provide one
-          const chain = editor.chain().focus();
+          // 执行项目定义的 action
           const result = props.action(chain, editor);
           
+          // 如果 action 返回了 chain（或者已经修改了传入的 chain），则运行它
           if (result && typeof result.run === 'function') {
             result.run();
-          } else if (chain && typeof chain.run === 'function') {
+          } else {
             chain.run();
           }
         },

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Cpu, ToggleLeft, ToggleRight, CheckCircle2, AlertCircle, Loader2, Settings, BookOpen, Upload, Database, RefreshCw, Zap, Palette, Download, FileJson } from 'lucide-react';
+import { X, Cpu, ToggleLeft, ToggleRight, CheckCircle2, AlertCircle, Loader2, Settings, BookOpen, Upload, Database, RefreshCw, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAI } from '../contexts/AIContext';
-import { getThemeConfig, saveThemeConfig, exportThemeConfig, validateThemeConfig, applyThemeConfig } from '../lib/themeUtils';
-import type { ThemeConfig } from '../lib/types';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -17,25 +15,17 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   const [checking, setChecking] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [updatingOllama, setUpdatingOllama] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ai' | 'dictionary' | 'theme'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'dictionary'>('ai');
   
   // Dictionary Import State
   const [dictText, setDictText] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Theme State
-  const [themeConfig, setThemeConfigState] = useState<ThemeConfig>(getThemeConfig());
-  const [themeImportError, setThemeImportError] = useState<string | null>(null);
-  const [themeImportSuccess, setThemeImportSuccess] = useState(false);
-
   useEffect(() => {
     if (isOpen) {
       refreshAiStatus();
       setImportResult(null);
-      setThemeConfigState(getThemeConfig());
-      setThemeImportError(null);
-      setThemeImportSuccess(false);
     }
   }, [isOpen, refreshAiStatus]);
 
@@ -106,131 +96,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
     }
   };
 
-  const handleExportTheme = () => {
-    exportThemeConfig(themeConfig);
-  };
-
-  const handleImportTheme = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
-        const merged = {
-          ...getThemeConfig(),
-          ...parsed,
-          slashMenu: { ...getThemeConfig().slashMenu, ...(parsed.slashMenu || {}) },
-          textMenu: { ...getThemeConfig().textMenu, ...(parsed.textMenu || {}) },
-          blockMenu: { ...getThemeConfig().blockMenu, ...(parsed.blockMenu || {}) },
-          version: '1.1'
-        };
-        
-        if (validateThemeConfig(merged)) {
-          saveThemeConfig(merged);
-          setThemeConfigState(merged);
-          setThemeImportSuccess(true);
-          setThemeImportError(null);
-          applyThemeConfig(merged);
-        } else {
-          setThemeImportError('无效的主题配置文件格式');
-          setThemeImportSuccess(false);
-        }
-      } catch (err) {
-        setThemeImportError('解析 JSON 失败');
-        setThemeImportSuccess(false);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const updateConfig = (section: keyof ThemeConfig, field: string, value: any) => {
-    if (section === 'version') return;
-    const newConfig = {
-      ...themeConfig,
-      [section]: {
-        ...themeConfig[section],
-        [field]: value
-      }
-    };
-    setThemeConfigState(newConfig);
-    saveThemeConfig(newConfig);
-  };
-
-  const renderThemeControl = (label: string, section: 'slashMenu' | 'textMenu' | 'blockMenu') => (
-    <div className="p-4 bg-accent/10 rounded-2xl border border-border/20 space-y-4">
-      <h4 className="text-xs font-bold text-primary">{label}</h4>
-      
-      {/* Opacity & Blur */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <div className="flex justify-between text-[10px] font-medium">
-            <span className="text-muted-foreground">透明度</span>
-            <span className="text-primary">{themeConfig[section].opacity}</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={themeConfig[section].opacity}
-            onChange={(e) => updateConfig(section, 'opacity', parseFloat(e.target.value))}
-            className="w-full h-1 bg-accent/30 rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-        </div>
-        <div className="space-y-2">
-          <div className="flex justify-between text-[10px] font-medium">
-            <span className="text-muted-foreground">模糊 (px)</span>
-            <span className="text-primary">{themeConfig[section].blur}px</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="40"
-            step="1"
-            value={themeConfig[section].blur}
-            onChange={(e) => updateConfig(section, 'blur', parseInt(e.target.value))}
-            className="w-full h-1 bg-accent/30 rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-        </div>
-      </div>
-
-      {/* Colors */}
-      <div className="space-y-3">
-        {[
-          { key: 'backgroundColor', label: '背景颜色' },
-          { key: 'foregroundColor', label: '前景颜色' },
-          { key: 'borderColor', label: '边框颜色' }
-        ].map(({ key, label }) => {
-          const colorValue = themeConfig[section][key as 'backgroundColor' | 'foregroundColor' | 'borderColor'];
-          return (
-            <div key={key} className="flex items-center justify-between gap-4">
-              <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
-              <div className="flex items-center gap-2 flex-1 max-w-[200px]">
-                <input
-                  type="text"
-                  value={colorValue}
-                  onChange={(e) => updateConfig(section, key, e.target.value)}
-                  className="flex-1 bg-accent/20 border border-border/30 rounded-md px-2 py-1 text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-primary/30"
-                />
-                <div className="relative w-6 h-6 rounded-md border border-border/50 overflow-hidden shrink-0">
-                  <input
-                    type="color"
-                    value={colorValue.startsWith('rgba') ? '#ffffff' : colorValue}
-                    onChange={(e) => updateConfig(section, key, e.target.value)}
-                    className="absolute inset-0 w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4 cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -283,15 +148,6 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
               >
                 <BookOpen size={14} />
                 词库管理
-              </button>
-              <button
-                onClick={() => setActiveTab('theme')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                  activeTab === 'theme' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Palette size={14} />
-                主题管理
               </button>
             </div>
 
@@ -414,7 +270,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     )}
                   </div>
                 </div>
-              ) : activeTab === 'dictionary' ? (
+              ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -477,78 +333,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                     </p>
                   </div>
                 </div>
-              ) : activeTab === 'theme' ? (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Palette className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold">主题配置导入与导出</h3>
-                      <p className="text-[10px] text-muted-foreground">自定义菜单透明度、毛玻璃等外观参数</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={handleExportTheme}
-                      className="p-4 bg-accent/10 border border-border/30 rounded-2xl hover:bg-accent/20 transition-all flex flex-col items-center gap-3 group"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Download className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xs font-bold block">导出配置</span>
-                        <span className="text-[10px] text-muted-foreground">保存当前主题为 JSON</span>
-                      </div>
-                    </button>
-
-                    <label className="p-4 bg-accent/10 border border-border/30 rounded-2xl hover:bg-accent/20 transition-all flex flex-col items-center gap-3 group cursor-pointer">
-                      <input
-                        type="file"
-                        accept=".json"
-                        className="hidden"
-                        onChange={handleImportTheme}
-                      />
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <FileJson className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xs font-bold block">导入配置</span>
-                        <span className="text-[10px] text-muted-foreground">上传 JSON 配置文件</span>
-                      </div>
-                    </label>
-                  </div>
-
-                  {themeImportSuccess && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 flex items-center gap-3"
-                    >
-                      <CheckCircle2 size={16} />
-                      <span className="text-xs font-medium">主题配置导入成功并已应用</span>
-                    </motion.div>
-                  )}
-
-                  {themeImportError && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 flex items-center gap-3"
-                    >
-                      <AlertCircle size={16} />
-                      <span className="text-xs font-medium">{themeImportError}</span>
-                    </motion.div>
-                  )}
-
-                  <div className="space-y-4">
-                    {renderThemeControl('Slash 菜单 (Slash Menu)', 'slashMenu')}
-                    {renderThemeControl('文字菜单 (Text Menu)', 'textMenu')}
-                    {renderThemeControl('块级菜单 (Block Menu)', 'blockMenu')}
-                  </div>
-                </div>
-              ) : null}
+              )}
             </div>
 
             <div className="px-6 py-4 bg-muted/30 border-t border-border/50 flex justify-between items-center">

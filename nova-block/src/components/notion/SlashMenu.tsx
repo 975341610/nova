@@ -37,6 +37,8 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(({ items, c
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (items.length === 0) return false;
+
       if (event.key === 'ArrowUp') {
         setSelectedIndex((selectedIndex + items.length - 1) % items.length);
         return true;
@@ -63,7 +65,13 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(({ items, c
     }
   }, [selectedIndex]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <div className="notion-slash-menu slash-menu-glass z-[120] min-w-[320px] p-4 text-center text-xs text-muted-foreground/60 font-medium rounded-3xl border border-border/20 bg-popover/80 backdrop-blur-2xl shadow-soft">
+        无匹配结果...
+      </div>
+    );
+  }
 
   // 将项目按组分类
   const groups: { name: string; items: { item: SlashItem; originalIndex: number }[] }[] = [];
@@ -78,14 +86,7 @@ export const SlashMenu = forwardRef<SlashMenuHandle, SlashMenuProps>(({ items, c
 
   return (
     <div 
-      className="notion-slash-menu slash-menu-glass z-[120] min-w-[320px] max-h-[320px] flex flex-col overflow-hidden rounded-3xl border shadow-soft"
-      style={{
-        opacity: 'var(--slash-menu-opacity, 0.8)',
-        backdropFilter: 'blur(var(--slash-menu-blur, 20px))',
-        backgroundColor: 'var(--slash-menu-bg, rgba(var(--popover), 0.8))',
-        color: 'var(--slash-menu-fg, inherit)',
-        borderColor: 'var(--slash-menu-border, rgba(var(--border), 0.2))',
-      }}
+      className="notion-slash-menu slash-menu-glass z-[120] min-w-[320px] max-h-[320px] flex flex-col overflow-hidden rounded-3xl border border-border/20 bg-popover/80 backdrop-blur-2xl shadow-soft"
       onMouseDown={(e) => e.preventDefault()}
     >
       <div 

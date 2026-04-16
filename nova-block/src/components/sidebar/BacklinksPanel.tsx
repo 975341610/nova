@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link as LinkIcon, FileText, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import type { Note } from '../../lib/types';
+import { dataService } from '../../services/dataService';
 
 interface BacklinksPanelProps {
-  currentNoteId: number | null;
+  currentNoteId: number | string | null;
   onSelectNote: (note: Note) => void;
 }
 
@@ -16,27 +17,37 @@ const BacklinksPanel: React.FC<BacklinksPanelProps> = ({ currentNoteId, onSelect
     if (!currentNoteId) return;
     setLoading(true);
     try {
-      const allNotes: Note[] = (window as any).novaNotes || [];
+      const allNotes = await dataService.getAllNotes();
       const currentNoteIdStr = String(currentNoteId);
       
-      // 计算正向链接 (Forward Links)
+      // 1. 正向链接 (Forward Links)
       const currentNote = allNotes.find(n => String(n.id) === currentNoteIdStr);
       let forwardLinks: Note[] = [];
       if (currentNote && currentNote.content) {
-        // 提取 content 中所有的 data-id
-        const pattern = /data-id="(\d+)"/g;
-        const matches = [...currentNote.content.matchAll(pattern)];
-        const ids = Array.from(new Set(matches.map(m => m[1])));
-        forwardLinks = allNotes.filter(n => ids.includes(String(n.id)));
+        // 同时支持 data-id 属性和 [[WikiLink]] 语法
+        const dataIdPattern = /data-id=["']?(\d+)["']?/g;
+        const wikiPattern = /\[\[(.*?)\]\]/g;
+        
+        const dataIdMatches = [...currentNote.content.matchAll(dataIdPattern)].map(m => m[1]);
+        const wikiMatches = [...currentNote.content.matchAll(wikiPattern)].map(m => m[1]);
+        
+        const idsOrTitles = Array.from(new Set([...dataIdMatches, ...wikiMatches]));
+        
+        forwardLinks = allNotes.filter(n => 
+          idsOrTitles.includes(String(n.id)) || 
+          idsOrTitles.includes(n.title)
+        );
       }
       setLinks(forwardLinks);
 
-      // 计算反向链接 (Backlinks)
-      const backlinksArr = allNotes.filter(n => {
-        if (String(n.id) === currentNoteIdStr) return false;
-        if (!n.content) return false;
-        return n.content.includes(`data-id="${currentNoteIdStr}"`);
-      });
+      // 2. 反向链接 (Backlinks) - 使用双擎适配的 dataService
+      const backlinkIdsOrTitles = await dataService.getBacklinks(currentNoteIdStr);
+      
+      const backlinksArr = allNotes.filter(n => 
+        backlinkIdsOrTitles.includes(String(n.id)) || 
+        backlinkIdsOrTitles.includes(n.title)
+      );
+      
       setBacklinks(backlinksArr);
 
     } catch (error) {

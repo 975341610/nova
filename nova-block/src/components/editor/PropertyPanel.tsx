@@ -26,7 +26,7 @@ import { useAI } from '../../contexts/AIContext';
 interface PropertyPanelProps {
   note: Note;
   onUpdate: (updatedFields: Partial<Note>) => void;
-  onUpdateTags?: (noteId: number, tags: string[]) => Promise<void>;
+  onUpdateTags?: (noteId: number | string, tags: string[]) => Promise<void>;
   onFlushSave?: (updates: Partial<Note>) => void;
 }
 

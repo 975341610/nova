@@ -11,6 +11,15 @@ declare module '@tiptap/core' {
        * Insert an emoticon
        */
       setEmoticon: (options: { src: string; alt?: string; title?: string }) => ReturnType;
+      /**
+       * Open the emoticon selection panel
+       */
+      openEmoticonPanel: () => ReturnType;
+    };
+  }
+  interface Storage {
+    emoticon: {
+      onOpenPanel?: () => void;
     };
   }
 }
@@ -24,6 +33,12 @@ export const Emoticon = Node.create<EmoticonOptions>({
         'data-emoticon': 'true',
         class: 'inline-emoticon',
       },
+    };
+  },
+
+  addStorage() {
+    return {
+      onOpenPanel: undefined,
     };
   },
 
@@ -78,6 +93,18 @@ export const Emoticon = Node.create<EmoticonOptions>({
             type: this.name,
             attrs: options,
           });
+        },
+      openEmoticonPanel:
+        () =>
+        ({ editor }) => {
+          const onOpen = editor.storage.emoticon?.onOpenPanel;
+          if (onOpen) {
+            onOpen();
+            return true;
+          }
+          // Fallback to event if storage not initialized
+          window.dispatchEvent(new CustomEvent('open-emoticon-panel'));
+          return true;
         },
     };
   },
