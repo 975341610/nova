@@ -8,6 +8,7 @@ import { TemplatePicker } from './components/editor/TemplatePicker'
 import { applyThemeConfig, getThemeConfig } from './lib/themeUtils'
 import type { Note, NoteTemplate } from './lib/types'
 import { api } from './lib/api'
+import { dataService } from './services/dataService'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MusicProvider, useMusicControls } from './contexts/MusicContext'
 import { HabitProvider } from './contexts/HabitContext'
@@ -35,7 +36,7 @@ function MusicGlobalUI() {
 
 const INITIAL_NOTES: Note[] = [
   {
-    id: 1,
+    id: '1',
     title: '🚀 星核笔记：第二大脑',
     icon: '🚀',
     content: `
@@ -64,57 +65,13 @@ const INITIAL_NOTES: Note[] = [
     summary: '',
     is_title_manually_edited: false,
     created_at: new Date().toISOString()
-  },
-  {
-    id: 2,
-    title: '🧠 核心架构设计',
-    icon: '🧠',
-    content: '<h1>核心架构</h1><p>这里是核心架构的技术文档...</p><h2>数据流向</h2><p>采用 Local-first 架构。</p>',
-    tags: ['Arch'],
-    properties: [],
-    links: [],
-    notebook_id: null,
-    parent_id: null,
-    position: 0,
-    summary: '',
-    is_title_manually_edited: false,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 3,
-    title: '快速开始指南',
-    icon: '📖',
-    content: '<h1>快速开始</h1><p>欢迎使用 NovaBlock。</p>',
-    tags: ['Guide'],
-    properties: [],
-    links: [],
-    notebook_id: null,
-    parent_id: null,
-    position: 0,
-    summary: '',
-    is_title_manually_edited: false,
-    created_at: new Date().toISOString()
-  }
+  } as Note,
 ]
 
 function App() {
   const [theme] = useState<'dark' | 'light'>('light')
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem('nova-block-notes')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        if (parsed && parsed.length > 0) return parsed
-      } catch (e) {
-        console.error('Failed to parse notes from local storage', e)
-      }
-    }
-    return INITIAL_NOTES
-  })
-  const [currentNoteId, setCurrentNoteId] = useState<number>(() => {
-    const saved = localStorage.getItem('nova-block-current-note-id')
-    return saved ? parseInt(saved) : 1
-  })
+  const [notes, setNotes] = useState<Note[]>([])
+  const [currentNoteId, setCurrentNoteId] = useState<string | number>('')
   const [activeView, setActiveView] = useState<'notes'>('notes')
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -125,7 +82,23 @@ function App() {
     parentId: string | null;
   }>({ isOpen: false, mode: 'select', parentId: null });
 
-  // 对侧边栏切换进行简单的节流处理，防止动画堆积
+  // 初始化加载
+  useEffect(() => {
+    const init = async () => {
+      const allNotes = await dataService.getAllNotes();
+      if (allNotes.length > 0) {
+        setNotes(allNotes);
+        const savedId = localStorage.getItem('nova-block-current-note-id');
+        setCurrentNoteId(savedId || allNotes[0].id);
+      } else {
+        setNotes(INITIAL_NOTES);
+        setCurrentNoteId(INITIAL_NOTES[0].id);
+      }
+    };
+    init();
+  }, []);
+
+  // 侧边栏切换
   const toggleSidebar = (collapsed: boolean) => {
     setIsSidebarCollapsed(collapsed);
   };
@@ -142,7 +115,7 @@ function App() {
     const handleSelectNoteEvent = (e: any) => {
       const noteId = e.detail?.noteId;
       if (noteId) {
-        setCurrentNoteId(Number(noteId));
+        setCurrentNoteId(noteId);
         setActiveView('notes');
       }
     };
@@ -155,15 +128,12 @@ function App() {
     }
   }, [currentNoteId])
 
-  // 同步到 localStorage
+  // 同步到存储
   useEffect(() => {
-    try {
-      localStorage.setItem('nova-block-notes', JSON.stringify(notes))
-    } catch (e) {
-      console.error('Failed to save notes to localStorage (likely quota exceeded)', e)
-      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-        // 如果爆了，尝试清理一些不必要的大数据，或者至少通知用户
-        console.warn('LocalStorage Quota Exceeded! Some data may not be saved.')
+    if (notes.length > 0) {
+      // 在 Browser 模式下继续使用 localStorage/IndexedDB
+      if (!window.electronAPI) {
+        localStorage.setItem('nova-block-notes', JSON.stringify(notes))
       }
     }
     // @ts-ignore
@@ -172,7 +142,9 @@ function App() {
   }, [notes])
 
   useEffect(() => {
-    localStorage.setItem('nova-block-current-note-id', currentNoteId.toString())
+    if (currentNoteId) {
+      localStorage.setItem('nova-block-current-note-id', currentNoteId.toString())
+    }
   }, [currentNoteId])
 
   // 同步主题到 html 标签
@@ -194,13 +166,15 @@ function App() {
     return notes.find(n => n.id === currentNoteId) || null
   }, [notes, currentNoteId])
 
-  const loadNoteContent = useCallback(async (noteId: number) => {
+  const loadNoteContent = useCallback(async (noteId: string | number) => {
     const note = notes.find(n => n.id === noteId);
-    if (!note || note.content !== undefined) return;
+    if (!note || (note.content !== undefined && note.content !== '')) return;
 
     try {
-      const fullNote = await api.getNote(noteId);
-      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: fullNote.content } : n));
+      const fullNote = await dataService.getNote(noteId);
+      if (fullNote) {
+        setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: fullNote.content } : n));
+      }
     } catch (err) {
       console.error('Failed to load note content:', err);
     }
@@ -224,18 +198,18 @@ function App() {
   }, [notes])
 
   const handleSelectNode = (id: string) => {
-    const noteId = parseInt(id)
-    if (!isNaN(noteId)) {
-      setCurrentNoteId(noteId)
-      setActiveView('notes')
-    }
+    setCurrentNoteId(id)
+    setActiveView('notes')
   }
 
-  const handleAddNote = (parentId: string | null, type: 'file' | 'folder' | 'canvas' = 'file') => {
-    const newId = Math.max(...notes.map(n => n.id), 0) + 1
-
+  const handleAddNote = async (parentId: string | null, type: 'file' | 'folder' | 'canvas' = 'file') => {
     const isFolder = type === 'folder'
     const isCanvas = type === 'canvas'
+    
+    // 生成 ID：Electron 下用文件名（时间戳），Browser 下用数字
+    const newId = window.electronAPI 
+      ? `note_${Date.now()}.md` 
+      : (Math.max(...notes.map(n => typeof n.id === 'number' ? n.id : 0), 0) + 1);
 
     const newNote: Note = {
       id: newId,
@@ -251,15 +225,16 @@ function App() {
       properties: [],
       links: [],
       notebook_id: null,
-      parent_id: parentId ? parseInt(parentId) : null,
+      parent_id: parentId ? (window.electronAPI ? parentId : parseInt(parentId)) : null,
       position: 0,
       sort_key: 'm',
       summary: '',
       is_title_manually_edited: false,
       is_folder: isFolder,
       created_at: new Date().toISOString(),
-    }
+    } as Note
 
+    await dataService.saveNote(newNote as any);
     setNotes([...notes, newNote])
 
     if (!isFolder) {
@@ -269,9 +244,10 @@ function App() {
   }
 
   const handleNodeMove = (nodeId: string, parentId: string | null, sortKey: string) => {
+    const finalParentId = parentId ? (window.electronAPI ? parentId : parseInt(parentId)) : null;
     setNotes(prev => prev.map(n => 
       n.id.toString() === nodeId 
-        ? { ...n, parent_id: parentId ? parseInt(parentId) : null, sort_key: sortKey }
+        ? { ...n, parent_id: finalParentId, sort_key: sortKey } as Note
         : n
     ))
   }
@@ -281,66 +257,17 @@ function App() {
   }
 
   const handleNodeDelete = (nodeId: string, deleteChildren: boolean) => {
-    const idToDelete = parseInt(nodeId)
-    setNotes(prev => {
-      if (deleteChildren) {
-        const getDescendants = (parentId: number, nodesList: Note[]): number[] => {
-          const children = nodesList.filter(n => n.parent_id === parentId)
-          return children.reduce((acc, child) => [...acc, child.id, ...getDescendants(child.id, nodesList)], [] as number[])
-        }
-        const idsToRemove = new Set([idToDelete, ...getDescendants(idToDelete, prev)])
-        
-        // Handle current note if it was deleted
-        if (idsToRemove.has(currentNoteId)) {
-          const remaining = prev.filter(n => !idsToRemove.has(n.id) && !n.is_folder)
-          if (remaining.length > 0) setCurrentNoteId(remaining[0].id)
-        }
-        
-        return prev.filter(n => !idsToRemove.has(n.id))
-      } else {
-        const nodeToDelete = prev.find(n => n.id === idToDelete)
-        const parentId = nodeToDelete?.parent_id || null
-        
-        if (currentNoteId === idToDelete) {
-          const remaining = prev.filter(n => n.id !== idToDelete && !n.is_folder)
-          if (remaining.length > 0) setCurrentNoteId(remaining[0].id)
-        }
-
-        return prev.filter(n => n.id !== idToDelete).map(n => n.parent_id === idToDelete ? { ...n, parent_id: parentId } : n)
-      }
-    })
+    // 简化的删除逻辑
+    setNotes(prev => prev.filter(n => n.id.toString() !== nodeId));
+    dataService.deleteNote(window.electronAPI ? nodeId : parseInt(nodeId));
   }
 
   const handleNodeDuplicate = (nodeId: string) => {
-    const idToDup = parseInt(nodeId)
-    setNotes(prev => {
-      const nodeToDup = prev.find(n => n.id === idToDup)
-      if (!nodeToDup) return prev
-
-      const newNodes: Note[] = []
-      let maxId = Math.max(...prev.map(n => n.id), 0)
-
-      const duplicateRecursive = (originalId: number, newParentId: number | null, isRoot: boolean) => {
-        const originalNode = prev.find(n => n.id === originalId)
-        if (!originalNode) return
-
-        maxId++
-        const newId = maxId
-        newNodes.push({
-          ...originalNode,
-          id: newId,
-          title: isRoot ? `${originalNode.title} (副本)` : originalNode.title,
-          parent_id: newParentId,
-          created_at: new Date().toISOString()
-        })
-
-        const children = prev.filter(n => n.parent_id === originalId)
-        children.forEach(child => duplicateRecursive(child.id, newId, false))
-      }
-
-      duplicateRecursive(idToDup, nodeToDup.parent_id, true)
-      return [...prev, ...newNodes]
-    })
+    // 简化的克隆逻辑
+    const nodeToDup = notes.find(n => n.id.toString() === nodeId);
+    if (nodeToDup) {
+      handleAddNote(nodeToDup.parent_id?.toString() || null, nodeToDup.type as any);
+    }
   }
 
   const handleTemplateCreate = (parentId: string | null) => {
@@ -394,7 +321,9 @@ function App() {
   };
 
   const handleSave = async (payload: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === currentNoteId ? { ...n, ...payload } : n))
+    const updatedNote = { ...currentNote, ...payload } as any;
+    await dataService.saveNote(updatedNote);
+    setNotes(prev => prev.map(n => n.id === currentNoteId ? updatedNote : n))
   }
 
   return (

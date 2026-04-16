@@ -1,6 +1,6 @@
 export type NoteProperty = {
-  id: number;
-  note_id: number;
+  id: number | string;
+  note_id: number | string;
   name: string;
   type: 'text' | 'number' | 'date' | 'select' | 'multi_select';
   value: string;
@@ -29,7 +29,7 @@ export type StickyNoteData = {
 export type BackgroundPaperType = 'none' | 'dot' | 'line' | 'grid';
 
 export type Note = {
-  id: number;
+  id: number | string;
   title: string;
   icon: string;
   content?: string;
@@ -40,16 +40,18 @@ export type Note = {
   properties: NoteProperty[];
   sticky_notes?: StickyNoteData[];
   stickers?: StickerData[];
-  links: number[];
-  notebook_id: number | null;
-  parent_id: number | null;
+  links: (number | string)[];
+  notebook_id: number | string | null;
+  parent_id: number | string | null;
   position: number;
   sort_key?: string;
   is_folder?: boolean;
   created_at: string;
+  updated_at?: string;
   deleted_at?: string | null;
   is_draft?: boolean;
   background_paper?: BackgroundPaperType;
+  frontmatter?: Record<string, any>;
 };
 
 export type OutlineItem = {
@@ -149,6 +151,15 @@ export type UserAchievement = {
   achievement: Achievement;
 };
 
+export type FileTreeNode = {
+  id: string; // 相对路径或唯一标识
+  name: string;
+  type: 'file' | 'folder';
+  children?: FileTreeNode[];
+  extension?: string;
+  updated_at?: string;
+};
+
 export type AppStatus = 'INIT' | 'LOADING_BACKEND' | 'LOADING_FRONTEND' | 'READY' | 'ERROR';
 
 export type BGMState = {
@@ -191,4 +202,31 @@ export interface ThemeConfig {
     foregroundColor: string;
     borderColor: string;
   };
+}
+
+export interface ElectronAPI {
+  readMarkdownFile: (path: string) => Promise<string>;
+  writeMarkdownFile: (path: string, content: string) => Promise<boolean>;
+  listMarkdownFiles: () => Promise<string[]>;
+  getBacklinks: (noteId: string) => Promise<string[]>;
+  getTags: () => Promise<string[]>;
+  getNotesByTag: (tag: string) => Promise<string[]>;
+  getNoteMetadata: (noteId: string) => Promise<any>;
+  getVaultTree: () => Promise<FileTreeNode[]>;
+  getVaultPath: () => Promise<string>;
+  setVaultPath: (path: string) => Promise<boolean>;
+  renameItem: (oldPath: string, newPath: string) => Promise<boolean>;
+  deleteItem: (path: string) => Promise<boolean>;
+  moveItem: (sourcePath: string, targetFolder: string) => Promise<boolean>;
+  createFolder: (folderPath: string) => Promise<boolean>;
+  createMarkdownFile: (folderPath: string, fileName: string) => Promise<string>;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+    electron?: {
+      ipcInvoke: (channel: string, ...args: any[]) => Promise<any>;
+    };
+  }
 }

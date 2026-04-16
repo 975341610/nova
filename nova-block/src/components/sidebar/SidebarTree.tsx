@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Layers, Settings, ChevronLeft, ChevronRight, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints, LayoutGrid, Layout } from 'lucide-react';
+import { Search, Layers, Settings, ChevronLeft, ChevronRight, Sparkles, FilePlus, FolderPlus, Edit2, Copy, Trash2, FolderOutput, FileText, Waypoints, LayoutGrid, Layout, RefreshCw } from 'lucide-react';
 import { buildTree, moveNode, isDescendant } from '../../lib/novablock/treeUtils';
 import type { TreeNode } from '../../lib/novablock/treeUtils';
 import { TreeNodeItem } from './TreeNodeItem';
 import GlobalSearchPanel from './GlobalSearchPanel';
 import BacklinksPanel from './BacklinksPanel';
-import type { Note } from '../../lib/types';
+import type { Note, FileTreeNode } from '../../lib/types';
+import { dataService } from '../../services/dataService';
 
 interface SidebarTreeProps {
   initialNodes?: TreeNode[];
@@ -59,6 +60,8 @@ export const SidebarTree = ({
   onToggleCollapse,
 }: SidebarTreeProps) => {
   const [nodes, setNodes] = useState<TreeNode[]>(initialNodes);
+  const [folderTree, setFolderTree] = useState<FileTreeNode[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
   const lastToggleTime = useRef(0);
@@ -76,6 +79,22 @@ export const SidebarTree = ({
       setInternalIsCollapsed(collapsed);
     }
   };
+
+  const loadVaultTree = async () => {
+    try {
+      setIsLoading(true);
+      const tree = await dataService.getVaultTree();
+      setFolderTree(tree);
+    } catch (err) {
+      console.error('Failed to load vault tree:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVaultTree();
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'tree' | 'search' | 'backlinks'>('tree');
   
@@ -137,12 +156,45 @@ export const SidebarTree = ({
 
   const tree = useMemo(() => buildTree(nodes), [nodes]);
 
-  const handleMove = (nodeId: string, targetId: string, position: 'before' | 'after' | 'into') => {
+  const mappedFolderTree = useMemo(() => {
+    const mapNode = (node: FileTreeNode): TreeNode => ({
+      id: node.id,
+      title: node.name,
+      parentId: null, // 在递归结构中不需要 parentId
+      sortKey: '', // 物理结构按字母序，不需要 sortKey
+      isFolder: node.type === 'folder',
+      children: node.children?.map(mapNode)
+    });
+    return folderTree.map(mapNode);
+  }, [folderTree]);
+
+  const handleMove = async (nodeId: string, targetId: string, position: 'before' | 'after' | 'into') => {
     // 1. 禁止将节点移动到自身
     if (nodeId === targetId) return;
 
-    // 2. 循环检测：禁止将节点移动到其自身的子孙节点内部
-    // 如果目标是 nodeId 的子孙，则拦截
+    // 2. 物理移动逻辑 (Electron 模式)
+    if (window.electronAPI) {
+      try {
+        // targetId 如果是文件，移动到它的父目录；如果是文件夹，根据 position 决定
+        let targetFolder = '';
+        const targetNode = findNode(mappedFolderTree, targetId);
+        
+        if (position === 'into' && targetNode?.isFolder) {
+          targetFolder = targetId;
+        } else {
+          // 获取 targetId 的父目录
+          targetFolder = targetId.includes('/') ? targetId.substring(0, targetId.lastIndexOf('/')) : '';
+        }
+
+        await dataService.moveItem(nodeId, targetFolder);
+        await loadVaultTree();
+        return;
+      } catch (err) {
+        console.error('Failed to move item physically:', err);
+      }
+    }
+
+    // 3. 降级逻辑或虚拟移动逻辑 (保持原有逻辑作为参考)
     if (isDescendant(nodes, targetId, nodeId)) {
       console.warn('Cannot move a parent node into its own descendant');
       return;
@@ -154,6 +206,17 @@ export const SidebarTree = ({
       prevNodes.map((n) => (n.id === nodeId ? { ...n, parentId, sortKey } : n))
     );
     onNodeMove?.(nodeId, parentId, sortKey);
+  };
+
+  const findNode = (nodes: TreeNode[], id: string): TreeNode | undefined => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findNode(node.children, id);
+        if (found) return found;
+      }
+    }
+    return undefined;
   };
 
   const handleSelect = (nodeId: string) => {
@@ -324,6 +387,13 @@ export const SidebarTree = ({
                 <div className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-widest">我的手账</div>
                 <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity duration-200">
                   <button 
+                    onClick={loadVaultTree}
+                    className={`p-1 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all duration-200 ${isLoading ? 'animate-spin' : ''}`}
+                    title="刷新目录"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                  <button 
                     onClick={() => onNodeAdd?.(null, 'file')}
                     className="p-1 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-110"
                     title="新建笔记"
@@ -357,7 +427,15 @@ export const SidebarTree = ({
             {isCollapsed && (
                <div className="flex flex-col items-center gap-2 py-2">
                  <button 
-                   onClick={() => onNodeAdd?.(null, 'file')}
+                   onClick={async () => {
+                     if (window.electronAPI) {
+                       const newFilePath = await dataService.createMarkdownFile('', '无标题笔记');
+                       await loadVaultTree();
+                       onNodeSelect?.(newFilePath);
+                     } else {
+                       onNodeAdd?.(null, 'file');
+                     }
+                   }}
                    className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center w-10 h-10"
                    title="新建笔记"
                  >
@@ -379,7 +457,7 @@ export const SidebarTree = ({
                  </button>
                </div>
             )}
-            {!isCollapsed && tree.map((node) => (
+            {!isCollapsed && mappedFolderTree.map((node) => (
               <TreeNodeItem
                 key={node.id}
                 node={node}
@@ -391,16 +469,37 @@ export const SidebarTree = ({
                 onContextMenu={(e, n) => {
                   setContextMenu({ x: e.clientX, y: e.clientY, node: n });
                 }}
-                onRenameSubmit={(nodeId, newTitle) => {
+                onRenameSubmit={async (nodeId, newTitle) => {
                   setEditingId(null);
                   if (newTitle.trim() && newTitle !== node.title) {
-                    onNodeRename?.(nodeId, newTitle);
+                    if (window.electronAPI) {
+                      try {
+                        const parentDir = nodeId.includes('/') ? nodeId.substring(0, nodeId.lastIndexOf('/')) : '';
+                        const isFolder = findNode(mappedFolderTree, nodeId)?.isFolder;
+                        const oldName = nodeId.split('/').pop() || '';
+                        const ext = isFolder ? '' : (oldName.includes('.') ? oldName.substring(oldName.lastIndexOf('.')) : '.md');
+                        const newName = newTitle.endsWith(ext) ? newTitle : `${newTitle}${ext}`;
+                        const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+                        
+                        await dataService.renameItem(nodeId, newPath);
+                        await loadVaultTree();
+                        // 如果重命名的是当前打开的笔记，需要更新选择
+                        if (selectedId === nodeId) {
+                          setSelectedId(newPath);
+                          onNodeSelect?.(newPath);
+                        }
+                      } catch (err) {
+                        console.error('Failed to rename item:', err);
+                      }
+                    } else {
+                      onNodeRename?.(nodeId, newTitle);
+                    }
                   }
                 }}
               />
             ))}
             
-            {!isCollapsed && tree.length === 0 && (
+            {!isCollapsed && mappedFolderTree.length === 0 && (
               <div className="py-12 text-center space-y-3 opacity-40">
                 <div className="text-muted-foreground text-xs">暂无手账内容</div>
                 <button 
@@ -451,8 +550,14 @@ export const SidebarTree = ({
           {contextMenu.node.isFolder && (
             <>
               <button 
-                onClick={() => {
-                  onNodeAdd?.(contextMenu.node.id, 'file');
+                onClick={async () => {
+                  if (window.electronAPI) {
+                    const newPath = await dataService.createMarkdownFile(contextMenu.node.id, '无标题笔记');
+                    await loadVaultTree();
+                    onNodeSelect?.(newPath);
+                  } else {
+                    onNodeAdd?.(contextMenu.node.id, 'file');
+                  }
                   setContextMenu(null);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/50 text-foreground transition-colors"
@@ -469,8 +574,13 @@ export const SidebarTree = ({
                 <LayoutGrid size={14} className="text-muted-foreground" /> 新建画布
               </button>
               <button 
-                onClick={() => {
-                  onNodeAdd?.(contextMenu.node.id, 'folder');
+                onClick={async () => {
+                  if (window.electronAPI) {
+                    await dataService.createFolder(`${contextMenu.node.id}/新文件夹`);
+                    await loadVaultTree();
+                  } else {
+                    onNodeAdd?.(contextMenu.node.id, 'folder');
+                  }
                   setContextMenu(null);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/50 text-foreground transition-colors"
@@ -509,11 +619,16 @@ export const SidebarTree = ({
           </button>
           <div className="h-px bg-border/40 my-1 mx-2" />
           <button 
-            onClick={() => {
+            onClick={async () => {
               if (contextMenu.node.isFolder && contextMenu.node.children && contextMenu.node.children.length > 0) {
                 setDeleteModal({ node: contextMenu.node });
               } else {
-                onNodeDelete?.(contextMenu.node.id, true);
+                if (window.electronAPI) {
+                  await dataService.deleteItem(contextMenu.node.id);
+                  await loadVaultTree();
+                } else {
+                  onNodeDelete?.(contextMenu.node.id, true);
+                }
               }
               setContextMenu(null);
             }}
@@ -541,17 +656,28 @@ export const SidebarTree = ({
               </p>
               <div className="space-y-2">
                 <button
-                  onClick={() => {
-                    onNodeDelete?.(deleteModal.node.id, false);
+                  onClick={async () => {
+                    if (window.electronAPI) {
+                      // Electron 模式下直接删除整个物理文件夹
+                      await dataService.deleteItem(deleteModal.node.id);
+                      await loadVaultTree();
+                    } else {
+                      onNodeDelete?.(deleteModal.node.id, false);
+                    }
                     setDeleteModal(null);
                   }}
                   className="w-full px-4 py-2 text-sm font-medium text-foreground bg-accent/50 hover:bg-accent rounded-xl transition-colors text-left"
                 >
-                  仅删除文件夹 (保留内容)
+                  确认删除文件夹
                 </button>
                 <button
-                  onClick={() => {
-                    onNodeDelete?.(deleteModal.node.id, true);
+                  onClick={async () => {
+                    if (window.electronAPI) {
+                      await dataService.deleteItem(deleteModal.node.id);
+                      await loadVaultTree();
+                    } else {
+                      onNodeDelete?.(deleteModal.node.id, true);
+                    }
                     setDeleteModal(null);
                   }}
                   className="w-full px-4 py-2 text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-xl transition-colors text-left"

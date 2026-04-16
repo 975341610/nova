@@ -692,6 +692,9 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     }, 500); // 500ms 闃叉姈锛屽ぇ骞呮彁鍗囪緭鍏ユ€ц兘锛屾潨缁?React 娓叉煋姝婚攣
   }, []);
 
+  // 记录最后一次双链 ID 列表，用于实时刷新判断
+  const lastLinkIdsRef = useRef<string[]>([]);
+
   const editor = useEditor({
     extensions,
     content: note?.content || '<p></p>',
@@ -726,9 +729,41 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
       }
       
       latestNoteRef.current = payload;
-      // 杩欓噷涓嶈鍦ㄦ瘡娆℃寜閿椂绔嬪埢 await onSave(payload)锛屽洜涓?onUpdate 鏄悓姝ヨЕ鍙戠殑楂橀浜嬩欢
-      // 璁?handleSave (debounced) 鍘绘帴绠′繚瀛橀€昏緫锛屾瀬澶ф彁楂樿緭鍏ユ€ц兘
-      // 鍙湁鍦ㄩ渶瑕佺珛鍗虫洿鏂板ぇ绾叉椂锛屾墠璋冪敤 updateOutline(editor);
+
+      // --- 关键修复：检测双链变化并立即触发保存 ---
+      // 放宽正则，兼容 data-id=123, data-id="123", data-id='123'
+      const pattern = /data-id=["']?(\d+)["']?/g;
+      const matches = [...html.matchAll(pattern)];
+      const currentIds = Array.from(new Set(matches.map(m => m[1]))).sort();
+      const prevIds = lastLinkIdsRef.current;
+      
+      const hasLinkChanged = currentIds.length !== prevIds.length || 
+                           !currentIds.every((id, idx) => id === prevIds[idx]);
+      
+      if (hasLinkChanged) {
+        console.log('[NovaBlockEditor] Critical Link Change detected:', {
+          prevIds,
+          currentIds,
+          htmlSample: html.substring(0, 500) + '...'
+        });
+        
+        // 记录新的 ID 状态，避免在同一循环中重复触发
+        lastLinkIdsRef.current = currentIds;
+
+        // 关键点：对于双链变更，我们使用一个特殊的同步函数，确保即便在保存中，也能排队或稍后重试
+        const syncLinks = async () => {
+          // 如果正在保存，等待 100ms 再试，直到保存完成或重试几次
+          // 这里我们简单处理：直接调用 handleSave，它现在会把 isDirty 设为 true
+          handleSave(html, payload);
+        };
+        
+        setTimeout(syncLinks, 50);
+      }
+      // ------------------------------------------
+
+      // 这里不要在每次按键时立刻 await onSave(payload)，因为 onUpdate 是同步触发的高频事件
+      // 让 handleSave (debounced) 去接管保存逻辑，极大提高输入性能
+      // 只有在需要立即更新大纲时，才调用 updateOutline(editor);
       updateOutline(editor);
     },
     onTransaction: ({ editor }) => {
@@ -1161,26 +1196,32 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
     setBackgroundPaper(note?.background_paper || 'none');
   }, [note?.id, note?.stickers, note?.sticky_notes, note?.background_paper]);
 
-  // 淇濆瓨閫昏緫
+  // 保存逻辑
+  const isSavingRef = useRef(false);
   const handleSave = async (content?: string, updates?: Partial<Note>) => {
     const currentNote = latestNoteRef.current;
     if (!currentNote) return;
     
-    // 鍚堝苟鏈€鏂扮殑缂栬緫鍣ㄥ唴瀹瑰拰浼犲叆鐨勫閲忔洿鏂?(濡傚ぉ姘斻€佸績鎯?
+    // 合并最新的编辑器内容和传入的增量更新 (如天气、心情)
     const html = content || editor?.getHTML() || '';
     const payloadToSave = { ...currentNote, ...updates, content: html };
 
-    // 濡傛灉宸茬粡鍦ㄤ繚瀛樹腑锛岄伩鍏嶅苟鍙戝啿绐?
-    if (isSaving) return;
+    // 如果已经在保存中，避免并发冲突，但记录下脏标记，下次自动保存会补上
+    if (isSavingRef.current) {
+        console.log('[NovaBlockEditor] Save in progress, marking as dirty for next sync');
+        setIsDirty(true);
+        return;
+    }
     
     setIsSaving(true);
+    isSavingRef.current = true;
     try {
       await onSave(payloadToSave);
-      // 鍚屾椂鏇存柊 latestNoteRef 闃叉椹笂涓嬩竴娆¤緭鍏ユ椂鎷垮埌鏃ф暟鎹?
+      // 同时更新 latestNoteRef 防止马上下一次输入时拿到旧数据
       latestNoteRef.current = payloadToSave;
       
-      // 娉ㄦ剰锛氫粎褰撳綋鍓嶇紪杈戝櫒鍐呭涓庝繚瀛樻椂鐨勫唴瀹逛竴鑷存椂锛屾墠鍙栨秷鑴忔爣璁?
-      // 閬垮厤鍦ㄤ繚瀛樿繃绋嬩腑鐢ㄦ埛杈撳叆鐨勫唴瀹硅瑕嗙洊涓㈠け
+      // 注意：仅当前编辑器内容与保存时的内容一致时，才取消脏标记
+      // 避免在保存过程中用户输入的内容被覆盖丢失
       if (!isDirty || editor?.getHTML() === html) {
         setIsDirty(false);
       }
@@ -1188,9 +1229,10 @@ export const NovaBlockEditor = React.memo<NovaBlockEditorProps>(({
       setLastSavedAt(new Date().toLocaleTimeString());
     } catch (err) {
       console.error('Save failed:', err);
-      onNotify?.('淇濆瓨澶辫触', 'error');
+      onNotify?.('保存失败', 'error');
     } finally {
       setIsSaving(false);
+      isSavingRef.current = false;
     }
   };
 
