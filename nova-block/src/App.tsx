@@ -216,6 +216,7 @@ function App() {
     if (window.electronAPI) {
       if (isFolder) {
         const folderName = `Folder_${Date.now()}`;
+        // 统一父路径处理：如果 parentId 为空，则在根目录创建
         const folderPath = parentId ? `${parentId}/${folderName}` : folderName;
         await dataService.createFolder(folderPath);
         newId = folderPath;
@@ -223,25 +224,16 @@ function App() {
         const fileName = `${isCanvas ? 'Canvas' : 'Untitled'}_${Date.now()}.md`;
         newId = await dataService.createMarkdownFile(parentId || '', fileName);
         
-        // 关键修复：如果是 Canvas，写入初始 JSON 内容，并带上基本 metadata
-        if (isCanvas) {
-          await dataService.saveNote({
-            id: newId,
-            title: fileName.replace(/\.md$/, ''),
-            is_folder: false,
-            parent_id: parentId,
-            content: JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
-          });
-        } else {
-          // 普通笔记也要触发一次 saveNote 以写入基础 metadata (含 parent_id)
-          await dataService.saveNote({
-            id: newId,
-            title: fileName.replace(/\.md$/, ''),
-            is_folder: false,
-            parent_id: parentId,
-            content: ''
-          });
-        }
+        // 关键修复：写入初始内容及 metadata
+        await dataService.saveNote({
+          id: newId,
+          title: fileName.replace(/\.md$/, ''),
+          is_folder: false,
+          parent_id: parentId,
+          content: isCanvas 
+            ? JSON.stringify({ version: 'v1', nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } })
+            : ''
+        });
       }
     } else {
       // 🌐 浏览器模式
@@ -272,6 +264,7 @@ function App() {
       await dataService.saveNote(newNote as any);
     }
 
+    // 关键修复：刷新后再设置 ID，确保 notes 状态中已包含该节点
     await refreshNotes();
 
     if (!isFolder) {
@@ -281,21 +274,57 @@ function App() {
   }
 
   const handleNodeMove = async (nodeId: string, parentId: string | null, sortKey: string) => {
-    await dataService.moveItem(nodeId, parentId || 'root');
-    await refreshNotes();
+    try {
+      // 📂 移动操作在 Electron 模式下会改变 ID (路径)
+      const isCurrentNote = currentNoteId.toString() === nodeId;
+      const targetParentPath = parentId || 'root';
+      
+      await dataService.moveItem(nodeId, targetParentPath);
+      await refreshNotes();
+      
+      // 如果移动的是当前笔记，需要更新 ID 以匹配新路径
+      if (isCurrentNote && window.electronAPI) {
+        const fileName = nodeId.split('/').pop() || nodeId;
+        const newPath = targetParentPath === 'root' ? fileName : `${targetParentPath}/${fileName}`;
+        setCurrentNoteId(newPath);
+      }
+    } catch (err) {
+      console.error('Failed to move node:', err);
+    }
   };
 
   const handleNodeRename = async (nodeId: string, newTitle: string) => {
-    await dataService.renameItem(nodeId, newTitle);
-    await refreshNotes();
+    try {
+      const isCurrentNote = currentNoteId.toString() === nodeId;
+      const oldName = nodeId.split('/').pop() || nodeId;
+      const isFolder = !nodeId.endsWith('.md');
+      const newName = isFolder ? newTitle : (newTitle.endsWith('.md') ? newTitle : `${newTitle}.md`);
+      
+      const parentPath = nodeId.includes('/') ? nodeId.substring(0, nodeId.lastIndexOf('/')) : '';
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+      await dataService.renameItem(nodeId, newPath);
+      await refreshNotes();
+      
+      // 如果重命名的是当前笔记，需要更新 ID
+      if (isCurrentNote && window.electronAPI) {
+        setCurrentNoteId(newPath);
+      }
+    } catch (err) {
+      console.error('Failed to rename node:', err);
+    }
   };
 
   const handleNodeDelete = async (nodeId: string, deleteChildren: boolean) => {
-    await dataService.deleteItem(nodeId);
-    await refreshNotes();
-    
-    if (currentNoteId.toString() === nodeId) {
-      setCurrentNoteId('');
+    try {
+      await dataService.deleteItem(nodeId);
+      await refreshNotes();
+      
+      if (currentNoteId.toString() === nodeId) {
+        setCurrentNoteId('');
+      }
+    } catch (err) {
+      console.error('Failed to delete node:', err);
     }
   };
 

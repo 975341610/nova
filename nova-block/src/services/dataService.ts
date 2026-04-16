@@ -39,28 +39,41 @@ class HybridDataService implements DataService {
 
   async getAllNotes(): Promise<Note[]> {
     if (window.electronAPI) {
-      const files = await window.electronAPI.listMarkdownFiles();
-      const notes: Note[] = await Promise.all(
-        files.map(async (file) => {
-          const meta = await window.electronAPI!.getNoteMetadata(file);
-          return {
-            id: file,
-            title: meta?.title || file.replace(/\.md$/, ''),
+      // 📂 Phase 4: 在 Electron 模式下，我们需要同时获取文件和目录
+      // 我们通过 getVaultTree 获取结构并扁平化为 Note 数组
+      const tree = await window.electronAPI.getVaultTree();
+      const notes: Note[] = [];
+      
+      const flatten = async (nodes: any[], parentId: string | null = null) => {
+        for (const node of nodes) {
+          const isFolder = node.type === 'folder';
+          const meta = !isFolder ? await window.electronAPI!.getNoteMetadata(node.id) : null;
+          
+          notes.push({
+            id: node.id,
+            title: meta?.title || node.name,
             tags: meta?.tags || [],
             created_at: meta?.created_at || new Date().toISOString(),
-            updated_at: meta?.updated_at,
+            updated_at: node.updated_at || meta?.updated_at,
             frontmatter: meta?.frontmatter,
             summary: '',
-            icon: '📄',
+            icon: isFolder ? '📂' : '📄',
             is_title_manually_edited: false,
             properties: [],
             notebook_id: null,
-            parent_id: null,
+            parent_id: parentId,
             position: 0,
-            links: meta?.links || []
-          } as Note;
-        })
-      );
+            links: meta?.links || [],
+            is_folder: isFolder
+          } as Note);
+          
+          if (isFolder && node.children) {
+            await flatten(node.children, node.id);
+          }
+        }
+      };
+      
+      await flatten(tree);
       return notes;
     }
     return localDB.getAllNotes();
