@@ -1,4 +1,4 @@
-import type { Note, Notebook, ElectronAPI } from '../lib/types';
+import type { Note, Notebook } from '../lib/types';
 import { localDB } from './localDB';
 
 export interface DataService {
@@ -13,7 +13,7 @@ export interface DataService {
   renameItem(oldPath: string, newPath: string): Promise<void>;
   deleteItem(path: string): Promise<void>;
   moveItem(sourcePath: string, targetFolder: string): Promise<void>;
-  createFolder(folderPath: string): Promise<void>;
+  createFolder(folderPath: string): Promise<string>;
   createMarkdownFile(folderPath: string, fileName: string): Promise<string>;
 }
 
@@ -39,36 +39,52 @@ class HybridDataService implements DataService {
 
   async getAllNotes(): Promise<Note[]> {
     if (window.electronAPI) {
-      // 📂 Phase 4: 在 Electron 模式下，我们需要同时获取文件和目录
-      // 我们通过 getVaultTree 获取结构并扁平化为 Note 数组
+      // 📂 Phase 4: 在 Electron 模式下，获取完整的树结构并扁平化
       const tree = await window.electronAPI.getVaultTree();
       const notes: Note[] = [];
       
       const flatten = async (nodes: any[], parentId: string | null = null) => {
         for (const node of nodes) {
           const isFolder = node.type === 'folder';
-          const meta = !isFolder ? await window.electronAPI!.getNoteMetadata(node.id) : null;
           
-          notes.push({
-            id: node.id,
-            title: meta?.title || node.name,
-            tags: meta?.tags || [],
-            created_at: meta?.created_at || new Date().toISOString(),
-            updated_at: node.updated_at || meta?.updated_at,
-            frontmatter: meta?.frontmatter,
-            summary: '',
-            icon: isFolder ? '📂' : '📄',
-            is_title_manually_edited: false,
-            properties: [],
-            notebook_id: null,
-            parent_id: parentId,
-            position: 0,
-            links: meta?.links || [],
-            is_folder: isFolder
-          } as Note);
-          
-          if (isFolder && node.children) {
-            await flatten(node.children, node.id);
+          // 如果是文件夹，即使没有内容也要作为一个 Note 节点存在于 notes 列表中
+          if (isFolder) {
+            notes.push({
+              id: node.id,
+              title: node.name,
+              is_folder: true,
+              parent_id: parentId,
+              tags: [],
+              properties: [],
+              links: [],
+              summary: '',
+              icon: '📂',
+              created_at: node.updated_at || new Date().toISOString(),
+              is_title_manually_edited: false
+            } as Note);
+            
+            if (node.children) {
+              await flatten(node.children, node.id);
+            }
+          } else {
+            const meta = await window.electronAPI!.getNoteMetadata(node.id);
+            notes.push({
+              id: node.id,
+              title: meta?.title || node.name,
+              tags: meta?.tags || [],
+              created_at: meta?.created_at || new Date().toISOString(),
+              updated_at: node.updated_at || meta?.updated_at,
+              frontmatter: meta?.frontmatter,
+              summary: '',
+              icon: '📄',
+              is_title_manually_edited: false,
+              properties: [],
+              notebook_id: null,
+              parent_id: parentId,
+              position: 0,
+              links: meta?.links || [],
+              is_folder: false
+            } as Note);
           }
         }
       };
@@ -82,9 +98,31 @@ class HybridDataService implements DataService {
   async getNote(id: string | number): Promise<Note | undefined> {
     if (window.electronAPI) {
       try {
-        const fileName = id.toString().endsWith('.md') ? id.toString() : `${id}.md`;
+        const idStr = id.toString();
+        // 📂 检查是否是文件夹（文件夹 ID 通常不带 .md，且在 getVaultTree 中标记）
+        // 如果是文件夹，返回一个虚拟的 Note 对象
+        if (!idStr.endsWith('.md')) {
+          // 尝试获取 metadata 以确认是否真的是文件夹
+          const meta = await window.electronAPI.getNoteMetadata(idStr);
+          if (meta?.is_folder) {
+            return {
+              id: idStr,
+              title: meta.title || idStr.split('/').pop() || idStr,
+              is_folder: true,
+              tags: [],
+              properties: [],
+              links: [],
+              summary: '',
+              icon: '📂',
+              created_at: meta.created_at || new Date().toISOString(),
+              is_title_manually_edited: false
+            } as Note;
+          }
+        }
+
+        const fileName = idStr.endsWith('.md') ? idStr : `${idStr}.md`;
         const content = await window.electronAPI.readMarkdownFile(fileName);
-        const meta = await window.electronAPI.getNoteMetadata(id.toString());
+        const meta = await window.electronAPI.getNoteMetadata(idStr);
         return {
           id: fileName,
           title: meta?.title || fileName.replace(/\.md$/, ''),
@@ -176,10 +214,14 @@ class HybridDataService implements DataService {
 
   async renameItem(oldPath: string, newPath: string): Promise<void> {
     if (window.electronAPI) {
-      // 📂 Electron 模式下，重命名需要同时更新文件内容里的 title metadata
       try {
-        const id = oldPath;
-        const note = await this.getNote(id);
+        // 如果是文件夹，直接重命名
+        if (!oldPath.endsWith('.md')) {
+          await window.electronAPI.renameItem(oldPath, newPath);
+          return;
+        }
+
+        const note = await this.getNote(oldPath);
         if (note) {
           const newTitle = newPath.split('/').pop()?.replace('.md', '') || newPath;
           // 先更新 metadata 中的 title，然后触发文件系统重命名
@@ -243,20 +285,20 @@ class HybridDataService implements DataService {
     }
   }
 
-  async createFolder(folderPath: string): Promise<void> {
+  async createFolder(folderPath: string): Promise<string> {
     if (window.electronAPI) {
-      await window.electronAPI.createFolder(folderPath);
-      return;
+      return await window.electronAPI.createFolder(folderPath);
     }
 
     try {
       const parts = folderPath.split('/');
       const folderName = parts.pop() || '新文件夹';
-      const parentIdStr = parts.join('/'); // 修复 parentId 的提取逻辑
+      const parentIdStr = parts.join('/');
       const parentId = parentIdStr === '' ? null : (isNaN(Number(parentIdStr)) ? parentIdStr : Number(parentIdStr));
 
+      const newId = `folder_${Date.now()}`;
       const newFolder: Note = {
-        id: `folder_${Date.now()}`,
+        id: newId,
         title: folderName,
         is_folder: true,
         parent_id: parentId,
@@ -273,8 +315,10 @@ class HybridDataService implements DataService {
       } as Note;
       
       await localDB.saveNote(newFolder);
+      return newId;
     } catch (err) {
       console.error('HybridDataService.createFolder failed', err);
+      return '';
     }
   }
 

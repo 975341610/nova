@@ -31,7 +31,7 @@ export type BackgroundPaperType = 'none' | 'dot' | 'line' | 'grid';
 export type Note = {
   id: number | string;
   title: string;
-  icon: string;
+  icon?: string;
   content?: string;
   type?: string;
   summary: string;

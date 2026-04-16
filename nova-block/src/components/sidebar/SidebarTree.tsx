@@ -415,7 +415,16 @@ export const SidebarTree = ({
                     <LayoutGrid size={14} />
                   </button>
                   <button 
-                    onClick={() => onNodeAdd?.(null, 'folder')}
+                    onClick={async () => {
+                      if (window.electronAPI) {
+                        const newPath = await dataService.createFolder('新文件夹');
+                        await loadVaultTree();
+                        // 自动进入重命名模式
+                        setEditingId(newPath);
+                      } else {
+                        onNodeAdd?.(null, 'folder');
+                      }
+                    }}
                     className="p-1 rounded-md hover:bg-accent/60 text-muted-foreground hover:text-foreground transition-all duration-200 hover:scale-110"
                     title="新建文件夹"
                   >
@@ -576,8 +585,9 @@ export const SidebarTree = ({
               <button 
                 onClick={async () => {
                   if (window.electronAPI) {
-                    await dataService.createFolder(`${contextMenu.node.id}/新文件夹`);
+                    const newPath = await dataService.createFolder(`${contextMenu.node.id}/新文件夹`);
                     await loadVaultTree();
+                    setEditingId(newPath);
                   } else {
                     onNodeAdd?.(contextMenu.node.id, 'folder');
                   }

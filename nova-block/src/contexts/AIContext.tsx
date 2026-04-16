@@ -24,6 +24,11 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       }
     } catch (err) {
       console.error('Failed to fetch AI status:', err);
+      // 📂 Phase 4 离线修复：
+      // 在 Electron 环境下，即便后端尚未连接，默认显示已启用（或允许用户尝试）
+      if (window.electronAPI) {
+        setIsAiEnabled(true);
+      }
     }
   };
 

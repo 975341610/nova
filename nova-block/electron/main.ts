@@ -231,10 +231,10 @@ app.whenReady().then(async () => {
     try {
       const folderPath = path.join(VAULT_PATH, relativePath);
       await fs.mkdir(folderPath, { recursive: true });
-      return true;
+      return relativePath; // 返回创建的文件夹相对路径作为 ID
     } catch (err) {
       console.error(`[IPC] createFolder failed: ${relativePath}`, err);
-      return false;
+      return '';
     }
   });
 

@@ -215,16 +215,15 @@ function App() {
     
     if (window.electronAPI) {
       if (isFolder) {
-        const folderName = `Folder_${Date.now()}`;
+        const folderName = `新文件夹_${Date.now()}`;
         // 统一父路径处理：如果 parentId 为空，则在根目录创建
         const folderPath = parentId ? `${parentId}/${folderName}` : folderName;
-        await dataService.createFolder(folderPath);
-        newId = folderPath;
+        newId = await dataService.createFolder(folderPath);
       } else {
         const fileName = `${isCanvas ? 'Canvas' : 'Untitled'}_${Date.now()}.md`;
         newId = await dataService.createMarkdownFile(parentId || '', fileName);
         
-        // 关键修复：写入初始内容及 metadata
+        // 写入初始内容及 metadata
         await dataService.saveNote({
           id: newId,
           title: fileName.replace(/\.md$/, ''),
@@ -273,7 +272,7 @@ function App() {
     }
   }
 
-  const handleNodeMove = async (nodeId: string, parentId: string | null, sortKey: string) => {
+  const handleNodeMove = async (nodeId: string, parentId: string | null, _sortKey: string) => {
     try {
       // 📂 移动操作在 Electron 模式下会改变 ID (路径)
       const isCurrentNote = currentNoteId.toString() === nodeId;
@@ -296,7 +295,6 @@ function App() {
   const handleNodeRename = async (nodeId: string, newTitle: string) => {
     try {
       const isCurrentNote = currentNoteId.toString() === nodeId;
-      const oldName = nodeId.split('/').pop() || nodeId;
       const isFolder = !nodeId.endsWith('.md');
       const newName = isFolder ? newTitle : (newTitle.endsWith('.md') ? newTitle : `${newTitle}.md`);
       
@@ -315,7 +313,7 @@ function App() {
     }
   };
 
-  const handleNodeDelete = async (nodeId: string, deleteChildren: boolean) => {
+  const handleNodeDelete = async (nodeId: string, _deleteChildren: boolean) => {
     try {
       await dataService.deleteItem(nodeId);
       await refreshNotes();

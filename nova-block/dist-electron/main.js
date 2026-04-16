@@ -1201,7 +1201,7 @@ function nr() {
 		width: 1200,
 		height: 800,
 		webPreferences: {
-			preload: r.join($n, "preload.mjs"),
+			preload: r.join($n, "preload.js"),
 			contextIsolation: !0,
 			nodeIntegration: !1
 		}
