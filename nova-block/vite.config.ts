@@ -16,6 +16,15 @@ const viteConfig = defineConfig({
       {
         // Main-Process entry file of the Electron App.
         entry: 'electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                format: 'cjs'
+              }
+            }
+          }
+        }
       },
       {
         entry: 'electron/preload.ts',
@@ -24,6 +33,16 @@ const viteConfig = defineConfig({
           // instead of restarting the entire Electron App.
           options.reload()
         },
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                format: 'cjs',
+                entryFileNames: 'preload.js'
+              }
+            }
+          }
+        }
       },
     ]),
     renderer(),

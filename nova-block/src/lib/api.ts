@@ -68,21 +68,26 @@ async function invoke<T>(channel: string, path: string, options?: any): Promise<
     }
   }
   
-  // Fallback to FastAPI REST API (only if electron is not available, e.g. web preview)
-  const API_BASE = getApiBase();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options?.headers as Record<string, string> || {}),
-  };
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Request failed');
-  }
-  return response.json() as Promise<T>;
+    // Fallback to FastAPI REST API (only if electron is not available, e.g. web preview)
+    const API_BASE = getApiBase();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string> || {}),
+    };
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || 'Request failed');
+      }
+      return await response.json() as Promise<T>;
+    } catch (e) {
+      console.error(`Fetch call to ${path} failed:`, e);
+      throw e;
+    }
 }
 
 export const api = {
@@ -522,8 +527,14 @@ export const api = {
       return { compatible: false, details: 'Hardware check failed or backend unavailable' };
     }
   },
-  spellcheck: (text: string) =>
-    invoke<{ errors: Array<{ word: string; suggestion: string; reason: string; offset: number }> }>('text:spellcheck', '/text/spellcheck', { method: 'POST', body: JSON.stringify({ text }) }),
+  spellcheck: async (text: string) => {
+    try {
+      return await invoke<{ errors: Array<{ word: string; suggestion: string; reason: string; offset: number }> }>('text:spellcheck', '/text/spellcheck', { method: 'POST', body: JSON.stringify({ text }) });
+    } catch (e) {
+      console.warn('Spellcheck backend unavailable, returning empty results');
+      return { errors: [], original_text: text, corrections: [] };
+    }
+  },
   importDictionary: (text: string) =>
     invoke<{ status: string; count: number; message: string }>('text:dictionary:import', '/text/dictionary/import', { method: 'POST', body: JSON.stringify({ text }) }),
   
