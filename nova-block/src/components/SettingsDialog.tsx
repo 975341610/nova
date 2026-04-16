@@ -40,12 +40,14 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   }, [isOpen, refreshAiStatus]);
 
   const handleToggle = async () => {
+    const newValue = !isAiEnabled;
     setToggling(true);
+    // 即使后端失败，也允许在前端切换并持久化状态，以支持纯离线模式
+    setIsAiEnabled(newValue);
     try {
-      const res = await api.updateAIPluginConfig({ enabled: !isAiEnabled });
-      setIsAiEnabled(res.enabled);
+      await api.updateAIPluginConfig({ enabled: newValue });
     } catch (err) {
-      console.error('Failed to toggle AI plugin:', err);
+      console.error('Failed to sync AI toggle to backend (might be offline):', err);
     } finally {
       setToggling(false);
     }
