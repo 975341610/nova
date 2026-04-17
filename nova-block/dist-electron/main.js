@@ -1328,7 +1328,7 @@ t.whenReady().then(async () => {
 		}
 	}), n.handle("moveItem", async (e, t, n) => {
 		try {
-			let e = Q(t), r = a.join(Q(n), a.basename(t));
+			let e = Q(t), r = Q(a.join(n, a.basename(t)));
 			return await o.rename(e, r), !0;
 		} catch (e) {
 			return console.error(`[IPC] moveItem failed: ${t} -> ${n}`, e), !1;
@@ -1342,23 +1342,23 @@ t.whenReady().then(async () => {
 		}
 	}), n.handle("createMarkdownFile", async (e, t, n) => {
 		try {
-			let e = n.endsWith(".md") ? n : `${n}.md`, r = Q(t), i = a.join(r, e);
+			let e = n.endsWith(".md") ? n : `${n}.md`, r = Q(a.join(t, e));
 			try {
-				await o.access(i);
-				let t = `${a.basename(e, ".md")}_${Date.now()}.md`, n = a.join(r, t);
-				return await o.writeFile(n, "", "utf-8"), a.relative(Z, n);
-			} catch {
+				await o.access(r);
+				let n = `${a.basename(e, ".md")}_${Date.now()}.md`, i = Q(a.join(t, n));
 				return await o.writeFile(i, "", "utf-8"), a.relative(Z, i);
+			} catch {
+				return await o.writeFile(r, "", "utf-8"), a.relative(Z, r);
 			}
 		} catch (e) {
 			return console.error(`[IPC] createMarkdownFile failed in ${t}`, e), "";
 		}
 	}), n.handle("saveMedia", async (e, t, n) => {
 		try {
-			let e = Q("assets");
-			await o.mkdir(e, { recursive: !0 });
-			let r = a.join(e, t), i = Buffer.from(n, "base64");
-			return await o.writeFile(r, i), `assets/${t}`;
+			let e = Q(a.join("assets", a.basename(t))), r = a.dirname(e);
+			await o.mkdir(r, { recursive: !0 });
+			let i = Buffer.from(n, "base64");
+			return await o.writeFile(e, i), a.relative(Z, e);
 		} catch (e) {
 			return console.error(`[IPC] saveMedia failed: ${t}`, e), "";
 		}
@@ -1383,6 +1383,6 @@ t.whenReady().then(async () => {
 		e.getAllWindows().length === 0 && or();
 	});
 }), t.on("window-all-closed", () => {
-	process.platform !== "darwin" && t.quit();
+	$.clear(), process.platform !== "darwin" && t.quit();
 });
 //#endregion

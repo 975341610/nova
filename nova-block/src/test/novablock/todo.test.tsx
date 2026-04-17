@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';

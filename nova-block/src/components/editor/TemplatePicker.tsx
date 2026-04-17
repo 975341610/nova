@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Plus, Layout, Check, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -18,22 +18,27 @@ export function TemplatePicker({ isOpen, onClose, mode, onSelect, onSave }: Temp
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newName, setNewName] = useState('');
+  const isMounted = useRef(true);
 
   useEffect(() => {
+    isMounted.current = true;
     if (isOpen && mode === 'select') {
       loadTemplates();
     }
+    return () => {
+      isMounted.current = false;
+    };
   }, [isOpen, mode]);
 
   const loadTemplates = async () => {
-    setLoading(true);
+    if (isMounted.current) setLoading(true);
     try {
       const data = await api.listTemplates();
-      setTemplates(data);
+      if (isMounted.current) setTemplates(data);
     } catch (err) {
       console.error('Failed to load templates:', err);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 

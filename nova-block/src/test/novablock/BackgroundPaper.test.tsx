@@ -6,9 +6,11 @@ import { BackgroundPaper } from '../../components/editor/BackgroundPaper';
 import { describe, it, expect } from 'vitest';
 
 describe('BackgroundPaper Component', () => {
-  it('renders nothing when type is none', () => {
+  it('renders transparent div when type is none', () => {
     const { container } = render(<BackgroundPaper type="none" />);
-    expect(container.firstChild).toBeNull();
+    const div = container.firstChild as HTMLElement;
+    expect(div).not.toBeNull();
+    expect(div.style.opacity).toBe('0');
   });
 
   it('renders dot pattern', () => {

@@ -175,9 +175,12 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
+  const isMounted = useRef(true);
+
   const refreshPlaylist = useCallback(async () => {
     try {
       const data = await api.listMusicLibrary();
+      if (!isMounted.current) return;
       if (Array.isArray(data)) {
         // 🚀 修复：确保 API 基础路径拼接正确，避免双重 /api 路径问题
         const apiBase = getApiBase().replace(/\/api$/, '');
@@ -203,7 +206,11 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Fetch local library
   useEffect(() => {
+    isMounted.current = true;
     refreshPlaylist();
+    return () => {
+      isMounted.current = false;
+    };
   }, [refreshPlaylist]);
 
   useEffect(() => {

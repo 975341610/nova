@@ -246,7 +246,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('moveItem', async (_, sourceRelativePath: string, targetFolderRelativePath: string) => {
     try {
       const sourcePath = getSafePath(sourceRelativePath);
-      const targetPath = path.join(getSafePath(targetFolderRelativePath), path.basename(sourceRelativePath));
+      const targetPath = getSafePath(path.join(targetFolderRelativePath, path.basename(sourceRelativePath)));
       await fs.rename(sourcePath, targetPath);
       return true;
     } catch (err) {
@@ -269,15 +269,14 @@ app.whenReady().then(async () => {
   ipcMain.handle('createMarkdownFile', async (_, folderRelativePath: string, fileName: string) => {
     try {
       const name = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
-      const folderPath = getSafePath(folderRelativePath);
-      const filePath = path.join(folderPath, name);
+      const filePath = getSafePath(path.join(folderRelativePath, name));
       
       // 检查文件是否存在，防止覆盖
       try {
         await fs.access(filePath);
         // 如果已存在，添加时间戳
         const newName = `${path.basename(name, '.md')}_${Date.now()}.md`;
-        const newFilePath = path.join(folderPath, newName);
+        const newFilePath = getSafePath(path.join(folderRelativePath, newName));
         await fs.writeFile(newFilePath, '', 'utf-8');
         return path.relative(VAULT_PATH, newFilePath);
       } catch {
@@ -292,12 +291,14 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('saveMedia', async (_, fileName: string, base64Data: string) => {
     try {
-      const assetsDir = getSafePath('assets');
+      // 这里的 fileName 也需要校验，防止 fileName 本身包含 ../
+      const filePath = getSafePath(path.join('assets', path.basename(fileName)));
+      const assetsDir = path.dirname(filePath);
       await fs.mkdir(assetsDir, { recursive: true });
-      const filePath = path.join(assetsDir, fileName);
+      
       const buffer = Buffer.from(base64Data, 'base64');
       await fs.writeFile(filePath, buffer);
-      return `assets/${fileName}`;
+      return path.relative(VAULT_PATH, filePath);
     } catch (err) {
       console.error(`[IPC] saveMedia failed: ${fileName}`, err);
       return '';
@@ -339,5 +340,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  metadataCache.clear();
   if (process.platform !== 'darwin') app.quit();
 });

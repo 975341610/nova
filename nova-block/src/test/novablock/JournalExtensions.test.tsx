@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest'
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('../../lib/api', () => ({
+  api: {}
+}))
+vi.mock('../../services/localDB', () => ({
+  localDB: {}
+}))
+
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { WashiTape, JournalStamp } from '../../lib/tiptapExtensions'

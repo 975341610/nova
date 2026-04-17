@@ -26,7 +26,9 @@ describe('dragHandlePositioning', () => {
     const dragHandle = document.createElement('div')
     const blockNode = document.createElement('p')
     const editor = {
+      isDestroyed: false,
       view: {
+        dom: document.createElement('div'),
         nodeDOM: vi.fn(() => blockNode),
       },
     }
@@ -63,7 +65,9 @@ describe('dragHandlePositioning', () => {
   it('skips repositioning when the current block DOM node is unavailable', async () => {
     const dragHandle = document.createElement('div')
     const editor = {
+      isDestroyed: false,
       view: {
+        dom: document.createElement('div'),
         nodeDOM: vi.fn(() => null),
       },
     }

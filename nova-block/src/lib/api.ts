@@ -366,12 +366,16 @@ export const api = {
     if (window.electronAPI && typeof noteId === 'string') {
       // 📂 P0: 真正地物理移动文件，而不仅仅是修改 metadata 中的 parent_id
       const current = await api.getNote(noteId);
-      const fileName = path.basename(noteId);
+      
+      // 获取文件名（手动实现简单版，避免引入 node path 模块到浏览器端）
+      const lastSlashIndex = noteId.lastIndexOf('/');
+      const fileName = lastSlashIndex === -1 ? noteId : noteId.slice(lastSlashIndex + 1);
+      
       const parentFolder = payload.parent_id ? String(payload.parent_id) : '';
       const targetRelativePath = parentFolder ? `${parentFolder}/${fileName}` : fileName;
 
       if (noteId !== targetRelativePath) {
-        await window.electronAPI.moveItem(noteId, parentFolder || '/');
+        await window.electronAPI.moveItem(noteId, parentFolder || '');
         // 更新文件内容里的 metadata
         return await api.updateNote(targetRelativePath, { parent_id: payload.parent_id });
       }
@@ -638,20 +642,58 @@ export const api = {
   // 音乐库列表：在 Electron 模式下尝试本地兜底
   listMusicLibrary: async () => {
     if (window.electronAPI) {
-      // Phase 4: 在 Electron 模式下，如果没有后端，返回空列表而不是报错
       try {
-        const API_BASE = getApiBase();
-        const response = await fetch(`${API_BASE}/media/music-library`);
-        if (!response.ok) return [];
-        return response.json();
+        const files = await window.electronAPI.readDir('data/music');
+        return files.filter((f: any) => !f.isDirectory && /\.(mp3|wav|ogg|m4a)$/i.test(f.name)).map((f: any) => ({
+          title: f.name.replace(/\.[^/.]+$/, ""),
+          url: `data/music/${f.name}`,
+          cover: '', // 封面逻辑可扩展
+          filename: f.name
+        }));
       } catch (e) {
-        console.warn('Music library backend unavailable, falling back to empty list');
-        return [];
+        console.warn('Failed to list local music:', e);
       }
     }
     const API_BASE = getApiBase();
     const response = await fetch(`${API_BASE}/media/music-library`);
     if (!response.ok) throw new Error(await response.text());
+    return response.json();
+  },
+
+  // 📂 Phase 4: 表情和贴纸本地读取
+  listEmoticons: async () => {
+    if (window.electronAPI) {
+      try {
+        const files = await window.electronAPI.readDir('assets/emoticons');
+        return files.filter((f: any) => !f.isDirectory).map((f: any) => ({
+          name: f.name,
+          url: `assets/emoticons/${f.name}`,
+          thumb_url: `assets/emoticons/${f.name}`
+        }));
+      } catch (e) {
+        console.warn('Failed to list local emoticons:', e);
+      }
+    }
+    const API_BASE = getApiBase();
+    const response = await fetch(`${API_BASE}/emoticons/list`);
+    return response.json();
+  },
+
+  listStickers: async () => {
+    if (window.electronAPI) {
+      try {
+        const files = await window.electronAPI.readDir('assets/stickers');
+        return files.filter((f: any) => !f.isDirectory).map((f: any) => ({
+          name: f.name,
+          url: `assets/stickers/${f.name}`,
+          thumb_url: `assets/stickers/${f.name}`
+        }));
+      } catch (e) {
+        console.warn('Failed to list local stickers:', e);
+      }
+    }
+    const API_BASE = getApiBase();
+    const response = await fetch(`${API_BASE}/stickers/list`);
     return response.json();
   },
   saveMusicLink: async (payload: { title: string; url: string; cover?: string }) => {

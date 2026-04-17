@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Smile, Plus, Loader2, X } from 'lucide-react';
-import { getApiBase, formatUrl } from '../../lib/api';
+import { api, getApiBase, formatUrl } from '../../lib/api';
 import { HoverPlayImage } from './HoverPlayImage';
 
 interface EmoticonResource {
@@ -19,23 +19,27 @@ export const EmoticonPanel: React.FC<EmoticonPanelProps> = ({ onSelect, classNam
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const isMounted = useRef(true);
 
   const fetchEmoticons = async () => {
     try {
-      setLoading(true);
-      const res = await fetch(`${getApiBase()}/emoticons/list`);
-      const data = await res.json();
-      setEmoticons(Array.isArray(data) ? data : []);
+      if (isMounted.current) setLoading(true);
+      const data = await api.listEmoticons();
+      if (isMounted.current) setEmoticons(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch emoticons:', err);
-      setEmoticons([]);
+      if (isMounted.current) setEmoticons([]);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
   useEffect(() => {
+    isMounted.current = true;
     fetchEmoticons();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +47,7 @@ export const EmoticonPanel: React.FC<EmoticonPanelProps> = ({ onSelect, classNam
     if (!file) return;
 
     try {
-      setUploading(true);
+      if (isMounted.current) setUploading(true);
       const formData = new FormData();
       formData.append('file', file);
       
@@ -58,7 +62,7 @@ export const EmoticonPanel: React.FC<EmoticonPanelProps> = ({ onSelect, classNam
     } catch (err) {
       console.error('Upload failed:', err);
     } finally {
-      setUploading(false);
+      if (isMounted.current) setUploading(false);
     }
   };
 
@@ -70,7 +74,7 @@ export const EmoticonPanel: React.FC<EmoticonPanelProps> = ({ onSelect, classNam
       const res = await fetch(`${getApiBase()}/emoticons/files/${filename}`, {
         method: 'DELETE',
       });
-      if (res.ok) {
+      if (res.ok && isMounted.current) {
         setEmoticons(prev => (Array.isArray(prev) ? prev : []).filter(s => s.name !== filename));
       }
     } catch (err) {

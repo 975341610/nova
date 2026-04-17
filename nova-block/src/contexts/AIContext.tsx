@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 
 interface AIContextType {
@@ -20,10 +20,13 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return saved !== null ? saved === 'true' : true;
   });
   const [contextLength, setContextLength] = useState(8192);
+  const isMounted = useRef(true);
 
   const refreshAiStatus = async () => {
     try {
       const status = await api.getAIPluginStatus() as any;
+      if (!isMounted.current) return;
+
       if (status && typeof status.enabled === 'boolean') {
         const enabled = status.enabled;
         setIsAiEnabled(enabled);
@@ -44,7 +47,11 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   }, [isAiEnabled]);
 
   useEffect(() => {
+    isMounted.current = true;
     refreshAiStatus();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   return (
