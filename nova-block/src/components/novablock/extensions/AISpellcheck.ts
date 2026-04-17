@@ -87,9 +87,13 @@ export const AISpellcheck = Extension.create<AISpellcheckOptions>({
           
         } catch (e: any) {
           console.error('Spellcheck failed:', e);
-          // If 405 Method Not Allowed, disable spellcheck to prevent excessive retries
-          if (e.message && e.message.includes('Method Not Allowed')) {
-            console.warn('AISpellcheck: 405 received. Disabling spellcheck extension.');
+          
+          // 📂 核心改进：如果是网络连接错误（Connection Refused）或者 405，彻底禁用
+          const isNetworkError = e.message === 'Failed to fetch' || e.name === 'TypeError';
+          const isMethodNotAllowed = e.message && e.message.includes('Method Not Allowed');
+
+          if (isNetworkError || isMethodNotAllowed) {
+            console.warn(`AISpellcheck: ${isNetworkError ? 'Network error' : '405'} received. Permanently disabling spellcheck extension.`);
             this.isDisabled = true;
             isGlobalSpellcheckDisabled = true;
           }

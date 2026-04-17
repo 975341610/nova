@@ -31,13 +31,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 
   useEffect(() => {
     if (isOpen) {
-      refreshAiStatus();
+      // 📂 只有在后端可能可用时才刷新状态，减少不必要的轮询报错
+      const { isBackendAvailable } = api as any;
+      if (!isBackendAvailable || isBackendAvailable()) {
+        refreshAiStatus();
+      }
       setImportResult(null);
       setThemeConfigState(getThemeConfig());
       setThemeImportError(null);
       setThemeImportSuccess(false);
     }
-  }, [isOpen, refreshAiStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // 移除 refreshAiStatus 依赖，避免由于 context 变化导致的重复触发
 
   const handleToggle = async () => {
     const newValue = !isAiEnabled;

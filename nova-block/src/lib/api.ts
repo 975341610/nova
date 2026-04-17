@@ -58,8 +58,32 @@ export const formatUrl = (url: string | undefined | null) => {
 
 
 
+// 全局后端离线标志，一旦发生过 Connection Refused，后续短路
+let backendIsOffline = false;
+
+// 标记后端不可用
+export const setBackendOffline = (offline: boolean) => {
+  backendIsOffline = offline;
+};
+
+// 检查后端是否可用
+export const isBackendAvailable = () => {
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    // 在 Electron 环境下，除非明确有后端，否则默认可以短路
+    return !backendIsOffline;
+  }
+  return true; // Web 模式下通常认为后端是存在的（或者是 proxy 处理）
+};
+
 // Helper to call IPC or fallback to fetch
 async function invoke<T>(channel: string, path: string, options?: any): Promise<T> {
+  // 如果已经标记为离线，且不是强制请求，则直接拦截
+  const isCritical = path.includes('notes') || path.includes('notebooks');
+  if (backendIsOffline && !isCritical) {
+    console.warn(`Short-circuiting request to ${path} due to offline mode`);
+    throw new Error('Offline mode');
+  }
+
   if (window.electron?.ipcInvoke) {
     // 📂 彻底切换到 Electron IPC 进行本地直接 CRUD
     // 坚决不使用 fetch 向本地 Python 后端发起 HTTP 请求
@@ -83,12 +107,23 @@ async function invoke<T>(channel: string, path: string, options?: any): Promise<
         ...options,
         headers,
       });
+      
+      // 如果成功了，确保离线标志被重置
+      if (backendIsOffline) {
+        backendIsOffline = false;
+      }
+
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || 'Request failed');
       }
       return await response.json() as Promise<T>;
-    } catch (e) {
+    } catch (e: any) {
+      // 📂 核心逻辑：拦截 Connection Refused 报错
+      if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+        console.warn(`Backend connection refused for ${path}. Setting backendIsOffline = true.`);
+        backendIsOffline = true;
+      }
       console.error(`Fetch call to ${path} failed:`, e);
       throw e;
     }
@@ -756,8 +791,14 @@ export const api = {
     }
   },
   
-  // AI Plugin status and hardware check: 增加降级处理
+  // AI Plugin status and hardware check: 增加离线判断拦截
   getAIPluginStatus: async () => {
+    // 📂 如果是在 Electron 环境且后端离线，直接返回假数据
+    if (!isBackendAvailable()) {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('ai_plugin_enabled') : null;
+      return { enabled: saved === 'true' };
+    }
+
     try {
       return await invoke<{ enabled: boolean }>('ai:plugin-status', '/ai/plugin-status');
     } catch (e) {
