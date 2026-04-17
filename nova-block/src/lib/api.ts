@@ -1,4 +1,4 @@
-import { localDB } from '../services/localDB';
+import { getLocalDB } from '../services/localDB';
 import type { 
   AskResponse, 
   ModelConfig, 
@@ -158,14 +158,14 @@ export const api = {
     }
 
     // 🌐 浏览器降级模式 (IndexedDB)
-    const localNotes = await localDB.getAllNotes();
+    const localNotes = await getLocalDB().getAllNotes();
     
     // 异步同步逻辑 (如果是 Web 模式且有后端)
     if (!window.electronAPI) {
       (async () => {
         try {
           const remoteNotes = await invoke<Note[]>('notes:list', '/notes');
-          await localDB.bulkSaveNotes(remoteNotes);
+          await getLocalDB().bulkSaveNotes(remoteNotes);
         } catch (e) {
           console.warn('Sync failed:', e);
         }
@@ -198,13 +198,13 @@ export const api = {
       } as Note;
     }
 
-    const localNote = await localDB.getNote(noteId as number);
+    const localNote = await getLocalDB().getNote(noteId as number);
     if (localNote) {
       if (!window.electronAPI) {
         (async () => {
           try {
             const remoteNote = await invoke<Note>('notes:get', `/notes/${noteId}`);
-            await localDB.saveNote(remoteNote);
+            await getLocalDB().saveNote(remoteNote);
           } catch (e) {
             console.warn(`Sync failed for note ${noteId}:`, e);
           }
@@ -214,16 +214,16 @@ export const api = {
     }
     
     const remoteNote = await invoke<Note>('notes:get', `/notes/${noteId}`);
-    await localDB.saveNote(remoteNote);
+    await getLocalDB().saveNote(remoteNote);
     return remoteNote;
   },
 
   listNotebooks: async () => {
-    const localNotebooks = await localDB.getAllNotebooks();
+    const localNotebooks = await getLocalDB().getAllNotebooks();
     (async () => {
       try {
         const remoteNotebooks = await invoke<Notebook[]>('notebooks:list', '/notebooks');
-        await localDB.bulkSaveNotebooks(remoteNotebooks);
+        await getLocalDB().bulkSaveNotebooks(remoteNotebooks);
       } catch (e) {
         console.warn('Sync notebooks failed:', e);
       }
@@ -233,13 +233,13 @@ export const api = {
 
   createNotebook: async (payload: { name: string; icon?: string }) => {
     const notebook = await invoke<Notebook>('notebooks:create', '/notebooks', { method: 'POST', body: JSON.stringify(payload) });
-    await localDB.saveNotebook(notebook);
+    await getLocalDB().saveNotebook(notebook);
     return notebook;
   },
 
   updateNotebook: async (notebookId: number, payload: { name?: string; icon?: string }) => {
     const notebook = await invoke<Notebook>('notebooks:update', `/notebooks/${notebookId}`, { params: { id: notebookId, ...payload } });
-    await localDB.saveNotebook(notebook);
+    await getLocalDB().saveNotebook(notebook);
     return notebook;
   },
 
@@ -317,7 +317,7 @@ export const api = {
         updated_at: new Date().toISOString(),
       } as Note;
       
-      await localDB.saveNote(newNote);
+      await getLocalDB().saveNote(newNote);
 
       // 异步同步到后端 (可选，由调用方决定是否需要静默同步)
       (async () => {
@@ -335,7 +335,7 @@ export const api = {
 
     // 默认回退 (如果有后端环境)
     const note = await invoke<Note>('notes:create', '/notes', { method: 'POST', body: JSON.stringify(payload) });
-    await localDB.saveNote(note);
+    await getLocalDB().saveNote(note);
     return note;
   },
 
@@ -343,6 +343,13 @@ export const api = {
     // 📂 Electron 桌面端直接模式 (Phase 4)
     if (window.electronAPI && typeof noteId === 'string') {
       const current = await api.getNote(noteId);
+      
+      // 📂 P0: 如果是文件夹，禁止按 .md 文件写入
+      if (current.is_folder || payload.is_folder) {
+        // 文件夹元数据更新暂不支持（目前文件夹没有 frontmatter），直接返回
+        return { ...current, ...payload } as Note;
+      }
+
       const newContent = payload.content !== undefined ? payload.content : current.content || '';
       const newTags = payload.tags !== undefined ? payload.tags : current.tags;
       const newTitle = payload.title !== undefined ? payload.title : current.title;
@@ -364,21 +371,21 @@ export const api = {
     }
 
     // 🌐 浏览器降级模式 (IndexedDB)
-    const currentNote = await localDB.getNote(noteId as number);
+    const currentNote = await getLocalDB().getNote(noteId as number);
     if (currentNote) {
       const optimisticNote = { 
         ...currentNote, 
         ...payload,
         updated_at: new Date().toISOString()
       };
-      await localDB.saveNote(optimisticNote as any);
+      await getLocalDB().saveNote(optimisticNote as any);
       
       // 异步同步到后端
       (async () => {
         try {
           const updatedRemote = await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
           const noteWithStatus = { ...updatedRemote, sync_status: 'synced' } as any;
-          await localDB.saveNote(noteWithStatus);
+          await getLocalDB().saveNote(noteWithStatus);
         } catch (e) {
           console.warn(`Background sync failed for note ${noteId}:`, e);
         }
@@ -389,7 +396,7 @@ export const api = {
 
     // 如果本地没有且没有 Electron，尝试直接请求后端
     const updatedRemote = await invoke<Note>('notes:update', `/notes/${noteId}`, { params: { id: noteId, ...payload } });
-    await localDB.saveNote(updatedRemote);
+    await getLocalDB().saveNote(updatedRemote);
     return updatedRemote;
   },
 
@@ -418,10 +425,10 @@ export const api = {
     }
 
     // 🌐 浏览器/离线模式
-    const note = await localDB.getNote(noteId as number);
+    const note = await getLocalDB().getNote(noteId as number);
     if (note) {
       const updatedNote = { ...note, parent_id: payload.parent_id, position: payload.position };
-      await localDB.saveNote(updatedNote);
+      await getLocalDB().saveNote(updatedNote);
       
       // 异步同步
       (async () => {
@@ -448,6 +455,41 @@ export const api = {
   },
 
   renameNote: async (noteId: number | string, newTitle: string) => {
+    // 📂 Electron 桌面端直接模式 (Phase 4)
+    if (window.electronAPI && typeof noteId === 'string') {
+      const current = await api.getNote(noteId);
+      
+      // 1. 获取基础路径和旧文件名
+      const lastSlashIndex = noteId.lastIndexOf('/');
+      const parentDir = lastSlashIndex === -1 ? '' : noteId.slice(0, lastSlashIndex);
+      
+      // 2. 生成新文件名
+      const safeNewTitle = newTitle.replace(/[\\/:*?"<>|]/g, '_');
+      // 保持原有的唯一后缀（如果有）
+      let uniqueSuffix = '';
+      const oldFileName = lastSlashIndex === -1 ? noteId : noteId.slice(lastSlashIndex + 1);
+      const suffixMatch = oldFileName.match(/_(\d+)\.md$/);
+      if (suffixMatch) {
+        uniqueSuffix = `_${suffixMatch[1]}`;
+      } else {
+        uniqueSuffix = `_${Date.now()}`;
+      }
+      
+      const isFolder = current.is_folder;
+      const newFileName = isFolder ? safeNewTitle : `${safeNewTitle}${uniqueSuffix}.md`;
+      const newRelativePath = parentDir ? `${parentDir}/${newFileName}` : newFileName;
+
+      if (noteId !== newRelativePath) {
+        const success = await window.electronAPI.renameItem(noteId, newRelativePath);
+        if (!success) throw new Error(`Failed to rename file from ${noteId} to ${newRelativePath}`);
+        
+        // 3. 更新文件内部的 frontmatter
+        if (!isFolder) {
+          return await api.updateNote(newRelativePath, { title: newTitle });
+        }
+        return { ...current, id: newRelativePath, title: newTitle };
+      }
+    }
     return await api.updateNote(noteId, { title: newTitle });
   },
   bulkMoveNotes: (payload: { note_ids: number[]; notebook_id?: number | null; position: number; parent_id?: number | null }) =>
@@ -462,7 +504,7 @@ export const api = {
     }
 
     // 离线优先：本地标记删除
-    await localDB.deleteNote(noteId);
+    await getLocalDB().deleteNote(noteId);
     
     // 异步同步到后端
     (async () => {

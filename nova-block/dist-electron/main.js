@@ -1217,8 +1217,8 @@ var tr = {
 	}
 }, rr = a.dirname(s(import.meta.url)), ir = process.env.NODE_ENV === "development", Z = a.join(t.getPath("userData"), "test_vault");
 function Q(e) {
-	let t = a.normalize(a.join(Z, e));
-	if (!t.startsWith(a.normalize(Z))) throw Error(`Security Violation: Path traversal attempt detected: ${e}`);
+	let t = a.resolve(Z, e), n = a.relative(Z, t);
+	if (n.startsWith("..") || a.isAbsolute(n)) throw Error(`Security Violation: Path traversal attempt detected: ${e}`);
 	return t;
 }
 var $ = nr.getInstance();

@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
-import { LocalDB } from '../localDB';
+import { LocalDB, resetLocalDB } from '../localDB';
 import { deleteDB } from 'idb';
 
 describe('LocalDB', () => {
   let db: LocalDB;
 
   beforeEach(async () => {
-    // 清理数据库以防状态污染
+    // 📂 Phase 4: 彻底重置单例并清理数据库，防止测试挂起
+    await resetLocalDB();
     await deleteDB('nova-block-db');
     db = new LocalDB();
   });
@@ -15,6 +16,7 @@ describe('LocalDB', () => {
   afterEach(async () => {
     // 确保数据库被关闭并删除
     await db.close();
+    await resetLocalDB();
     await deleteDB('nova-block-db');
   });
 

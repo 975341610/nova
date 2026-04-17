@@ -1,5 +1,26 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MetadataCache } from '../MetadataCache';
+
+// 📂 Phase 4: Mock Node.js modules for Vitest environment
+vi.mock('node:fs/promises', () => ({
+  default: {
+    readFile: vi.fn(),
+    readdir: vi.fn(),
+    access: vi.fn(),
+  }
+}));
+
+vi.mock('node:fs', () => ({
+  watch: vi.fn(),
+}));
+
+vi.mock('node:path', () => ({
+  default: {
+    join: (...args: string[]) => args.join('/').replace(/\/+/g, '/'),
+    relative: (from: string, to: string) => to.replace(from, '').replace(/^\//, ''),
+    basename: (p: string) => p.split('/').pop() || '',
+  }
+}));
 
 describe('MetadataCache', () => {
   let cache: MetadataCache;

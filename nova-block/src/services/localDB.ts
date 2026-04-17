@@ -133,4 +133,20 @@ export class LocalDB {
   }
 }
 
-export const localDB = new LocalDB();
+// 📂 Phase 4: 使用懒加载单例模式，防止顶层初始化污染测试/生产环境
+let dbInstance: LocalDB | null = null;
+
+export const getLocalDB = (): LocalDB => {
+  if (!dbInstance) {
+    dbInstance = new LocalDB();
+  }
+  return dbInstance;
+};
+
+// 📂 Phase 4: 暴露重置方法，方便测试环境清理句柄
+export const resetLocalDB = async () => {
+  if (dbInstance) {
+    await dbInstance.close();
+    dbInstance = null;
+  }
+};

@@ -1,5 +1,5 @@
 import type { Note, Notebook } from '../lib/types';
-import { localDB } from './localDB';
+import { getLocalDB } from './localDB';
 
 export interface DataService {
   getAllNotes(): Promise<Note[]>;
@@ -95,7 +95,7 @@ class HybridDataService implements DataService {
       await flatten(tree);
       return notes;
     }
-    return localDB.getAllNotes();
+    return getLocalDB().getAllNotes();
   }
 
   async getNote(id: string | number): Promise<Note | undefined> {
@@ -150,7 +150,7 @@ class HybridDataService implements DataService {
         return undefined;
       }
     }
-    return localDB.getNote(id);
+    return getLocalDB().getNote(id);
   }
 
   async saveNote(note: Partial<Note> & { id: string | number }): Promise<void> {
@@ -200,7 +200,7 @@ class HybridDataService implements DataService {
       }
       return;
     }
-    return localDB.saveNote(note);
+    return getLocalDB().saveNote(note);
   }
 
   async deleteNote(id: string | number): Promise<void> {
@@ -208,17 +208,17 @@ class HybridDataService implements DataService {
       await window.electronAPI.deleteItem(id.toString());
       return;
     }
-    return localDB.deleteNote(id);
+    return getLocalDB().deleteNote(id);
   }
 
   async getAllNotebooks(): Promise<Notebook[]> {
     if (window.electronAPI) return [];
-    return localDB.getAllNotebooks();
+    return getLocalDB().getAllNotebooks();
   }
 
   async saveNotebook(notebook: Notebook): Promise<void> {
     if (window.electronAPI) return;
-    return localDB.saveNotebook(notebook);
+    return getLocalDB().saveNotebook(notebook);
   }
 
   async renameItem(oldPath: string, newPath: string): Promise<void> {
@@ -248,10 +248,10 @@ class HybridDataService implements DataService {
     
     try {
       const id = isNaN(Number(oldPath)) ? oldPath : Number(oldPath);
-      const note = await localDB.getNote(id);
+      const note = await getLocalDB().getNote(id);
       if (note) {
         const newTitle = newPath.split('/').pop()?.replace('.md', '') || newPath;
-        await localDB.saveNote({ ...note, title: newTitle });
+        await getLocalDB().saveNote({ ...note, title: newTitle });
       }
     } catch (err) {
       console.error('HybridDataService.renameItem failed', err);
@@ -285,9 +285,9 @@ class HybridDataService implements DataService {
         ? null 
         : (isNaN(Number(targetFolder)) ? targetFolder : Number(targetFolder));
       
-      const note = await localDB.getNote(id);
+      const note = await getLocalDB().getNote(id);
       if (note) {
-        await localDB.saveNote({ ...note, parent_id: targetParentId });
+        await getLocalDB().saveNote({ ...note, parent_id: targetParentId });
       }
     } catch (err) {
       console.error('HybridDataService.moveItem failed', err);
@@ -323,7 +323,7 @@ class HybridDataService implements DataService {
         created_at: new Date().toISOString(),
       } as Note;
       
-      await localDB.saveNote(newFolder);
+      await getLocalDB().saveNote(newFolder);
       return newId;
     } catch (err) {
       console.error('HybridDataService.createFolder failed', err);
@@ -356,7 +356,7 @@ class HybridDataService implements DataService {
         created_at: new Date().toISOString(),
       } as Note;
       
-      await localDB.saveNote(newNote);
+      await getLocalDB().saveNote(newNote);
       return newId;
     } catch (err) {
       console.error('HybridDataService.createMarkdownFile failed', err);

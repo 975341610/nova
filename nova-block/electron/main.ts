@@ -14,8 +14,9 @@ let VAULT_PATH = path.join(app.getPath('userData'), 'test_vault');
  * 📂 路径安全校验：防止目录穿越 (Directory Traversal)
  */
 function getSafePath(relativePath: string): string {
-  const absolutePath = path.normalize(path.join(VAULT_PATH, relativePath));
-  if (!absolutePath.startsWith(path.normalize(VAULT_PATH))) {
+  const absolutePath = path.resolve(VAULT_PATH, relativePath);
+  const rel = path.relative(VAULT_PATH, absolutePath);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error(`Security Violation: Path traversal attempt detected: ${relativePath}`);
   }
   return absolutePath;
