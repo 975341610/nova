@@ -89,21 +89,52 @@ export class MetadataCache {
    * 更新单个文件的缓存
    */
   public async updateFileCache(relativePath: string, content?: string) {
-    const noteId = relativePath.endsWith('.md') ? relativePath.replace(/\.md$/, '') : relativePath;
+    const noteId = relativePath.endsWith('.md') ? relativePath.replace(/\.md$/, '') : 
+                   relativePath.endsWith('.canvas') ? relativePath.replace(/\.canvas$/, '') : 
+                   relativePath;
     
     let fileContent = content;
     if (fileContent === undefined && this.vaultPath) {
       try {
-        fileContent = await fs.readFile(path.join(this.vaultPath, relativePath), 'utf-8');
+        const fullPath = path.join(this.vaultPath, relativePath);
+        // 首先确认文件是否存在，如果不存在则移除缓存
+        try {
+          await fs.access(fullPath);
+        } catch {
+          this.removeFileCache(relativePath);
+          return;
+        }
+        fileContent = await fs.readFile(fullPath, 'utf-8');
       } catch (e) {
         console.error(`Failed to read file ${relativePath} for cache update`, e);
+        this.removeFileCache(relativePath); // 读取失败也视为失效
         return;
       }
     }
 
     if (fileContent === undefined) return;
 
-    const { frontmatter, body } = this.parseFrontmatter(fileContent);
+    // 📂 Phase 4: 支持 .canvas 文件的元数据提取
+    const isCanvas = relativePath.endsWith('.canvas');
+    let frontmatter: Record<string, any> = {};
+    let body = fileContent;
+
+    if (!isCanvas) {
+      const parsed = this.parseFrontmatter(fileContent);
+      frontmatter = parsed.frontmatter;
+      body = parsed.body;
+    } else {
+      // .canvas 是 JSON，逻辑不同
+      try {
+        const json = JSON.parse(fileContent);
+        frontmatter = json.metadata || {};
+        frontmatter.type = 'canvas';
+        body = ''; // Canvas 内容不参与标签提取（除非解析 nodes）
+      } catch (e) {
+        console.warn('Failed to parse .canvas as JSON', e);
+      }
+    }
+    
     const links = this.extractLinks(body);
     const bodyTags = this.extractTags(body);
     
@@ -119,7 +150,7 @@ export class MetadataCache {
     this.notes.set(noteId, {
       id: noteId,
       title: frontmatter.title || path.basename(noteId),
-      type: frontmatter.type || (relativePath.endsWith('.canvas') ? 'canvas' : 'file'),
+      type: frontmatter.type || (isCanvas ? 'canvas' : 'file'),
       created_at: frontmatter.created_at,
       updated_at: frontmatter.updated_at,
       parent_id: frontmatter.parent_id || null,

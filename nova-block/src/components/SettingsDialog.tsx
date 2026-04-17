@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Cpu, ToggleLeft, ToggleRight, CheckCircle2, AlertCircle, Loader2, Settings, BookOpen, Upload, Database, RefreshCw, Zap, Palette, Download, FileJson } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, isBackendAvailable } from '../lib/api';
 import { useAI } from '../contexts/AIContext';
 import { getThemeConfig, saveThemeConfig, exportThemeConfig, validateThemeConfig, applyThemeConfig } from '../lib/themeUtils';
 import type { ThemeConfig } from '../lib/types';
@@ -32,8 +32,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (isOpen) {
       // 📂 只有在后端可能可用时才刷新状态，减少不必要的轮询报错
-      const { isBackendAvailable } = api as any;
-      if (!isBackendAvailable || isBackendAvailable()) {
+      if (isBackendAvailable()) {
         refreshAiStatus();
       }
       setImportResult(null);

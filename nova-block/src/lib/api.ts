@@ -77,56 +77,56 @@ export const isBackendAvailable = () => {
 
 // Helper to call IPC or fallback to fetch
 async function invoke<T>(channel: string, path: string, options?: any): Promise<T> {
-  // 如果已经标记为离线，且不是强制请求，则直接拦截
-  const isCritical = path.includes('notes') || path.includes('notebooks');
-  if (backendIsOffline && !isCritical) {
-    console.warn(`Short-circuiting request to ${path} due to offline mode`);
-    throw new Error('Offline mode');
-  }
-
+  // 📂 Phase 4: 优先走 Electron IPC (本地执行，不经过 Python 后端网络)
   if (window.electron?.ipcInvoke) {
-    // 📂 彻底切换到 Electron IPC 进行本地直接 CRUD
-    // 坚决不使用 fetch 向本地 Python 后端发起 HTTP 请求
     try {
       const payload = options?.body ? JSON.parse(options.body) : options?.params || options;
       return await window.electron.ipcInvoke(channel, payload);
     } catch (e) {
       console.error(`IPC call to ${channel} failed:`, e);
-      throw e; // 在 Electron 环境下，IPC 失败就不再回退到 fetch，防止违反离线优先原则
+      throw e; // IPC 失败不回退，防止离线模式下的网络污染
     }
   }
-  
-    // Fallback to FastAPI REST API (only if electron is not available, e.g. web preview)
-    const API_BASE = getApiBase();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options?.headers as Record<string, string> || {}),
-    };
-    try {
-      const response = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        headers,
-      });
-      
-      // 如果成功了，确保离线标志被重置
-      if (backendIsOffline) {
-        backendIsOffline = false;
-      }
 
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || 'Request failed');
-      }
-      return await response.json() as Promise<T>;
-    } catch (e: any) {
-      // 📂 核心逻辑：拦截 Connection Refused 报错
-      if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
-        console.warn(`Backend connection refused for ${path}. Setting backendIsOffline = true.`);
-        backendIsOffline = true;
-      }
-      console.error(`Fetch call to ${path} failed:`, e);
-      throw e;
+  // 🌐 非 Electron 环境或 Web 模式：走 FastAPI HTTP 请求
+  // 如果已经标记为离线，且不是关键同步路径，则短路防止重复报错
+  const isCritical = path.includes('notes') || path.includes('notebooks');
+  if (backendIsOffline && !isCritical) {
+    console.warn(`Short-circuiting fetch request to ${path} due to offline mode`);
+    throw new Error('Offline mode');
+  }
+  
+  const API_BASE = getApiBase();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+    
+    // 如果成功了，确保离线标志被重置
+    if (backendIsOffline) {
+      backendIsOffline = false;
     }
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || 'Request failed');
+    }
+    return await response.json() as Promise<T>;
+  } catch (e: any) {
+    // 📂 核心逻辑：拦截 Connection Refused 报错
+    if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+      console.warn(`Backend connection refused for ${path}. Setting backendIsOffline = true.`);
+      backendIsOffline = true;
+    }
+    console.error(`Fetch call to ${path} failed:`, e);
+    throw e;
+  }
 }
 
 export const api = {

@@ -102,44 +102,43 @@ class HybridDataService implements DataService {
     if (window.electronAPI) {
       try {
         const idStr = id.toString();
-        // 📂 检查是否是文件夹（文件夹 ID 通常不带 .md，且在 getVaultTree 中标记）
+        // 📂 获取元数据以精准判断类型
+        const meta = await window.electronAPI.getNoteMetadata(idStr);
+        
         // 如果是文件夹，返回一个虚拟的 Note 对象
-        if (!idStr.endsWith('.md')) {
-          // 尝试获取 metadata 以确认是否真的是文件夹
-          const meta = await window.electronAPI.getNoteMetadata(idStr);
-          if (meta?.is_folder) {
-            return {
-              id: idStr,
-              title: meta.title || idStr.split('/').pop() || idStr,
-              is_folder: true,
-              parent_id: meta?.parent_id || null,
-              notebook_id: 'default',
-              position: 0,
-              tags: [],
-              properties: [],
-              links: [],
-              summary: '',
-              icon: '📂',
-              created_at: meta.created_at || new Date().toISOString(),
-              is_title_manually_edited: false
-            } as Note;
-          }
+        if (meta?.is_folder) {
+          return {
+            id: idStr,
+            title: meta.title || idStr.split('/').pop() || idStr,
+            is_folder: true,
+            parent_id: meta?.parent_id || null,
+            notebook_id: 'default',
+            position: 0,
+            tags: [],
+            properties: [],
+            links: [],
+            summary: '',
+            icon: '📂',
+            created_at: meta.created_at || new Date().toISOString(),
+            is_title_manually_edited: false
+          } as Note;
         }
 
-        const fileName = idStr.endsWith('.md') ? idStr : `${idStr}.md`;
+        const fileName = idStr.endsWith('.md') || idStr.endsWith('.canvas') ? idStr : `${idStr}.md`;
         const content = await window.electronAPI.readMarkdownFile(fileName);
-        const meta = await window.electronAPI.getNoteMetadata(idStr);
+        const isCanvas = fileName.endsWith('.canvas');
+        
         return {
           id: fileName,
-          title: meta?.title || fileName.replace(/\.md$/, ''),
-          type: meta?.frontmatter?.type || (fileName.endsWith('.canvas') ? 'canvas' : 'file'),
+          title: meta?.title || fileName.replace(/\.(md|canvas)$/, ''),
+          type: meta?.frontmatter?.type || (isCanvas ? 'canvas' : 'file'),
           content,
           tags: meta?.tags || [],
           created_at: meta?.created_at || new Date().toISOString(),
           updated_at: meta?.updated_at,
           frontmatter: meta?.frontmatter,
           summary: '',
-          icon: meta?.frontmatter?.type === 'canvas' ? '🧩' : '📄',
+          icon: isCanvas ? '🧩' : '📄',
           is_title_manually_edited: false,
           properties: [],
           notebook_id: null,

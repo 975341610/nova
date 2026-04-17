@@ -1095,40 +1095,57 @@ var tr = {
 		};
 	}
 	async updateFileCache(e, t) {
-		let n = e.endsWith(".md") ? e.replace(/\.md$/, "") : e, r = t;
+		let n = e.endsWith(".md") ? e.replace(/\.md$/, "") : e.endsWith(".canvas") ? e.replace(/\.canvas$/, "") : e, r = t;
 		if (r === void 0 && this.vaultPath) try {
-			r = await o.readFile(a.join(this.vaultPath, e), "utf-8");
+			let t = a.join(this.vaultPath, e);
+			try {
+				await o.access(t);
+			} catch {
+				this.removeFileCache(e);
+				return;
+			}
+			r = await o.readFile(t, "utf-8");
 		} catch (t) {
-			console.error(`Failed to read file ${e} for cache update`, t);
+			console.error(`Failed to read file ${e} for cache update`, t), this.removeFileCache(e);
 			return;
 		}
 		if (r === void 0) return;
-		let { frontmatter: i, body: s } = this.parseFrontmatter(r), c = this.extractLinks(s), l = this.extractTags(s), u = Array.isArray(i.tags) ? i.tags.map(String) : [], d = Array.from(new Set([...l, ...u])), f = this.notes.get(n), p = f?.links || [], m = f?.tags || [];
+		let i = e.endsWith(".canvas"), s = {}, c = r;
+		if (i) try {
+			s = JSON.parse(r).metadata || {}, s.type = "canvas", c = "";
+		} catch (e) {
+			console.warn("Failed to parse .canvas as JSON", e);
+		}
+		else {
+			let e = this.parseFrontmatter(r);
+			s = e.frontmatter, c = e.body;
+		}
+		let l = this.extractLinks(c), u = this.extractTags(c), d = Array.isArray(s.tags) ? s.tags.map(String) : [], f = Array.from(new Set([...u, ...d])), p = this.notes.get(n), m = p?.links || [], h = p?.tags || [];
 		this.notes.set(n, {
 			id: n,
-			title: i.title || a.basename(n),
-			type: i.type || (e.endsWith(".canvas") ? "canvas" : "file"),
-			created_at: i.created_at,
-			updated_at: i.updated_at,
-			parent_id: i.parent_id || null,
-			is_folder: i.is_folder || !1,
-			tags: d,
-			links: c,
-			frontmatter: i
+			title: s.title || a.basename(n),
+			type: s.type || (i ? "canvas" : "file"),
+			created_at: s.created_at,
+			updated_at: s.updated_at,
+			parent_id: s.parent_id || null,
+			is_folder: s.is_folder || !1,
+			tags: f,
+			links: l,
+			frontmatter: s
 		});
-		for (let e of p) {
+		for (let e of m) {
 			let t = this.backlinks.get(e) || [];
 			this.backlinks.set(e, t.filter((e) => e !== n));
 		}
-		for (let e of c) {
+		for (let e of l) {
 			let t = this.backlinks.get(e) || [];
 			t.includes(n) || this.backlinks.set(e, [...t, n]);
 		}
-		for (let e of m) {
+		for (let e of h) {
 			let t = this.tagsIndex.get(e) || [];
 			this.tagsIndex.set(e, t.filter((e) => e !== n));
 		}
-		for (let e of d) {
+		for (let e of f) {
 			let t = this.tagsIndex.get(e) || [];
 			t.includes(n) || this.tagsIndex.set(e, [...t, n]);
 		}
