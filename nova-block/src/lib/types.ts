@@ -220,6 +220,8 @@ export interface ElectronAPI {
   moveItem: (sourcePath: string, targetFolder: string) => Promise<boolean>;
   createFolder: (folderPath: string) => Promise<boolean>;
   createMarkdownFile: (folderPath: string, fileName: string) => Promise<string>;
+  saveMedia: (fileName: string, base64Data: string) => Promise<string>;
+  readDir: (relativePath: string) => Promise<Array<{ name: string, isDirectory: boolean, size: number, mtime: string }>>;
 }
 
 declare global {

@@ -10,6 +10,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IS_DEV = process.env.NODE_ENV === 'development';
 let VAULT_PATH = path.join(app.getPath('userData'), 'test_vault');
 
+/**
+ * 📂 路径安全校验：防止目录穿越 (Directory Traversal)
+ */
+function getSafePath(relativePath: string): string {
+  const absolutePath = path.normalize(path.join(VAULT_PATH, relativePath));
+  if (!absolutePath.startsWith(path.normalize(VAULT_PATH))) {
+    throw new Error(`Security Violation: Path traversal attempt detected: ${relativePath}`);
+  }
+  return absolutePath;
+}
+
 const metadataCache = MetadataCache.getInstance();
 
 // 📂 Phase 4: 注册本地资源协议，允许前端直接加载 Vault 里的 assets
@@ -67,8 +78,14 @@ app.whenReady().then(async () => {
   
   // 📂 注册 local-resource 协议处理器
   protocol.handle('local-resource', (request) => {
-    const filePath = fileURLToPath(pathToFileURL(path.join(VAULT_PATH, decodeURIComponent(request.url.slice('local-resource://'.length)))));
-    return net.fetch(pathToFileURL(filePath).toString());
+    try {
+      const relativePath = decodeURIComponent(request.url.slice('local-resource://'.length));
+      const filePath = getSafePath(relativePath);
+      return net.fetch(pathToFileURL(filePath).toString());
+    } catch (err) {
+      console.error(`[Protocol] Security blocked local-resource: ${request.url}`);
+      return new Response('Access Denied', { status: 403 });
+    }
   });
 
   // 初始化全量扫描
@@ -79,7 +96,7 @@ app.whenReady().then(async () => {
   // 注册 IPC 接口
   ipcMain.handle('readMarkdownFile', async (_, relativePath: string) => {
     try {
-      const filePath = path.join(VAULT_PATH, relativePath);
+      const filePath = getSafePath(relativePath);
       return await fs.readFile(filePath, 'utf-8');
     } catch (err) {
       console.error(`[IPC] readMarkdownFile failed: ${relativePath}`, err);
@@ -89,7 +106,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('writeMarkdownFile', async (_, relativePath: string, content: string) => {
     try {
-      const filePath = path.join(VAULT_PATH, relativePath);
+      const filePath = getSafePath(relativePath);
       // 确保父目录存在
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, content, 'utf-8');
@@ -200,8 +217,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('renameItem', async (_, oldRelativePath: string, newRelativePath: string) => {
     try {
-      const oldPath = path.join(VAULT_PATH, oldRelativePath);
-      const newPath = path.join(VAULT_PATH, newRelativePath);
+      const oldPath = getSafePath(oldRelativePath);
+      const newPath = getSafePath(newRelativePath);
       await fs.rename(oldPath, newPath);
       return true;
     } catch (err) {
@@ -212,7 +229,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('deleteItem', async (_, relativePath: string) => {
     try {
-      const itemPath = path.join(VAULT_PATH, relativePath);
+      const itemPath = getSafePath(relativePath);
       const stats = await fs.stat(itemPath);
       if (stats.isDirectory()) {
         await fs.rm(itemPath, { recursive: true, force: true });
@@ -228,8 +245,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('moveItem', async (_, sourceRelativePath: string, targetFolderRelativePath: string) => {
     try {
-      const sourcePath = path.join(VAULT_PATH, sourceRelativePath);
-      const targetPath = path.join(VAULT_PATH, targetFolderRelativePath, path.basename(sourceRelativePath));
+      const sourcePath = getSafePath(sourceRelativePath);
+      const targetPath = path.join(getSafePath(targetFolderRelativePath), path.basename(sourceRelativePath));
       await fs.rename(sourcePath, targetPath);
       return true;
     } catch (err) {
@@ -240,7 +257,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('createFolder', async (_, relativePath: string) => {
     try {
-      const folderPath = path.join(VAULT_PATH, relativePath);
+      const folderPath = getSafePath(relativePath);
       await fs.mkdir(folderPath, { recursive: true });
       return relativePath; // 返回创建的文件夹相对路径作为 ID
     } catch (err) {
@@ -252,9 +269,21 @@ app.whenReady().then(async () => {
   ipcMain.handle('createMarkdownFile', async (_, folderRelativePath: string, fileName: string) => {
     try {
       const name = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
-      const filePath = path.join(VAULT_PATH, folderRelativePath, name);
-      await fs.writeFile(filePath, '', 'utf-8');
-      return path.relative(VAULT_PATH, filePath);
+      const folderPath = getSafePath(folderRelativePath);
+      const filePath = path.join(folderPath, name);
+      
+      // 检查文件是否存在，防止覆盖
+      try {
+        await fs.access(filePath);
+        // 如果已存在，添加时间戳
+        const newName = `${path.basename(name, '.md')}_${Date.now()}.md`;
+        const newFilePath = path.join(folderPath, newName);
+        await fs.writeFile(newFilePath, '', 'utf-8');
+        return path.relative(VAULT_PATH, newFilePath);
+      } catch {
+        await fs.writeFile(filePath, '', 'utf-8');
+        return path.relative(VAULT_PATH, filePath);
+      }
     } catch (err) {
       console.error(`[IPC] createMarkdownFile failed in ${folderRelativePath}`, err);
       return '';
@@ -263,7 +292,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('saveMedia', async (_, fileName: string, base64Data: string) => {
     try {
-      const assetsDir = path.join(VAULT_PATH, 'assets');
+      const assetsDir = getSafePath('assets');
       await fs.mkdir(assetsDir, { recursive: true });
       const filePath = path.join(assetsDir, fileName);
       const buffer = Buffer.from(base64Data, 'base64');
@@ -272,6 +301,33 @@ app.whenReady().then(async () => {
     } catch (err) {
       console.error(`[IPC] saveMedia failed: ${fileName}`, err);
       return '';
+    }
+  });
+
+  // 📂 Phase 4: 提供 readDir 功能，允许前端列出本地表情、贴纸、音乐等目录
+  ipcMain.handle('readDir', async (_, relativePath: string) => {
+    try {
+      const fullPath = getSafePath(relativePath);
+      // 确保目录存在，不存在则返回空列表
+      try {
+        await fs.access(fullPath);
+      } catch {
+        return [];
+      }
+      
+      const stats = await fs.stat(fullPath);
+      if (!stats.isDirectory()) return [];
+
+      const entries = await fs.readdir(fullPath, { withFileTypes: true });
+      return entries.map(entry => ({
+        name: entry.name,
+        isDirectory: entry.isDirectory(),
+        size: 0, // 暂时不需要
+        mtime: new Date().toISOString()
+      }));
+    } catch (err) {
+      console.error(`[IPC] readDir failed: ${relativePath}`, err);
+      return [];
     }
   });
 

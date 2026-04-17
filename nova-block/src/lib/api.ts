@@ -220,13 +220,19 @@ export const api = {
   createNote: async (payload: { title: string; content: string; notebook_id?: number | null; icon?: string; parent_id?: number | null; is_folder?: boolean; is_title_manually_edited?: boolean; tags?: string[] }) => {
     if (window.electronAPI) {
       const isFolder = payload.is_folder || false;
-      const noteId = isFolder ? `${payload.title || 'UntitledFolder'}` : `${payload.title || 'Untitled'}.md`;
+      // 📂 P0: 使用标题+时间戳/随机数生成唯一 ID，防止文件名冲突
+      const safeTitle = (payload.title || 'Untitled').replace(/[\\/:*?"<>|]/g, '_');
+      const uniqueId = `${safeTitle}_${Date.now()}`;
+      const noteId = isFolder ? uniqueId : `${uniqueId}.md`;
       
+      const parentFolder = payload.parent_id ? String(payload.parent_id) : '';
+      const relativePath = parentFolder ? `${parentFolder}/${noteId}` : noteId;
+
       if (isFolder) {
-        await window.electronAPI.createFolder(noteId);
+        await window.electronAPI.createFolder(relativePath);
       } else {
         const fm: Record<string, any> = {
-          id: noteId,
+          id: relativePath,
           title: payload.title,
           tags: payload.tags || [],
           created_at: new Date().toISOString(),
@@ -236,11 +242,11 @@ export const api = {
         };
         const fmString = `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}\n---\n\n`;
         const fullMarkdown = fmString + (payload.content || '');
-        await window.electronAPI.writeMarkdownFile(noteId, fullMarkdown);
+        await window.electronAPI.writeMarkdownFile(relativePath, fullMarkdown);
       }
 
       return {
-        id: noteId,
+        id: relativePath,
         ...payload,
         created_at: new Date().toISOString(),
         frontmatter: { title: payload.title, tags: payload.tags || [] },
@@ -357,10 +363,19 @@ export const api = {
   
   moveNote: async (noteId: number | string, payload: { notebook_id?: number | null; position: number; parent_id?: number | null }) => {
     // 📂 Electron 桌面端模式
-    if (window.electronAPI) {
-      // 在 Electron 下，moveNote 可能涉及文件系统的移动，但目前数据结构以 ID 为主
-      // 我们暂且通过 updateNote 模拟，如果需要文件移动，主进程应处理
-      return await api.updateNote(noteId, { parent_id: payload.parent_id });
+    if (window.electronAPI && typeof noteId === 'string') {
+      // 📂 P0: 真正地物理移动文件，而不仅仅是修改 metadata 中的 parent_id
+      const current = await api.getNote(noteId);
+      const fileName = path.basename(noteId);
+      const parentFolder = payload.parent_id ? String(payload.parent_id) : '';
+      const targetRelativePath = parentFolder ? `${parentFolder}/${fileName}` : fileName;
+
+      if (noteId !== targetRelativePath) {
+        await window.electronAPI.moveItem(noteId, parentFolder || '/');
+        // 更新文件内容里的 metadata
+        return await api.updateNote(targetRelativePath, { parent_id: payload.parent_id });
+      }
+      return current;
     }
 
     // 🌐 浏览器/离线模式
@@ -401,6 +416,12 @@ export const api = {
   bulkDeleteNotes: (payload: { note_ids: number[]; position?: number }) =>
     invoke<{ notes: Note[] }>('notes:bulk-delete', '/notes/bulk-delete', { method: 'POST', body: JSON.stringify(payload) }),
   deleteNote: async (noteId: number | string) => {
+    // 📂 Electron 桌面端直接模式 (P0: 增加物理文件删除逻辑)
+    if (window.electronAPI && typeof noteId === 'string') {
+      await window.electronAPI.deleteItem(noteId);
+      return { status: 'deleted' };
+    }
+
     // 离线优先：本地标记删除
     await localDB.deleteNote(noteId);
     
@@ -698,8 +719,8 @@ export const api = {
     try {
       return await invoke<{ enabled: boolean }>('ai:plugin-status', '/ai/plugin-status');
     } catch (e) {
-      console.warn('AI Plugin status unavailable, returning default (disabled)');
-      return { enabled: false };
+      console.warn('AI Plugin status unavailable, throwing error for UI to handle persistence');
+      throw e; // 抛出错误，让 AIContext.tsx 的 catch 块处理，从而不覆盖本地状态
     }
   },
   updateAIPluginConfig: async (payload: { enabled?: boolean; num_ctx?: number }) => {
@@ -768,6 +789,22 @@ export const api = {
 
   // Template APIs: 增加降级处理
   listTemplates: async () => {
+    if (window.electronAPI) {
+      try {
+        const files = await window.electronAPI.readDir('data/templates');
+        return files.filter((f: any) => !f.isDirectory && f.name.endsWith('.json')).map((f: any) => ({
+          id: f.name,
+          name: f.name.replace('.json', ''),
+          content: '',
+          icon: '📄',
+          category: 'Local',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+      } catch (e) {
+        console.warn('Failed to list local templates:', e);
+      }
+    }
     try {
       return await invoke<NoteTemplate[]>('templates:list', '/templates');
     } catch (e) {

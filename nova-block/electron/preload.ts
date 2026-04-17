@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createFolder: (folderPath: string) => ipcRenderer.invoke('createFolder', folderPath),
   createMarkdownFile: (folderPath: string, fileName: string) => ipcRenderer.invoke('createMarkdownFile', folderPath, fileName),
   saveMedia: (fileName: string, base64Data: string) => ipcRenderer.invoke('saveMedia', fileName, base64Data),
+  readDir: (relativePath: string) => ipcRenderer.invoke('readDir', relativePath),
 });

@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { watch } from 'node:fs';
+import { watch, FSWatcher } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 
@@ -21,6 +21,7 @@ export class MetadataCache {
   private backlinks: Map<string, string[]> = new Map();
   private tagsIndex: Map<string, string[]> = new Map();
   private vaultPath: string = '';
+  private watcher: FSWatcher | null = null;
 
   private constructor() {}
 
@@ -243,33 +244,56 @@ export class MetadataCache {
    */
   public watchVault(vaultPath: string) {
     this.vaultPath = vaultPath;
-    // 注意：Node.js 的 fs.watch 在某些平台上递归支持有限，但 Electron 环境通常可以设置 recursive: true
-    watch(vaultPath, { recursive: true }, async (eventType, filename) => {
-      if (!filename || !filename.endsWith('.md')) return;
+    
+    // 如果已有监控器，先关闭
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
 
-      // filename 已经是相对路径（在支持递归的系统上）
-      const relativePath = filename;
-      const fullPath = path.join(vaultPath, relativePath);
+    try {
+      // 注意：Node.js 的 fs.watch 在某些平台上递归支持有限，但 Electron 环境通常可以设置 recursive: true
+      this.watcher = watch(vaultPath, { recursive: true }, async (eventType, filename) => {
+        if (!filename || !filename.endsWith('.md')) return;
 
-      if (eventType === 'rename') {
-        try {
-          await fs.access(fullPath);
-          console.log(`[MetadataCache] File added/renamed: ${relativePath}`);
+        // filename 相对路径处理
+        const relativePath = filename;
+        const fullPath = path.join(vaultPath, relativePath);
+
+        if (eventType === 'rename') {
+          try {
+            await fs.access(fullPath);
+            console.log(`[MetadataCache] File added/renamed: ${relativePath}`);
+            await this.updateFileCache(relativePath);
+          } catch {
+            console.log(`[MetadataCache] File deleted: ${relativePath}`);
+            this.removeFileCache(relativePath);
+          }
+        } else if (eventType === 'change') {
+          console.log(`[MetadataCache] File changed: ${relativePath}`);
           await this.updateFileCache(relativePath);
-        } catch {
-          console.log(`[MetadataCache] File deleted: ${relativePath}`);
-          this.removeFileCache(relativePath);
         }
-      } else if (eventType === 'change') {
-        console.log(`[MetadataCache] File changed: ${relativePath}`);
-        await this.updateFileCache(relativePath);
-      }
-    });
-    console.log(`[MetadataCache] Watching ${vaultPath} (recursive)`);
+      });
+
+      this.watcher.on('error', (err) => {
+        console.error('[MetadataCache] Watcher error:', err);
+        // 如果发生错误，尝试在延迟后重启
+        setTimeout(() => this.watchVault(vaultPath), 5000);
+      });
+
+      console.log(`[MetadataCache] Watching ${vaultPath} (recursive)`);
+    } catch (e) {
+      console.error('[MetadataCache] Failed to start watcher:', e);
+    }
   }
 
   public clear() {
-    this.links.clear();
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
+    this.notes.clear();
     this.backlinks.clear();
+    this.tagsIndex.clear();
   }
 }
