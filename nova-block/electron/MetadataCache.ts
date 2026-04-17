@@ -6,6 +6,7 @@ import yaml from 'js-yaml';
 export interface NoteMetadata {
   id: string;
   title?: string;
+  type?: string;
   created_at?: string;
   updated_at?: string;
   parent_id?: string | null;
@@ -118,6 +119,7 @@ export class MetadataCache {
     this.notes.set(noteId, {
       id: noteId,
       title: frontmatter.title || path.basename(noteId),
+      type: frontmatter.type || (relativePath.endsWith('.canvas') ? 'canvas' : 'file'),
       created_at: frontmatter.created_at,
       updated_at: frontmatter.updated_at,
       parent_id: frontmatter.parent_id || null,

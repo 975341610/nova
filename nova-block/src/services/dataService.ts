@@ -73,12 +73,13 @@ class HybridDataService implements DataService {
             notes.push({
               id: node.id,
               title: meta?.title || node.name,
+              type: meta?.frontmatter?.type || (node.name.endsWith('.canvas') ? 'canvas' : 'file'),
               tags: meta?.tags || [],
               created_at: meta?.created_at || new Date().toISOString(),
               updated_at: node.updated_at || meta?.updated_at,
               frontmatter: meta?.frontmatter,
               summary: '',
-              icon: '📄',
+              icon: meta?.frontmatter?.type === 'canvas' ? '🧩' : '📄',
               is_title_manually_edited: false,
               properties: [],
               notebook_id: null,
@@ -131,13 +132,14 @@ class HybridDataService implements DataService {
         return {
           id: fileName,
           title: meta?.title || fileName.replace(/\.md$/, ''),
+          type: meta?.frontmatter?.type || (fileName.endsWith('.canvas') ? 'canvas' : 'file'),
           content,
           tags: meta?.tags || [],
           created_at: meta?.created_at || new Date().toISOString(),
           updated_at: meta?.updated_at,
           frontmatter: meta?.frontmatter,
           summary: '',
-          icon: '📄',
+          icon: meta?.frontmatter?.type === 'canvas' ? '🧩' : '📄',
           is_title_manually_edited: false,
           properties: [],
           notebook_id: null,
@@ -164,12 +166,14 @@ class HybridDataService implements DataService {
         const newTitle = note.title !== undefined ? note.title : (currentMeta?.title || fileName.replace(/\.md$/, ''));
         const newTags = note.tags !== undefined ? note.tags : (currentMeta?.tags || []);
         const newContent = note.content !== undefined ? note.content : currentContent;
+        const newType = note.type !== undefined ? note.type : (currentMeta?.frontmatter?.type || (fileName.endsWith('.canvas') ? 'canvas' : undefined));
 
         // 构建 YAML frontmatter
         const fm: Record<string, any> = {
           ...(currentMeta?.frontmatter || {}),
           id: note.id.toString(),
           title: newTitle,
+          type: newType,
           tags: newTags,
           updated_at: new Date().toISOString(),
           parent_id: note.parent_id !== undefined ? note.parent_id : (currentMeta?.parent_id || null),
@@ -185,6 +189,7 @@ class HybridDataService implements DataService {
         const fm = {
           id: note.id.toString(),
           title: note.title || fileName.replace(/\.md$/, ''),
+          type: note.type || (fileName.endsWith('.canvas') ? 'canvas' : 'file'),
           tags: note.tags || [],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

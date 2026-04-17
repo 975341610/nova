@@ -1107,6 +1107,7 @@ var tr = {
 		this.notes.set(n, {
 			id: n,
 			title: i.title || a.basename(n),
+			type: i.type || (e.endsWith(".canvas") ? "canvas" : "file"),
 			created_at: i.created_at,
 			updated_at: i.updated_at,
 			parent_id: i.parent_id || null,
